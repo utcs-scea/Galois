@@ -748,6 +748,8 @@ public
     return n->getData();
   }
 
+  GraphNode& getNode(uint64_t n) {return std::advance(this->begin(), n);}
+
   //! Checks if a node is in the graph
   //! @returns true if a node has is in the graph
   bool containsNode(const GraphNode& n,
@@ -763,7 +765,8 @@ public
    *
    * @todo handle edge memory
    */
-  void removeNode(GraphNode n, galois::MethodFlag mflag = MethodFlag::WRITE) {
+  void removeNode(GraphNode n, galois::MethodFlag mflag = MethodFlag::WRITE)
+  {
     assert(n);
     // galois::runtime::checkWrite(mflag, true);
     n->acquire(mflag);
@@ -1163,8 +1166,8 @@ public
     std::vector<GraphNode> nodes {numNodes};
     for (size_t n = 0; n < numNodes; ++n)
     {
-      NodeTy node;
-      GraphNode a = this->createNode(node);
+      //NodeTy node;
+      GraphNode a = this->createNode();
       this->addNode(a);
       nodes[n] = a;
     }
