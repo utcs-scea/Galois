@@ -237,12 +237,12 @@ protected:
   EdgeDst edgeDst;
   EdgeData edgeData;
 
-  uint64_t numNodes;
-  uint64_t numEdges;
-  uint64_t edgeEnd;
+  std::atomic<uint64_t> numNodes;
+  std::atomic<uint64_t> numEdges;
+  std::atomic<uint64_t> edgeEnd;
 
-  const uint64_t maxNodes = (1 << 30);
-  const uint64_t maxEdges = (1 << 30);
+  const uint64_t maxNodes = ((uint64_t)1) << 30;
+  const uint64_t maxEdges = ((uint64_t)1) << 34;
 
   typedef internal::EdgeSortIterator<
       GraphNode, typename EdgeIndData::value_type, EdgeDst, EdgeData>
@@ -279,6 +279,24 @@ protected:
   template <bool _A1 = HasOutOfLineLockable, bool _A2 = HasNoLockable>
   void acquireNode(GraphNode, MethodFlag,
                    typename std::enable_if<_A2>::type* = 0) {}
+
+  /**
+  template <bool _A1 = HasNoLockable, bool _A2 = HasOutOfLineLockable>
+  void releaseNode(GraphNode N,
+                   typename std::enable_if<!_A1 && !_A2>::type* = 0) {
+    galois::runtime::release(&nodeData[N]);
+  }
+
+  template <bool _A1 = HasOutOfLineLockable, bool _A2 = HasNoLockable>
+  void releaseNode(GraphNode N,
+                   typename std::enable_if<_A1 && !_A2>::type* = 0) {
+    this->outOfLineRelease(getId(N));
+  }
+
+  template <bool _A1 = HasOutOfLineLockable, bool _A2 = HasNoLockable>
+  void releaseNode(GraphNode,
+                   typename std::enable_if<_A2>::type* = 0) {}
+  */
 
   template <bool _A1 = EdgeData::has_value,
             bool _A2 = LargeArray<FileEdgeTy>::has_value>
@@ -461,9 +479,11 @@ public:
   template<typename T>
   void addEdges(uint64_t src, const uint64_t* dst, T* dst_data, uint64_t num_dst)
   {
-    auto edgeStart = edgeEnd;
-    auto edgePlace = edgeEnd;
-    numEdges += num_dst;
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_deg = getDegree(src);
+    auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
+    auto edgeStart = ee;
+    auto edgePlace = ee;
     auto orig_itr   = edge_begin(src);
     auto orig_end   = edge_end(src);
     auto dst_end    = dst + num_dst;
@@ -502,17 +522,21 @@ public:
       edgePlace++;
     }
 
-    edgeEnd = edgePlace;
     edgeIndData[src].first = edgeStart;
-    edgeIndData[src].second = edgeEnd;
-
+    edgeIndData[src].second = edgePlace;
+    numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
+    //releaseNode(src);
   }
 
   template<typename PQ>
   void addEdges(uint64_t src, PQ& dst)
   {
-    auto edgeStart = edgeEnd;
-    auto edgePlace = edgeEnd;
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_deg = getDegree(src);
+    auto num_dst = dst.size();
+    auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
+    auto edgeStart = ee;
+    auto edgePlace = ee;
     auto orig_itr   = edge_begin(src);
     auto orig_end   = edge_end(src);
 
@@ -542,7 +566,6 @@ public:
         dst_data++;
         */
         dst.pop();
-        numEdges++;
       }
       else
       {
@@ -560,9 +583,68 @@ public:
       empty = dst.empty();
     }
 
-    edgeEnd = edgePlace;
     edgeIndData[src].first = edgeStart;
-    edgeIndData[src].second = edgeEnd;
+    edgeIndData[src].second = edgePlace;
+    numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
+    //releaseNode(src);
+  }
+
+  template<typename PTM>
+  void insertEdgesSerially(uint64_t src, const PTM& dst)
+  {
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_deg = getDegree(src);
+    uint64_t num_dst = 0;
+    for(uint64_t t = 0; t < dst.numRows(); t++)
+    {
+      const auto& map = dst.get(t);
+      if(auto search = map.find(src); search != map.end())
+      {
+        num_dst += search->second.size();
+      }
+    }
+
+    auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
+    auto edgeStart = ee;
+    auto edgePlace = ee;
+    auto orig_itr   = edgeIndData[src].first;
+    auto orig_end   = edgeIndData[src].second;
+
+    std::memcpy(&edgeDst[edgePlace], &edgeDst[orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
+    edgePlace += orig_deg;
+
+    uint64_t i = 0;
+
+    for(uint64_t t = 0; t < dst.numRows(); t++)
+    {
+      auto & map = dst.get(t);
+      if(auto search = map.find(src); search != map.end())
+      {
+        const auto& stack = search->second;
+        for(auto it = stack.begin(); it != stack.end(); it++, i++)
+        {
+          edgeDst[edgePlace + i] = *it;
+        }
+      }
+    }
+
+    assert(i == num_dst);
+
+    edgeIndData[src].first = edgeStart;
+    edgeIndData[src].second = edgePlace + num_dst;
+    numEdges.fetch_add(num_dst, std::memory_order_relaxed);
+  }
+
+  void sortVertexSerially(uint64_t src)
+  {
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_itr   = edgeIndData[src].first;
+    auto orig_end   = edgeIndData[src].second;
+    std::sort(&edgeDst[orig_itr],&edgeDst[orig_end],
+        [=](const EdgeDst::value_type& e0, const EdgeDst::value_type& e1)
+        {
+          return e0 < e1;
+        });
   }
 
   template<typename PQ>
@@ -579,8 +661,13 @@ public:
     swap(lhs.edgeIndData, rhs.edgeIndData);
     swap(lhs.edgeDst, rhs.edgeDst);
     swap(lhs.edgeData, rhs.edgeData);
-    std::swap(lhs.numNodes, rhs.numNodes);
-    std::swap(lhs.numEdges, rhs.numEdges);
+    uint64_t blah = lhs.numNodes;
+    lhs.numNodes = rhs.numNodes;
+    rhs.numNodes = blah;
+
+    blah = lhs.numEdges;
+    lhs.numEdges = rhs.numEdges;
+    rhs.numEdges = blah;
   }
 
   node_data_reference getData(GraphNode N,
