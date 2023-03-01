@@ -242,7 +242,7 @@ protected:
   std::atomic<uint64_t> edgeEnd;
 
   const uint64_t maxNodes = ((uint64_t)1) << 30;
-  const uint64_t maxEdges = ((uint64_t)1) << 34;
+  const uint64_t maxEdges = ((uint64_t)1) << 32;
 
   typedef internal::EdgeSortIterator<
       GraphNode, typename EdgeIndData::value_type, EdgeDst, EdgeData>
@@ -476,6 +476,44 @@ public:
     }
   }
 
+  void addEdgeSort(const uint64_t src, const uint64_t dst)
+  {
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_deg = getDegree(src);
+    auto ee = edgeEnd.fetch_add(1 + orig_deg, std::memory_order_relaxed);
+    auto edgeStart = ee;
+    auto edgePlace = ee;
+    auto orig_itr = edge_begin(src);
+    auto orig_end = edge_end(src);
+    bool dst_insert = false;
+
+    uint64_t orig_dst;
+    while(orig_itr != orig_end || !dst_insert)
+    {
+      if(dst_insert || (orig_dst = getEdgeDst(orig_itr)) < dst)
+      {
+        edgeDst[edgePlace] = orig_dst;
+        orig_itr++;
+      }
+      else if(orig_itr == orig_end || dst < (orig_dst = getEdgeDst(orig_itr)))
+      {
+        edgeDst[edgePlace] = dst;
+        dst_insert = true;
+      }
+      else
+      {
+        edgeDst[edgePlace] = dst;
+        dst_insert = true;
+        orig_itr++;
+      }
+      edgePlace++;
+    }
+
+    edgeIndData[src].first = edgeStart;
+    edgeIndData[src].second = edgePlace;
+    numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
+  }
+
   template<typename T>
   void addEdges(uint64_t src, const uint64_t* dst, T* dst_data, uint64_t num_dst)
   {
@@ -635,13 +673,49 @@ public:
     numEdges.fetch_add(num_dst, std::memory_order_relaxed);
   }
 
+  template<typename Cont>
+  void insertEdgesSerially( uint64_t src,
+                            uint64_t dst_sz,
+                            uint64_t start_index,
+                            const Cont& cont)
+  {
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_deg = getDegree(src);
+
+    auto ee         = edgeEnd.fetch_add(orig_deg + dst_sz, std::memory_order_relaxed);
+    auto edgeStart  = ee;
+    auto edgePlace  = ee;
+    auto orig_itr   = edgeIndData[src].first;
+    auto orig_end   = edgeIndData[src].second;
+
+    auto dst_end    = cont.end();
+    auto dst_start  = cont.begin() + start_index;
+    auto dst_left   = dst_sz;
+
+    std::memcpy(&edgeDst[edgePlace], &edgeDst[orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
+    edgePlace += orig_deg;
+
+    while(dst_left != 0)
+    {
+      while(dst_start->first != src) dst_start++;
+      edgeDst[edgePlace] = dst_start->second;
+      edgePlace++;
+      dst_start++;
+      dst_left--;
+    }
+
+    edgeIndData[src].first  = edgeStart;
+    edgeIndData[src].second = edgePlace;
+    numEdges.fetch_add(dst_sz, std::memory_order_relaxed);
+  }
+
   void sortVertexSerially(uint64_t src)
   {
     acquireNode(src, galois::MethodFlag::WRITE);
     auto orig_itr   = edgeIndData[src].first;
     auto orig_end   = edgeIndData[src].second;
     std::sort(&edgeDst[orig_itr],&edgeDst[orig_end],
-        [=](const EdgeDst::value_type& e0, const EdgeDst::value_type& e1)
+        [](const EdgeDst::value_type& e0, const EdgeDst::value_type& e1)
         {
           return e0 < e1;
         });
