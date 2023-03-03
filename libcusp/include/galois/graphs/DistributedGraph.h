@@ -30,7 +30,7 @@
 #include <unordered_map>
 #include <fstream>
 
-#include "galois/graphs/LC_CSR_Graph.h"
+#include "galois/graphs/LS_LC_CSR_64_Graph.h"
 #include "galois/graphs/BufferedGraph.h"
 #include "galois/runtime/DistStats.h"
 #include "galois/graphs/OfflineGraph.h"
@@ -66,7 +66,7 @@ private:
   //! Graph name used for printing things
   constexpr static const char* const GRNAME = "dGraph";
 
-  using GraphTy = galois::graphs::LC_CSR_Graph<NodeTy, EdgeTy, true>;
+  using GraphTy = galois::graphs::LS_LC_CSR_64_Graph<NodeTy, EdgeTy, true>;
 
   // vector for determining range objects for master nodes + nodes
   // with edges (which includes masters)
