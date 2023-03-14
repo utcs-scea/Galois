@@ -967,11 +967,13 @@ public:
 
   void constructEdge(uint64_t e, uint64_t dst) { edgeDst[e] = dst; }
 
-  void fixEndEdge(uint64_t n, uint64_t e) { edgeIndData[n] = e; }
+  void fixEndEdge(uint64_t n, uint64_t e) { edgeIndData[n].second = e; }
+  void fixStartEdge(uint64_t n, uint64_t e) { edgeIndData[n].first = e; }
 
   /**
    * Perform an in-memory transpose of the graph, replacing the original
    * CSR to CSC
+   */
   void transpose(const char* regionName = NULL) {
     galois::StatTimer timer("TIMER_GRAPH_TRANSPOSE", regionName);
     timer.start();
@@ -984,48 +986,55 @@ public:
     if (UseNumaAlloc) {
       edgeIndData_old.allocateBlocked(numNodes);
       edgeIndData_temp.allocateBlocked(numNodes);
-      edgeDst_old.allocateBlocked(numEdges);
-      edgeData_new.allocateBlocked(numEdges);
+      edgeDst_old.allocateBlocked(edgeEnd);
+      edgeData_new.allocateBlocked(maxEdges);
     } else {
       edgeIndData_old.allocateInterleaved(numNodes);
       edgeIndData_temp.allocateInterleaved(numNodes);
-      edgeDst_old.allocateInterleaved(numEdges);
-      edgeData_new.allocateInterleaved(numEdges);
+      edgeDst_old.allocateInterleaved(edgeEnd);
+      edgeData_new.allocateInterleaved(maxEdges);
     }
 
+    uint64_t numNodes_temp = numNodes.load(std::memory_order_relaxed);
+    uint64_t edgeEnd_temp = edgeEnd.load(std::memory_order_relaxed);
     // Copy old node->index location + initialize the temp array
     galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
+        galois::iterate(UINT64_C(0), numNodes_temp),
         [&](uint64_t n) {
           edgeIndData_old[n]  = edgeIndData[n];
-          edgeIndData_temp[n] = 0;
+          edgeIndData_temp[n].first = 0;
+          edgeIndData_temp[n].second = 0;
         },
         galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_COPY"));
 
     // get destination of edge, copy to array, and
     galois::do_all(
-        galois::iterate(UINT64_C(0), numEdges),
+        galois::iterate(UINT64_C(0), edgeEnd_temp),
         [&](uint64_t e) {
           auto dst       = edgeDst[e];
           edgeDst_old[e] = dst;
           // counting outgoing edges in the tranpose graph by
           // counting incoming edges in the original graph
-          __sync_add_and_fetch(&edgeIndData_temp[dst], 1);
+          __sync_add_and_fetch(&edgeIndData_temp[dst].second, 1);
         },
         galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_INC"));
 
     // TODO is it worth doing parallel prefix sum?
     // prefix sum calculation of the edge index array
-    for (uint64_t n = 1; n < numNodes; ++n) {
-      edgeIndData_temp[n] += edgeIndData_temp[n - 1];
+    edgeIndData_temp[0].first = 0;
+    for (uint64_t n = 1; n < numNodes_temp; ++n) {
+      edgeIndData_temp[n].second += edgeIndData_temp[n - 1].second;
+      edgeIndData_temp[n].first = edgeIndData_temp[n-1].second;
+
     }
 
     // copy over the new tranposed edge index data
     galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
+        galois::iterate(UINT64_C(0), numNodes_temp),
         [&](uint64_t n) { edgeIndData[n] = edgeIndData_temp[n]; },
         galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_SET"));
 
+    /* AdityaAtulTewari edit: Elided since this was stored in above loop.
     // edgeIndData_temp[i] will now hold number of edges that all nodes
     // before the ith node have
     if (numNodes >= 1) {
@@ -1035,20 +1044,21 @@ public:
           [&](uint64_t n) { edgeIndData_temp[n] = edgeIndData[n - 1]; },
           galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_TEMP"));
     }
+    */
 
     galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
+        galois::iterate(UINT64_C(0), numNodes_temp),
         [&](uint64_t src) {
           // e = start index into edge array for a particular node
-          uint64_t e = (src == 0) ? 0 : edgeIndData_old[src - 1];
+          uint64_t e = edgeIndData_old[src].first;
 
           // get all outgoing edges of a particular node in the
           // non-transpose and convert to incoming
-          while (e < edgeIndData_old[src]) {
+          while (e < edgeIndData_old[src].second) {
             // destination nodde
             auto dst = edgeDst_old[e];
             // location to save edge
-            auto e_new = __sync_fetch_and_add(&(edgeIndData_temp[dst]), 1);
+            auto e_new = __sync_fetch_and_add(&(edgeIndData_temp[dst].first), 1);
             // save src as destination
             edgeDst[e_new] = src;
             // copy edge data to "new" array
@@ -1061,14 +1071,14 @@ public:
     // if edge weights, then overwrite edgeData with new edge data
     if (EdgeData::has_value) {
       galois::do_all(
-          galois::iterate(UINT64_C(0), numEdges),
+          galois::iterate(UINT64_C(0), edgeEnd_temp),
           [&](uint64_t e) { edgeDataCopy(edgeData, edgeData_new, e, e); },
           galois::no_stats(), galois::loopname("TRANSPOSE_EDGEDATA_SET"));
     }
+    edgeEnd.store(numEdges, std::memory_order_relaxed);
 
     timer.stop();
   }
-  */
 
   template <bool is_non_void = EdgeData::has_value>
   void edgeDataCopy(EdgeData& edgeData_new, EdgeData& edgeData, uint64_t e_new,
