@@ -476,6 +476,43 @@ public:
     }
   }
 
+  /* dangerous parallel constructor, call this outside a galois kernel */
+  template <typename EdgeNumFnTy, typename EdgeDstFnTy, typename EdgeDataFnTy>
+  LS_LC_CSR_64_Graph(bool setEdgeVals,
+                      uint64_t _numNodes, uint64_t _numEdges,
+                      EdgeNumFnTy edgeNum, EdgeDstFnTy _edgeDst, EdgeDataFnTy _edgeData)
+      : numNodes(_numNodes), numEdges(_numEdges), edgeEnd(_numEdges)
+  {
+    assert(numNodes <= maxNodes);
+    assert(numEdges <= maxEdges);
+    if (UseNumaAlloc) {
+      //! [numaallocex]
+      nodeData.allocateBlocked(maxNodes);
+      edgeIndData.allocateBlocked(maxNodes);
+      edgeDst.allocateBlocked(maxEdges);
+      edgeData.allocateBlocked(maxEdges);
+      //! [numaallocex]
+      this->outOfLineAllocateBlocked(maxNodes);
+    } else {
+      nodeData.allocateInterleaved(maxNodes);
+      edgeIndData.allocateInterleaved(maxNodes);
+      edgeDst.allocateInterleaved(maxEdges);
+      edgeData.allocateInterleaved(maxEdges);
+      this->outOfLineAllocateInterleaved(maxNodes);
+    }
+
+    galois::do_all(galois::iterate((uint64_t) 0, _numNodes),
+      [&](uint64_t n){
+        nodeData.constructAt(n);
+      }, galois::steal());
+
+    galois::do_all(galois::iterate((uint64_t)0, _numNodes),
+        [&](uint64_t n)
+        {
+          addEdgesUnSort(setEdgeVals, n, _edgeDst(n), _edgeData(n), edgeNum(n));
+        }, galois::steal());
+  }
+
   void addEdgeSort(const uint64_t src, const uint64_t dst)
   {
     acquireNode(src, galois::MethodFlag::WRITE);
@@ -515,55 +552,34 @@ public:
   }
 
   template<typename T>
-  void addEdges(uint64_t src, const uint64_t* dst, T* dst_data, uint64_t num_dst)
+  void addEdgesUnSort(bool setEdgeVals, GraphNode src, EdgeDst::value_type* dst, T* dst_data, uint64_t num_dst)
   {
     acquireNode(src, galois::MethodFlag::WRITE);
     auto orig_deg = getDegree(src);
     auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
     auto edgeStart = ee;
-    auto edgePlace = ee;
     auto orig_itr   = edge_begin(src);
     auto orig_end   = edge_end(src);
     auto dst_end    = dst + num_dst;
 
-    while(orig_itr != orig_end || dst != dst_end)
+    std::memcpy(&edgeDst[edgeStart], &edgeDst[*orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
+    std::memcpy(&edgeDst[edgeStart + orig_deg], dst, sizeof(EdgeDst::value_type) * num_dst);
+
+    if(EdgeData::has_value && setEdgeVals)
     {
-      auto orig_dst = getEdgeDst(orig_itr);
-      if(dst == dst_end || orig_dst < *dst)
+      for(uint64_t i = 0; i < orig_deg; i++)
       {
-        edgeDst[edgePlace] = orig_dst;
-        if (EdgeData::has_value)
-        {
-          edgeData.set(edgePlace, getEdgeData(orig_itr));
-        }
-        orig_itr++;
+        edgeData.set(edgeStart + i, edgeData[*orig_itr]);
       }
-      else if(orig_itr == orig_end || *dst < orig_dst)
+      for(uint64_t i = 0; i < num_dst; i++)
       {
-        edgeDst[edgePlace] = *dst;
-        if(EdgeData::has_value)
-          edgeData.set(edgePlace, *dst_data);
-
-        dst_data++;
-        dst++;
+        edgeData.set(edgeStart + orig_deg + i, dst_data[i]);
       }
-      else
-      {
-        edgeDst[edgePlace] = *dst;
-        if(EdgeData::has_value)
-          edgeData.set(edgePlace, *dst_data);
-
-        dst_data++;
-        dst++;
-        orig_itr++;
-      }
-      edgePlace++;
     }
 
     edgeIndData[src].first = edgeStart;
-    edgeIndData[src].second = edgePlace;
-    numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
-    //releaseNode(src);
+    edgeIndData[src].second = edgeStart + num_dst + orig_deg;
+    numEdges.fetch_add(num_dst, std::memory_order_relaxed);
   }
 
   template<typename PQ>
