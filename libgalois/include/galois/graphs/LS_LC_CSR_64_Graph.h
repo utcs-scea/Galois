@@ -204,6 +204,9 @@ protected:
     uint64_t first;
     uint64_t second;
     operator uint64_t() const { return second; }
+    uint64_t operator++() { return ++second; }
+    uint64_t operator--() { return --second; }
+    uint64_t operator+=(uint64_t t) { return (second += t); }
   };
 
   typedef LargeArray<EdgeTy> EdgeData;
@@ -245,7 +248,7 @@ protected:
   const uint64_t maxEdges = ((uint64_t)1) << 32;
 
   typedef internal::EdgeSortIterator<
-      GraphNode, typename EdgeIndData::value_type, EdgeDst, EdgeData>
+      GraphNode, uint64_t, EdgeDst, EdgeData>
       edge_sort_iterator;
 
   edge_iterator raw_begin(GraphNode N) const {
@@ -257,7 +260,7 @@ protected:
   }
 
   edge_sort_iterator edge_sort_begin(GraphNode N) {
-    return edge_sort_iterator(*raw_begin(N), edgeDst, edgeData);
+    return edge_sort_iterator(*raw_begin(N), &edgeDst, &edgeData);
   }
 
   edge_sort_iterator edge_sort_end(GraphNode N) {
@@ -513,6 +516,37 @@ public:
         }, galois::steal());
   }
 
+  template<typename T>
+  void addEdgesUnSort(bool setEdgeVals, GraphNode src, EdgeDst::value_type* dst, T* dst_data, uint64_t num_dst)
+  {
+    acquireNode(src, galois::MethodFlag::WRITE);
+    auto orig_deg = getDegree(src);
+    auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
+    auto edgeStart = ee;
+    auto orig_itr   = edge_begin(src);
+    auto orig_end   = edge_end(src);
+    auto dst_end    = dst + num_dst;
+
+    std::memcpy(&edgeDst[edgeStart], &edgeDst[*orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
+    std::memcpy(&edgeDst[edgeStart + orig_deg], dst, sizeof(EdgeDst::value_type) * num_dst);
+
+    if(EdgeData::has_value && setEdgeVals)
+    {
+      for(uint64_t i = 0; i < orig_deg; i++)
+      {
+        edgeData.set(edgeStart + i, edgeData[*orig_itr]);
+      }
+      for(uint64_t i = 0; i < num_dst; i++)
+      {
+        edgeData.set(edgeStart + orig_deg + i, dst_data[i]);
+      }
+    }
+
+    edgeIndData[src].first = edgeStart;
+    edgeIndData[src].second = edgeStart + num_dst + orig_deg;
+    numEdges.fetch_add(num_dst, std::memory_order_relaxed);
+  }
+
   void addEdgeSort(const uint64_t src, const uint64_t dst)
   {
     acquireNode(src, galois::MethodFlag::WRITE);
@@ -549,37 +583,6 @@ public:
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgePlace;
     numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
-  }
-
-  template<typename T>
-  void addEdgesUnSort(bool setEdgeVals, GraphNode src, EdgeDst::value_type* dst, T* dst_data, uint64_t num_dst)
-  {
-    acquireNode(src, galois::MethodFlag::WRITE);
-    auto orig_deg = getDegree(src);
-    auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
-    auto edgeStart = ee;
-    auto orig_itr   = edge_begin(src);
-    auto orig_end   = edge_end(src);
-    auto dst_end    = dst + num_dst;
-
-    std::memcpy(&edgeDst[edgeStart], &edgeDst[*orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
-    std::memcpy(&edgeDst[edgeStart + orig_deg], dst, sizeof(EdgeDst::value_type) * num_dst);
-
-    if(EdgeData::has_value && setEdgeVals)
-    {
-      for(uint64_t i = 0; i < orig_deg; i++)
-      {
-        edgeData.set(edgeStart + i, edgeData[*orig_itr]);
-      }
-      for(uint64_t i = 0; i < num_dst; i++)
-      {
-        edgeData.set(edgeStart + orig_deg + i, dst_data[i]);
-      }
-    }
-
-    edgeIndData[src].first = edgeStart;
-    edgeIndData[src].second = edgeStart + num_dst + orig_deg;
-    numEdges.fetch_add(num_dst, std::memory_order_relaxed);
   }
 
   template<typename PQ>
