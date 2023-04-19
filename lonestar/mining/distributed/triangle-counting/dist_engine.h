@@ -27,10 +27,18 @@
 //                      GENERIC HELPER FUNCS
 // ##################################################################
 template <typename T>
-size_t size_of_set_intersection(std::set<T> org_set, std::vector<T> vec) {
+size_t size_of_set_intersection(std::vector<T> vec1, std::vector<T> vec2) {
     size_t count = 0;
-    for (auto i : vec) {
-        if (std::find(org_set.begin(), org_set.end(), i) != org_set.end()) count++;
+    if (vec1.size() <= vec2.size()) {
+        std::set<T> vec1_set(vec1.begin(), vec1.end());
+        for (auto i : vec2) {
+            if (std::find(vec1.begin(), vec1.end(), i) != vec1.end()) count++;
+        }
+    } else {
+        std::set<T> vec2_set(vec2.begin(), vec2.end());
+        for (auto i : vec1) {
+            if (std::find(vec2.begin(), vec2.end(), i) != vec2.end()) count++;
+        }
     }
     return count;
 }
@@ -50,7 +58,7 @@ void remove_duplicates(std::vector<T>& vec){
 //                      GRAPH STRUCTS + SEMANTICS
 // ##################################################################
 struct NodeData {
-    std::set<uint64_t> dests;
+    std::vector<uint64_t> dests;
     std::vector<uint64_t> requested_edges;
 };
 
@@ -73,7 +81,6 @@ using SubstratePtr = std::unique_ptr<galois::graphs::GluonSubstrate<Graph>>;
 //                      GLOBAL (aka host) VARS
 // ##################################################################
 galois::DynamicBitSet bitset_dests;
-galois::DynamicBitSet bitset_requested_edges;
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate; 
 auto& net = galois::runtime::getSystemNetworkInterface();
 
@@ -152,9 +159,7 @@ struct SyncPhase1 {
     // Extract Vector! Tell what to communicate:
     // For a node, tell what part of NodeData to Communicate
     static ValTy extract(uint32_t, const struct NodeData& node) {
-        ValTy vec_ver(node.dests.begin(), node.dests.end());
-        return vec_ver;
-        // return node.dests;  
+        return node.dests;  
     }
 
     // Reduce() -- what do after master receive
@@ -163,21 +168,20 @@ struct SyncPhase1 {
     static bool reduce(uint32_t, struct NodeData& node, ValTy y) {
         for (ValTy::iterator it = y.begin(); it != y.end(); ++it) {
             lock_ptr->lock();
-            node.dests.insert(*it);  // insertBag = per thread-vector:
+            node.dests.push_back(*it);  // insertBag = per thread-vector:
             lock_ptr->unlock();
         }
+
+        remove_duplicates(node.dests);
         return true;
     }
 
     static void reset(uint32_t, struct NodeData& node) {
-        std::set<uint64_t> empty_set;
-        galois::set(node.dests, empty_set);
+        galois::set(node.dests, (ValTy)0);
     }
 
     static void setVal(uint32_t, struct NodeData& node, ValTy y) {
-        std::set<uint64_t> set_ver(y.begin(), y.end());
-        node.dests = set_ver;
-        // node.dests = y;  // deep copy
+        node.dests = y;  // deep copy
     }
 
     static bool extract_batch(unsigned, uint8_t*, size_t*, DataCommMode*) {return false;}
@@ -204,10 +208,13 @@ struct SyncPhase2 : public SyncPhase1 {
             node.requested_edges.push_back(*it);
             lock_ptr->unlock();
         }
+
+        // QUESTION: > efficient way?
+        remove_duplicates(node.requested_edges);
+
         return true;
     }
 
-    
     static void reset(uint32_t, struct NodeData& node) {
         galois::set(node.requested_edges, (ValTy)0);
     }
@@ -228,15 +235,6 @@ struct BitsetPhase1 {
     static galois::DynamicBitSet& get() { return bitset_dests; }
     static void reset_range(size_t begin, size_t end) {
         bitset_dests.reset(begin, end);
-    }
-};
-
-struct BitsetPhase2 {
-    static constexpr bool is_vector_bitset() { return false; }
-    static constexpr bool is_valid() { return true; }
-    static galois::DynamicBitSet& get() { return bitset_requested_edges; }
-    static void reset_range(size_t begin, size_t end) {
-        bitset_requested_edges.reset(begin, end);
     }
 };
 
@@ -298,7 +296,6 @@ int main(int argc, char** argv) {
     std::unique_ptr<Graph> hg;
     std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();  // QUESTION
     bitset_dests.resize(hg->size());
-    bitset_requested_edges.resize(hg->size());
 
     if(DEBUG) hg = print_graph(std::move(hg));
 
@@ -406,12 +403,12 @@ int main(int argc, char** argv) {
         galois::iterate(mirrorNodes.begin(), mirrorNodes.end()),
         [&](const PGNode& node) {
             // GOTTA BE LOCAL ID, since per host communication
-            bitset_requested_edges.set(node);
+            bitset_dests.set(node);
         },
         galois::steal());
 
     // Actual sending/braodcasting
-    syncSubstrate->sync<writeDestination, readSource, SyncPhase2, BitsetPhase2, false>("TC");  // QUESTION
+    syncSubstrate->sync<writeDestination, readSource, SyncPhase2, BitsetPhase1, false>("TC");  // QUESTION
 
     if(DEBUG) printf("Step 3\n");
     // ****************************************************
