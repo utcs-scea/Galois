@@ -42,6 +42,16 @@ size_t size_of_set_intersection(std::vector<T> vec1, std::vector<T> vec2) {
 }
 
 
+template<typename T>
+void remove_duplicates(std::vector<T>& vec){
+    std::sort(vec.begin(), vec.end()); 
+    auto exclusive_end = std::unique(vec.begin(), vec.end());
+    vec.erase(exclusive_end, vec.end());
+}
+
+
+
+
 // ##################################################################
 //                      GRAPH STRUCTS + SEMANTICS
 // ##################################################################
@@ -160,6 +170,7 @@ struct SyncPhase1 {
             lock_ptr->unlock();
         }
 
+        remove_duplicates(node.dests);
         return true;
     }
 
@@ -196,6 +207,9 @@ struct SyncPhase2 : public SyncPhase1 {
             lock_ptr->unlock();
         }
 
+        // QUESTION: > efficient way?
+        remove_duplicates(node.requested_edges);
+
         return true;
     }
 
@@ -226,36 +240,35 @@ struct BitsetPhase1 {
 
 // ##################################################################
 //         TRIANGLE COUNTING HELPERS [from Pangolin Vertex Miner]
+// Should be using dests
 // ##################################################################
 template <typename NodeData, typename EdgeData>
-std::pair<MiningGraphPtr<NodeData, EdgeData>, size_t> intersect_merge(MiningGraphPtr<NodeData, EdgeData> hg, unsigned src, unsigned dst) {  // src->dst [0->2]
-    printf("\n******** intersect_merge (src = %d, dst = %d) ********\n", src, dst);
+std::pair<MiningGraphPtr<NodeData, EdgeData>, size_t> intersect_merge(MiningGraphPtr<NodeData, EdgeData> hg, unsigned src, unsigned global_dst) {  // src->dst [0->2]
+    printf("\n******** intersect_merge (src = %d, global_dst = %d) ********\n", src, global_dst);
     size_t count = 0;
     auto host_masters = hg->masterNodesRange();
-    for (auto e1 : hg->edges(src)) {    // src->alt [0->1]
+    GNode local_dstID = hg->getLID(global_dst);
+    for (auto global_e1_dst : hg->getData(src).dests) {    // src->dst [0->1]
         // Looking for directed edge from min->max
-        GNode bigger_dstID = hg->getEdgeDst(e1);  // 1
-        printf("bigger_dstID = %d\n", bigger_dstID);
+        printf("global_e1_dst = %ld\n", global_e1_dst); // [0->2]
 
-        // If min_vertexID in master, local triangles!
-        if (std::find(host_masters.begin(), host_masters.end(), dst) != host_masters.end()) {
-            printf("Dst = %d EDGES:\n", dst);
-            for (auto e : hg->edges(dst)) {
-                GNode dest_dstID = hg->getEdgeDst(e);
-                printf("min_vertexID_dst = %d\n", dest_dstID);
-                if (dest_dstID == bigger_dstID) {
+        // If local_dstID in master, local triangles!
+        if (std::find(host_masters.begin(), host_masters.end(), local_dstID) != host_masters.end()) {
+            printf("LOCAL TRIANGLE!: Dst = %d EDGES:\n", local_dstID);
+            for (auto dst_dst_globalID : hg->getData(local_dstID).dests) {
+                printf("dst_dst_globalID = %ld\n", dst_dst_globalID);
+                if (dst_dst_globalID == global_e1_dst) {
                     count += 1;
                     break;
                 }
                 // ENSURE you dont double-count triangles!
-                if (bigger_dstID > dest_dstID) break; 
+                if (global_e1_dst > dst_dst_globalID) break; 
             }
         }
         // Oh no! Dst on a different host!: Gotta request edges: min_vertexID->max_vertexID!
-        else{
-            auto min_vertexID = std::min(bigger_dstID, dst);
-            auto max_vertexID = std::max(bigger_dstID, dst);
-            hg->getData(min_vertexID).requested_edges.push_back(max_vertexID);
+        else{ // localID = 1l push_back globalID of 2
+        // Only add data if global_dst = 1 < global_e1_dst = 2; else double-count!
+            if (global_dst < global_e1_dst) hg->getData(local_dstID).requested_edges.push_back(global_e1_dst);
         } 
     }
 
@@ -348,10 +361,9 @@ int main(int argc, char** argv) {
     galois::do_all(
         galois::iterate(hg->masterNodesRange()),
         [&](const GNode& src) {
-            for (auto e : hg->edges(src)) {
-                auto dst = hg->getEdgeDst(e);
+            for (auto global_dst : hg->getData(src).dests) {
                 size_t local_num_triangles = 0;
-                std::tie(hg, local_num_triangles) = intersect_merge<NodeData, void>(std::move(hg), src, dst);
+                std::tie(hg, local_num_triangles) = intersect_merge<NodeData, void>(std::move(hg), src, global_dst);
                 numTriangles += local_num_triangles;
                 printf("Local Num Triangles = %ld", local_num_triangles);
             }
