@@ -20,6 +20,8 @@
 #include "pangolin/BfsMining/embedding_list.h"
 #include "pangolin/res_man.h"
 
+#define DEBUG 1
+
 
 // ##################################################################
 //                      GENERIC HELPER FUNCS
@@ -55,16 +57,16 @@ struct NodeData {
 // Command Line
 namespace cll = llvm::cl;
 
-typedef galois::graphs::MiningGraph<NodeData, void, MiningPolicyDegrees> Graph;
-typedef typename Graph::GraphNode GNode;
+typedef galois::graphs::DistGraph<NodeData, void> Graph; //typedef galois::graphs::MiningGraph<NodeData, void, MiningPolicyDegrees> Graph;
+typedef typename Graph::GraphNode PGNode;
 using DGAccumulatorTy = galois::DGAccumulator<uint64_t>;
 
 // Template Semantics: GraphPtr and SubstratePtr
 template <typename NodeData, typename EdgeData>
-using MiningGraphPtr = std::unique_ptr<Graph>;
+using GraphPtr = std::unique_ptr<Graph>;
 
 template <typename NodeData, typename EdgeData>
-using MiningSubstratePtr = std::unique_ptr<galois::graphs::GluonSubstrate<Graph>>;
+using SubstratePtr = std::unique_ptr<galois::graphs::GluonSubstrate<Graph>>;
 
 
 // ##################################################################
@@ -79,37 +81,37 @@ auto& net = galois::runtime::getSystemNetworkInterface();
 // ##################################################################
 //                      READ + INIT GRAPH
 // ##################################################################
-template <typename NodeData, typename EdgeData, bool iterateOutEdges = true>
-static MiningGraphPtr<NodeData, EdgeData> vertexLoadDGraph(bool loadProxyEdges) {
-    galois::StatTimer dGraphTimer("GraphConstructTime", "DistBench");
+// template <typename NodeData, typename EdgeData, bool iterateOutEdges = true>
+// static GraphPtr<NodeData, EdgeData> vertexLoadDGraph(bool loadProxyEdges) {
+//     galois::StatTimer dGraphTimer("GraphConstructTime", "DistBench");
 
-    dGraphTimer.start();
-    const auto& net = galois::runtime::getSystemNetworkInterface();
-    MiningGraphPtr<NodeData, EdgeData> loadedGraph = std::make_unique<Graph>(inputFile, net.ID, net.Num);//std::make_unique<Graph>(inputFile, net.ID, net.Num, loadProxyEdges, loadProxyEdges);
-    assert(loadedGraph != nullptr);
-    dGraphTimer.stop();
+//     dGraphTimer.start();
+//     const auto& net = galois::runtime::getSystemNetworkInterface();
+//     GraphPtr<NodeData, EdgeData> loadedGraph = std::make_unique<Graph>(inputFile, net.ID, net.Num);//std::make_unique<Graph>(inputFile, net.ID, net.Num, loadProxyEdges, loadProxyEdges);
+//     assert(loadedGraph != nullptr);
+//     dGraphTimer.stop();
 
-    return loadedGraph;
-}
+//     return loadedGraph;
+// }
 
-template <typename NodeData, typename EdgeData, bool iterateOutEdges = true>
-std::pair<MiningGraphPtr<NodeData, EdgeData>, MiningSubstratePtr<NodeData, EdgeData>>
-vertexBasedDistGraphInitialization(bool loadProxyEdges = true) {
-    galois::StatTimer initTimer("DistGraphInitialization", "DistMiningBench");
-    std::vector<unsigned> scaleFactor;
+// template <typename NodeData, typename EdgeData, bool iterateOutEdges = true>
+// std::pair<GraphPtr<NodeData, EdgeData>, SubstratePtr<NodeData, EdgeData>>
+// vertexBasedDistGraphInitialization(bool loadProxyEdges = true) {
+//     galois::StatTimer initTimer("DistGraphInitialization", "DistMiningBench");
+//     std::vector<unsigned> scaleFactor;
 
-    // Create graph + substrate
-    MiningGraphPtr<NodeData, EdgeData> g;
-    MiningSubstratePtr<NodeData, EdgeData> s;
+//     // Create graph + substrate
+//     GraphPtr<NodeData, EdgeData> g;
+//     SubstratePtr<NodeData, EdgeData> s;
 
-    // Load graph
-    g = vertexLoadDGraph<NodeData, EdgeData, iterateOutEdges>(loadProxyEdges);
+//     // Load graph
+//     g = vertexLoadDGraph<NodeData, EdgeData, iterateOutEdges>(loadProxyEdges);
     
-    // Load substrate
-    const auto& net = galois::runtime::getSystemNetworkInterface();
-    s = std::make_unique<galois::graphs::GluonSubstrate<Graph>>(*g, net.ID, net.Num, g->isTransposed(), g->cartesianGrid(), partitionAgnostic, commMetadata);
-    return std::make_pair(std::move(g), std::move(s));
-}
+//     // Load substrate
+//     const auto& net = galois::runtime::getSystemNetworkInterface();
+//     s = std::make_unique<galois::graphs::GluonSubstrate<Graph>>(*g, net.ID, net.Num, g->isTransposed(), g->cartesianGrid(), partitionAgnostic, commMetadata);
+//     return std::make_pair(std::move(g), std::move(s));
+// }
 
 
 // ##################################################################
@@ -119,7 +121,7 @@ std::shared_ptr<galois::substrate::SimpleLock> lock_ptr = std::make_shared<galoi
 std::unique_ptr<Graph> print_graph(std::unique_ptr<Graph> hg) {
     galois::do_all(
         galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
-        [&](const GNode& node) {                        // Plug current guy in here
+        [&](const PGNode& node) {                        // Plug current guy in here
             std::stringstream sout;
             sout << "\tSrc: " << node << std::endl;
             sout << "\tDsts: " << std::endl;
@@ -245,33 +247,38 @@ struct BitsetPhase2 {
 // Should be using dests
 // ##################################################################
 template <typename NodeData, typename EdgeData>
-std::pair<MiningGraphPtr<NodeData, EdgeData>, size_t> intersect_merge(MiningGraphPtr<NodeData, EdgeData> hg, unsigned src, unsigned global_dst) {  // src->dst [0->2]
-    printf("\n******** intersect_merge (src = %d, global_dst = %d) ********\n", src, global_dst);
+std::pair<GraphPtr<NodeData, EdgeData>, size_t> intersect_merge(GraphPtr<NodeData, EdgeData> hg, unsigned src, unsigned global_dst) {  // src->dst [0->2]
+    if(DEBUG) printf("\n******** intersect_merge (src = %d, global_dst = %d) ********\n", src, global_dst);
     size_t count = 0;
     auto host_masters = hg->masterNodesRange();
-    GNode local_dstID = hg->getLID(global_dst);
-    for (auto global_e1_dst : hg->getData(src).dests) {    // src->dst [0->1]
-        // Looking for directed edge from min->max
-        printf("global_e1_dst = %ld\n", global_e1_dst); // [0->2]
-
-        // If local_dstID in master, local triangles!
-        if (std::find(host_masters.begin(), host_masters.end(), local_dstID) != host_masters.end()) {
-            printf("LOCAL TRIANGLE!: Dst = %d EDGES:\n", local_dstID);
+    PGNode local_dstID = hg->getLID(global_dst);
+    
+    if (std::find(host_masters.begin(), host_masters.end(), local_dstID) != host_masters.end()){
+        // Local Triangle!
+        for (auto global_e1_dst : hg->getData(src).dests){
+            if(DEBUG) printf("Have: %ld->%d, %ld->%ld ... Missing e = %d -> %ld\n", hg->getGID(src), global_dst, hg->getGID(src), global_e1_dst, global_dst, global_e1_dst);
             for (auto dst_dst_globalID : hg->getData(local_dstID).dests) {
-                printf("dst_dst_globalID = %ld\n", dst_dst_globalID);
+                if(DEBUG) printf("\t dst_dst_globalID = %ld\n", dst_dst_globalID);
                 if (dst_dst_globalID == global_e1_dst) {
+                    if(DEBUG) printf("*** Local Triangle! %ld - %d - %ld\n", hg->getGID(src), global_dst, dst_dst_globalID);
                     count += 1;
                     break;
                 }
                 // ENSURE you dont double-count triangles!
-                if (global_e1_dst > dst_dst_globalID) break; 
+                if (global_e1_dst > dst_dst_globalID){
+                    if(DEBUG) printf("*** BREAK! %ld > %ld\n", global_e1_dst, dst_dst_globalID);
+                    break;
+                } 
             }
         }
-        // Oh no! Dst on a different host!: Gotta request edges: min_vertexID->max_vertexID!
-        else{ // localID = 1l push_back globalID of 2
-        // Only add data if global_dst = 1 < global_e1_dst = 2; else double-count!
+    }
+    else{
+        // Request missing Edge!
+        for (auto global_e1_dst : hg->getData(src).dests){
+            if(DEBUG) printf("Have: %ld->%d, %ld->%ld ... Missing e = %d -> %ld\n", hg->getGID(src), global_dst, hg->getGID(src), global_e1_dst, global_dst, global_e1_dst);
             if (global_dst < global_e1_dst) hg->getData(local_dstID).requested_edges.push_back(global_e1_dst);
-        } 
+        }
+
     }
 
     return std::make_pair(std::move(hg), count);
@@ -294,11 +301,11 @@ int main(int argc, char** argv) {
     
     // Initialize Graph
     std::unique_ptr<Graph> hg;
-    std::tie(hg, syncSubstrate) = vertexBasedDistGraphInitialization<NodeData, void>(false);  // QUESTION
+    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();  // QUESTION
     bitset_dests.resize(hg->size());
     bitset_requested_edges.resize(hg->size());
 
-    hg = print_graph(std::move(hg));
+    if(DEBUG) hg = print_graph(std::move(hg));
 
     // ****************************************************
     //               1. FIND + SEND PAIRS
@@ -311,47 +318,47 @@ int main(int argc, char** argv) {
         * Gotta convert local ID to global ID in BFSS Analytics
         * L2G: libcusp DistributedGraph.h
     */
-    printf("Step 1 -- Creating msgs\n");
+    if(DEBUG) printf("Step 1 -- Creating msgs\n");
     galois::do_all(
         galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
-        [&](const GNode& node) {                        // Plug current guy in here
-            // printf("* Node = %d\n", node);
+        [&](const PGNode& node) {                        // Plug current guy in here
+            if(DEBUG) printf("* Node = %d\n", node);
             
             for (auto e : hg->edges(node)){
                 auto edge_dest = hg->getEdgeDst(e);
-                // printf("\t* Dst = %d\n", edge_dest);
+                if(DEBUG) printf("\t* Dst = %ld\n", edge_dest);
                 auto src_globalID = hg->getGID(node);  // node.L2G();
                 auto dest_globalID = hg->getGID(edge_dest);
-                // printf("\t* GlobalEdge = %ld -> %ld\n", src_globalID, dest_globalID);
+                if(DEBUG) printf("\t* GlobalEdge = %ld -> %ld\n", src_globalID, dest_globalID);
 
                 // Assume: Bi-Directional Edges: So if this is false, dw the dest will handle it!
                 // Use globalID for trianlge stuff
                 auto min_globalID = std::min(src_globalID, dest_globalID);
                 auto max_globalID = std::max(src_globalID, dest_globalID);
                 hg->getData(hg->getLID(min_globalID)).dests.insert(max_globalID);
-                // if (src_globalID < dest_globalID) hg->getData(node).dests.insert(dest_globalID);
+                if(DEBUG) if (src_globalID < dest_globalID) hg->getData(node).dests.insert(dest_globalID);
             }
         },
         galois::steal());
 
     // if i am a mirror node, then i do the bitset.set(key=localID) (similar to insert[key])
     // Bitset: Identify WHICH nodes gotta send messages!: Mirror Nodes
-    // printf("***** Creating bitset to send mirror nodes:\n");
+    if(DEBUG) printf("***** Creating bitset to send mirror nodes:\n");
     auto mirrorNodes = hg->getMirrorNodes()[myrank];
     galois::do_all(
         galois::iterate(mirrorNodes.begin(), mirrorNodes.end()),
-        [&](const GNode& node) {
+        [&](const PGNode& node) {
             // GOTTA BE LOCAL ID, since per host communication
             bitset_dests.set(node);
         },
         galois::steal());
 
     // Sync -- Broadcase from mirrors -> masters
-    printf("\n **************** PHASE 1: B4 ****************\n");
+    if(DEBUG) printf("\n **************** PHASE 1: B4 ****************\n");
 
-    galois::do_all(
+    if(DEBUG) galois::do_all(
         galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
-        [&](const GNode& node) {                        // Plug current guy in here
+        [&](const PGNode& node) {                        // Plug current guy in here
             printf("NODE: %d -- \n", node);
             for (auto dst : hg->getData(node).dests) {
                 printf("\t dst = %ld\n", dst);
@@ -362,11 +369,11 @@ int main(int argc, char** argv) {
     syncSubstrate->sync<writeDestination, readSource, SyncPhase1, BitsetPhase1, false>("TC");
     bitset_dests.reset();
 
-    printf("\n **************** PHASE 1: AFTER ****************\n");
+    if(DEBUG) printf("\n **************** PHASE 1: AFTER ****************\n");
 
-    galois::do_all(
+    if(DEBUG) galois::do_all(
         galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
-        [&](const GNode& node) {                        // Plug current guy in here
+        [&](const PGNode& node) {                        // Plug current guy in here
             printf("NODE: %d -- \n", node);
             for (auto dst : hg->getData(node).dests) {
                 printf("\t dst = %ld\n", dst);
@@ -377,7 +384,7 @@ int main(int argc, char** argv) {
 
 
 
-    printf("Step 2\n");
+    if(DEBUG) printf("Step 2\n");
     // ****************************************************
     //         2. CALC MISSING EDGES + ASK
     // ****************************************************
@@ -389,12 +396,12 @@ int main(int argc, char** argv) {
     // Counts triangles on each host and place requested edges on each mirror
     galois::do_all(
         galois::iterate(hg->masterNodesRange()),
-        [&](const GNode& src) {
+        [&](const PGNode& src) {
             for (auto global_dst : hg->getData(src).dests) {
                 size_t local_num_triangles = 0;
                 std::tie(hg, local_num_triangles) = intersect_merge<NodeData, void>(std::move(hg), src, global_dst);
                 numTriangles += local_num_triangles;
-                printf("Local Num Triangles = %ld", local_num_triangles);
+                if(DEBUG) printf("Local Num Triangles = %ld", local_num_triangles);
             }
         },
         galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("TC"));
@@ -402,28 +409,56 @@ int main(int argc, char** argv) {
     // Send requests mirrors -> masters
     galois::do_all(
         galois::iterate(mirrorNodes.begin(), mirrorNodes.end()),
-        [&](const GNode& node) {
+        [&](const PGNode& node) {
             // GOTTA BE LOCAL ID, since per host communication
             bitset_requested_edges.set(node);
         },
         galois::steal());
 
+
+    if(DEBUG) printf("\n **************** REQUESTS: BEFORE ****************\n");
+     if(DEBUG) galois::do_all(
+        galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
+        [&](const PGNode& node) {                        // Plug current guy in here
+            printf("NODE: %d -- \n", node);
+            for (auto dst : hg->getData(node).requested_edges) {
+                printf("\t dst = %ld\n", dst);
+            }
+        });
+
+
     // Actual sending/braodcasting
     syncSubstrate->sync<writeDestination, readSource, SyncPhase2, BitsetPhase2, false>("TC");  // QUESTION
 
-    printf("Step 3\n");
+    // Sync -- Broadcase from mirrors -> masters
+    if(DEBUG) printf("\n **************** REQUESTS: AFTER ****************\n");
+
+   
+    if(DEBUG) galois::do_all(
+        galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
+        [&](const PGNode& node) {                        // Plug current guy in here
+            printf("NODE: %d -- \n", node);
+            for (auto dst : hg->getData(node).requested_edges) {
+                printf("\t dst = %ld\n", dst);
+            }
+        });
+
+
+
+
+    if(DEBUG) printf("Step 3\n");
     // ****************************************************
     // 3. Each Master check requests + accumulate numTriangles
     // ****************************************************
     galois::do_all(
         galois::iterate(hg->masterNodesRange()),
-        [&](const GNode& node) {
+        [&](const PGNode& node) {
             numTriangles += size_of_set_intersection(hg->getData(node).dests, hg->getData(node).requested_edges);
         },
         galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("TC"));
 
 
-    printf("Step 4\n");
+    if(DEBUG) printf("\n************** Step 4 ****************\n");
     // ****************************************************
     //    4. GLOBAL REDUCE of accumulator (num triangles)
     // ****************************************************
