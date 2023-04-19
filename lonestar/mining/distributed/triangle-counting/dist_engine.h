@@ -252,33 +252,28 @@ std::pair<GraphPtr<NodeData, EdgeData>, size_t> intersect_merge(GraphPtr<NodeDat
     size_t count = 0;
     auto host_masters = hg->masterNodesRange();
     PGNode local_dstID = hg->getLID(global_dst);
-    
-    if (std::find(host_masters.begin(), host_masters.end(), local_dstID) != host_masters.end()){
-        // Local Triangle!
-        for (auto global_e1_dst : hg->getData(src).dests){
-            if(DEBUG) printf("Have: %ld->%d, %ld->%ld ... Missing e = %d -> %ld\n", hg->getGID(src), global_dst, hg->getGID(src), global_e1_dst, global_dst, global_e1_dst);
+    for (auto global_e1_dst : hg->getData(src).dests) {    // src->dst [0->1]
+        // Looking for directed edge from min->max
+        if(DEBUG) printf("global_e1_dst = %ld\n", global_e1_dst); // [0->2]
+
+        // If local_dstID in master, local triangles!
+        if (std::find(host_masters.begin(), host_masters.end(), local_dstID) != host_masters.end()) {
+            if(DEBUG) printf("LOCAL TRIANGLE!: Dst = %d EDGES:\n", local_dstID);
             for (auto dst_dst_globalID : hg->getData(local_dstID).dests) {
-                if(DEBUG) printf("\t dst_dst_globalID = %ld\n", dst_dst_globalID);
+                if(DEBUG) printf("dst_dst_globalID = %ld\n", dst_dst_globalID);
                 if (dst_dst_globalID == global_e1_dst) {
-                    if(DEBUG) printf("*** Local Triangle! %ld - %d - %ld\n", hg->getGID(src), global_dst, dst_dst_globalID);
                     count += 1;
                     break;
                 }
                 // ENSURE you dont double-count triangles!
-                if (global_e1_dst > dst_dst_globalID){
-                    if(DEBUG) printf("*** BREAK! %ld > %ld\n", global_e1_dst, dst_dst_globalID);
-                    break;
-                } 
+                if (global_e1_dst > dst_dst_globalID) break; 
             }
         }
-    }
-    else{
-        // Request missing Edge!
-        for (auto global_e1_dst : hg->getData(src).dests){
-            if(DEBUG) printf("Have: %ld->%d, %ld->%ld ... Missing e = %d -> %ld\n", hg->getGID(src), global_dst, hg->getGID(src), global_e1_dst, global_dst, global_e1_dst);
+        // Oh no! Dst on a different host!: Gotta request edges: min_vertexID->max_vertexID!
+        else{ // localID = 1l push_back globalID of 2
+        // Only add data if global_dst = 1 < global_e1_dst = 2; else double-count!
             if (global_dst < global_e1_dst) hg->getData(local_dstID).requested_edges.push_back(global_e1_dst);
-        }
-
+        } 
     }
 
     return std::make_pair(std::move(hg), count);
@@ -326,7 +321,7 @@ int main(int argc, char** argv) {
             
             for (auto e : hg->edges(node)){
                 auto edge_dest = hg->getEdgeDst(e);
-                if(DEBUG) printf("\t* Dst = %ld\n", edge_dest);
+                if(DEBUG) printf("\t* Dst = %d\n", edge_dest);
                 auto src_globalID = hg->getGID(node);  // node.L2G();
                 auto dest_globalID = hg->getGID(edge_dest);
                 if(DEBUG) printf("\t* GlobalEdge = %ld -> %ld\n", src_globalID, dest_globalID);
@@ -415,36 +410,8 @@ int main(int argc, char** argv) {
         },
         galois::steal());
 
-
-    if(DEBUG) printf("\n **************** REQUESTS: BEFORE ****************\n");
-     if(DEBUG) galois::do_all(
-        galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
-        [&](const PGNode& node) {                        // Plug current guy in here
-            printf("NODE: %d -- \n", node);
-            for (auto dst : hg->getData(node).requested_edges) {
-                printf("\t dst = %ld\n", dst);
-            }
-        });
-
-
     // Actual sending/braodcasting
     syncSubstrate->sync<writeDestination, readSource, SyncPhase2, BitsetPhase2, false>("TC");  // QUESTION
-
-    // Sync -- Broadcase from mirrors -> masters
-    if(DEBUG) printf("\n **************** REQUESTS: AFTER ****************\n");
-
-   
-    if(DEBUG) galois::do_all(
-        galois::iterate(hg->allNodesWithEdgesRange()),  // hg = local subgraph
-        [&](const PGNode& node) {                        // Plug current guy in here
-            printf("NODE: %d -- \n", node);
-            for (auto dst : hg->getData(node).requested_edges) {
-                printf("\t dst = %ld\n", dst);
-            }
-        });
-
-
-
 
     if(DEBUG) printf("Step 3\n");
     // ****************************************************
@@ -469,3 +436,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
