@@ -69,8 +69,7 @@ using MiningSubstratePtr = std::unique_ptr<galois::graphs::GluonSubstrate<Graph>
 //                      GLOBAL (aka host) VARS
 // ##################################################################
 galois::DynamicBitSet bitset_dests;
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate;
-uint64_t numTriangles; // DGAccumulatorTy numTriangles;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate; 
 auto& net = galois::runtime::getSystemNetworkInterface();
 
 
@@ -238,8 +237,6 @@ std::pair<MiningGraphPtr<NodeData, EdgeData>, size_t> intersect_merge(MiningGrap
         GNode bigger_dstID = hg->getEdgeDst(e1);  // 1
         printf("bigger_dstID = %d\n", bigger_dstID);
 
-        
-
         // If min_vertexID in master, local triangles!
         if (std::find(host_masters.begin(), host_masters.end(), dst) != host_masters.end()) {
             printf("Dst = %d EDGES:\n", dst);
@@ -265,22 +262,7 @@ std::pair<MiningGraphPtr<NodeData, EdgeData>, size_t> intersect_merge(MiningGrap
     return std::make_pair(std::move(hg), count);
 }
 
-template <typename NodeData, typename EdgeData>
-std::unique_ptr<Graph> local_tc_vertex_solver(std::unique_ptr<Graph> hg) {  // vertex parallel
-    galois::do_all(
-        galois::iterate(hg->masterNodesRange()),
-        [&](const GNode& src) {
-            for (auto e : hg->edges(src)) {
-                auto dst = hg->getEdgeDst(e);
-                size_t local_num_triangles = 0;
-                std::tie(hg, local_num_triangles) = intersect_merge<NodeData, EdgeData>(std::move(hg), src, dst);
-                numTriangles += local_num_triangles;
-                printf("Local Num Triangles = %ld", local_num_triangles);
-            }
-        },
-        galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("TC"));
-    return hg;
-}
+
 
 
 
@@ -291,6 +273,8 @@ int main(int argc, char** argv) {
     // Initialize Galois Runtime
     galois::DistMemSys G;
     DistBenchStart(argc, argv, name, desc, url);
+    DGAccumulatorTy numTriangles;
+    numTriangles.reset();
     auto myrank = net.ID;
     
     // Initialize Graph
@@ -361,7 +345,18 @@ int main(int argc, char** argv) {
     - Master Receiver: Counts or doesnt
     */
     // Counts triangles on each host and place requested edges on each mirror
-    hg = local_tc_vertex_solver<NodeData, void>(std::move(hg));
+    galois::do_all(
+        galois::iterate(hg->masterNodesRange()),
+        [&](const GNode& src) {
+            for (auto e : hg->edges(src)) {
+                auto dst = hg->getEdgeDst(e);
+                size_t local_num_triangles = 0;
+                std::tie(hg, local_num_triangles) = intersect_merge<NodeData, void>(std::move(hg), src, dst);
+                numTriangles += local_num_triangles;
+                printf("Local Num Triangles = %ld", local_num_triangles);
+            }
+        },
+        galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("TC"));
 
     // Send requests mirrors -> masters
     galois::do_all(
@@ -392,7 +387,7 @@ int main(int argc, char** argv) {
     // ****************************************************
     //    4. GLOBAL REDUCE of accumulator (num triangles)
     // ****************************************************
-    uint64_t total_triangles = numTriangles;//numTriangles.reduce();
+    uint64_t total_triangles = numTriangles.reduce();
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
         galois::gPrint("Total number of triangles ", total_triangles, "\n");
     }
