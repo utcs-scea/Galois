@@ -21,6 +21,7 @@
 #include "pangolin/res_man.h"
 
 #define DEBUG 0
+#define BENCH 1
 
 // ##################################################################
 //                      GENERIC HELPER FUNCS
@@ -42,10 +43,6 @@ struct NodeData {
     std::vector<uint64_t> requested_edges;
     std::shared_ptr<galois::substrate::SimpleLock> my_lock = std::make_shared<galois::substrate::SimpleLock>();
     std::atomic<uint64_t> num_intersections = 0;
-
-    NodeData(){
-        requested_edges.reserve(128);
-    }
 };
 
 // Command Line
@@ -232,7 +229,7 @@ size_t intersect_merge(Graph& hg, unsigned src, unsigned global_dst) {
                 myLocalData.requested_edges.push_back(global_e1_dst);
                 myLocalData.my_lock->unlock();
 
-                // Already know local_dstID is a mirror node since we rare in the else block
+                // Already know local_dstID is a mirror node since we are in the else block
                 bitset_requested_edges.set(local_dstID);
             }
         }
@@ -245,11 +242,26 @@ size_t intersect_merge(Graph& hg, unsigned src, unsigned global_dst) {
 //                          main()
 // ##################################################################
 int main(int argc, char** argv) {
-    // double e2e_start = MPI_Wtime();
-    // double e2e_end = 0;
-    // double algo_start = 0;
-    // double algo_end = 0;
+    // galois::StatTimer e2e_timer("TimeE2E", "TC");
+    // galois::StatTimer algo_timer("TimeAlgo", "TC");
+    // e2e_timer.start();
+    double e2e_start = 0;
+    double e2e_end = 0;
+    double mk_graph_start = 0;
+    double mk_graph_end = 0;
+    double algo_start = 0;
+    double algo_end = 0;
 
+    double ph1_gen_msg_start = 0;
+    double ph1_gen_msg_end = 0;
+    double ph1_comm_start = 0;
+    double ph1_comm_end = 0;
+    double ph2_gen_msg_start = 0;
+    double ph2_gen_msg_end = 0;
+    double ph2_comm_start = 0;
+    double ph2_comm_end = 0;
+    if(BENCH) e2e_start = MPI_Wtime();
+    
     // Initialize Galois Runtime
     galois::DistMemSys G;
     DistBenchStart(argc, argv, name, desc, url);
@@ -258,20 +270,29 @@ int main(int argc, char** argv) {
     global_num_tri_ptr->reset();
     thread_num_tri_ptr->reset();
 
-    auto myrank = net.ID;
-
     // Initialize Graph
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        mk_graph_start = MPI_Wtime();
+    }
     std::unique_ptr<Graph> hg;
-    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();  // QUESTION
+    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        mk_graph_end = MPI_Wtime();
+        std::cout << "Time_Graph_Creation, " << mk_graph_end - mk_graph_start << "\n";
+    }
 
     Graph& hg_ref = *hg;
     bitset_dests.resize(hg_ref.size());
     bitset_requested_edges.resize(hg_ref.size());
 
     // ALGORITHM TIME
-    double t02 = 0;
-    galois::runtime::getHostBarrier().wait();
-    double t01 = MPI_Wtime();
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        algo_start = MPI_Wtime();
+        ph1_gen_msg_start = MPI_Wtime();
+    }
 
     // ****************************************************
     //               1. FIND + SEND PAIRS
@@ -306,10 +327,22 @@ int main(int argc, char** argv) {
         },
         galois::steal());
 
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        ph1_gen_msg_end = MPI_Wtime();
+        std::cout << "Time_Phase1_GenMsg, " << ph1_gen_msg_end - ph1_gen_msg_start << "\n";
+        ph1_comm_start = MPI_Wtime();
+    }
+
     // PHASE 1 BROADCAST [Works!]: Send dests from mirrors to masters!
-    syncSubstrate->sync<writeDestination, readSource, SyncPhase1, BitsetPhase1, false>("TC");
+    syncSubstrate->sync<writeDestination, readSource, SyncPhase1, BitsetPhase1, false>("Phase1Communication");
     bitset_dests.reset();
-    // galois::runtime::getHostBarrier().wait();
+
+    if(BENCH){
+        ph1_comm_end = MPI_Wtime();
+        std::cout << "Time_Phase1_Comm, " << ph1_comm_end - ph1_comm_start << "\n";
+        ph2_gen_msg_start = MPI_Wtime();
+    }
 
 
     // ****************************************************
@@ -324,28 +357,47 @@ int main(int argc, char** argv) {
                 *thread_num_tri_ptr += intersect_merge<NodeData, void>(hg_ref, src, global_dst);
             }
         },
-        galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("TC"));
+        galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("LocalTCCount"));
+
+
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        ph2_gen_msg_end = MPI_Wtime();
+        std::cout << "Time_Phase2_GenMsg, " << ph2_gen_msg_end - ph2_gen_msg_start << "\n";
+        ph2_comm_start = MPI_Wtime();
+    }
 
     // SEND REQUESTS from mirrors to masters!
-    syncSubstrate->sync<writeDestination, readSource, SyncPhase2, BitsetPhase2, false>("TC");
+    syncSubstrate->sync<writeDestination, readSource, SyncPhase2, BitsetPhase2, false>("Phase2Communication");
     bitset_requested_edges.reset();
+
+    if(BENCH){
+        ph2_comm_end = MPI_Wtime();
+        std::cout << "Time_Phase2_Comm, " << ph2_comm_end - ph2_comm_start << "\n";
+    }
 
     // ****************************************************
     //    4. GLOBAL REDUCE of accumulator (num triangles)
     // ****************************************************
     // Ensure all triangles/requests been counted
-    galois::runtime::getHostBarrier().wait();  
+    // galois::runtime::getHostBarrier().wait(); // necessary? No bc sync adds to count and sync is non-blocking 
 
     // Count All the local triangle counts!
     *global_num_tri_ptr += thread_num_tri_ptr->reduce();
     uint64_t total_triangles = global_num_tri_ptr->reduce();
     if (net.ID == 0) galois::gPrint("Total number of triangles ", total_triangles, "\n");
 
-    t02 = MPI_Wtime();
-    if (myrank == 0) std::cerr << "Timer_0, " << t02 - t01 << std::endl;
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        algo_end = MPI_Wtime();
+        e2e_end = MPI_Wtime();
+        std::cout << "Time_TC_Algo, " << algo_end - algo_start << "\n";
+        std::cout << "Time_E2E, " << e2e_end - e2e_start << "\n";
+    }
 
     delete(global_num_tri_ptr);
     delete(thread_num_tri_ptr);
+
 
     return 0;
 }
