@@ -189,10 +189,16 @@ class OfflineGraph {
     return retval;
   }
 
+protected:
+  void setSize(size_t val) { numNodes = val; }
+  void setSizeEdges(size_t val) { numEdges = val; }
+
 public:
   typedef boost::counting_iterator<uint64_t> iterator;
   typedef boost::counting_iterator<uint64_t> edge_iterator;
   typedef uint64_t GraphNode;
+
+  OfflineGraph() {}
 
   OfflineGraph(const std::string& name)
       : fileEdgeDst(name, std::ios_base::binary),
