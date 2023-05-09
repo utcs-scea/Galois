@@ -517,7 +517,7 @@ public:
   }
 
   template<typename T>
-  void addEdgesUnSort(bool setEdgeVals, GraphNode src, EdgeDst::value_type* dst, T* dst_data, uint64_t num_dst)
+  void addEdgesUnSort(bool setEdgeVals, GraphNode src, EdgeDst::value_type* dst, T* dst_data, uint64_t num_dst, bool keep_size=false)
   {
     acquireNode(src, galois::MethodFlag::WRITE);
     auto orig_deg = getDegree(src);
@@ -544,7 +544,9 @@ public:
 
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgeStart + num_dst + orig_deg;
-    numEdges.fetch_add(num_dst, std::memory_order_relaxed);
+
+    if (!keep_size)
+      numEdges.fetch_add(num_dst, std::memory_order_relaxed);
   }
 
   void addEdgeSort(const uint64_t src, const uint64_t dst)
