@@ -20,6 +20,8 @@
 #include "pangolin/BfsMining/embedding_list.h"
 #include "pangolin/res_man.h"
 
+#include <iostream>
+
 #define DEBUG 0
 #define BENCH 1
 
@@ -47,6 +49,8 @@ struct NodeData {
 
 // Command Line
 namespace cll = llvm::cl;
+
+static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode PGNode;
@@ -152,7 +156,10 @@ struct SyncPhase2 {
     // Count number of requests found in the dests
     static bool reduce(uint32_t, struct NodeData& node, ValTy y) {
         for (ValTy::iterator it = y.begin(); it != y.end(); ++it) {
-            if (std::find(node.dests.begin(), node.dests.end(), *it) != node.dests.end()) *thread_num_tri_ptr += 1;
+            // if (std::find(node.dests.begin(), node.dests.end(), *it) != node.dests.end()) *thread_num_tri_ptr += 1;
+			node.my_lock->lock();
+			node.requested_edges.push_back(*it);
+			node.my_lock->unlock();
         }
         return true;
     }
@@ -202,16 +209,29 @@ struct BitsetPhase2 {
 // Should be using dests
 // ##################################################################
 template <typename NodeData, typename EdgeData>
-size_t intersect_merge(Graph& hg, unsigned src, unsigned global_dst) {
-    size_t count = 0;
+size_t intersect_merge(Graph& hg, 
+						unsigned src, 
+						unsigned global_dst,
+						galois::DGAccumulator<uint64_t>& local_read_stream,
+						galois::DGAccumulator<uint64_t>& local_read_random,
+						galois::DGAccumulator<uint64_t>& remote_write_stream,
+						galois::DGAccumulator<uint64_t>* remote_write_to_host) {
+	size_t count = 0;
     PGNode local_dstID = hg.getLID(global_dst);
 
     if (hg.isOwned(global_dst)) {
         // Local Triangle!
         for (auto global_e1_dst : hg.getData(src).dests) {
+			local_read_stream += 1;
+
             if (global_dst < global_e1_dst) {  // Ignore self-loops (ie 0-1, 0-1, missing 1-1)
                 // Find Missing Edge from global_dst -> global_e1_dst on this host
-                for (auto dst_dst_globalID : hg.getData(local_dstID).dests) {
+                auto& dstData = hg.getData(local_dstID);
+				local_read_random += 1;
+				
+				for (auto dst_dst_globalID : dstData.dests) {
+					local_read_stream += 1;
+
                     if (dst_dst_globalID == global_e1_dst) {
                         count += 1;
                         break;
@@ -222,12 +242,19 @@ size_t intersect_merge(Graph& hg, unsigned src, unsigned global_dst) {
     } else {
         // Request missing Edge!
         for (auto global_e1_dst : hg.getData(src).dests) {
+			local_read_stream += 1;
+			
             // Find missing edge on other hosts
             if (global_dst < global_e1_dst) {
                 auto& myLocalData = hg.getData(local_dstID);
                 myLocalData.my_lock->lock();
                 myLocalData.requested_edges.push_back(global_e1_dst);
                 myLocalData.my_lock->unlock();
+
+				remote_write_stream += 1;
+				
+				unsigned to_host = hg.getHostID(global_dst);
+				remote_write_to_host[to_host] += 1;
 
                 // Already know local_dstID is a mirror node since we are in the else block
                 bitset_requested_edges.set(local_dstID);
@@ -260,6 +287,8 @@ int main(int argc, char** argv) {
     double ph2_gen_msg_end = 0;
     double ph2_comm_start = 0;
     double ph2_comm_end = 0;
+	double ph3_comp_start = 0;
+	double ph3_comp_end = 0;
     if(BENCH) e2e_start = MPI_Wtime();
     
     // Initialize Galois Runtime
@@ -287,12 +316,43 @@ int main(int argc, char** argv) {
     bitset_dests.resize(hg_ref.size());
     bitset_requested_edges.resize(hg_ref.size());
 
+	uint32_t num_hosts = hg->getNumHosts();
+	uint64_t host_id = galois::runtime::getSystemNetworkInterface().ID;
+
+	galois::DGAccumulator<uint64_t> local_read_stream;
+	galois::DGAccumulator<uint64_t> local_read_random;
+	galois::DGAccumulator<uint64_t> local_write_random;
+	galois::DGAccumulator<uint64_t> remote_read_stream;
+	galois::DGAccumulator<uint64_t> remote_read_random;
+	galois::DGAccumulator<uint64_t> remote_write_stream;
+	galois::DGAccumulator<uint64_t> remote_write_random;
+	galois::DGAccumulator<uint64_t> remote_read_to_host[num_hosts];
+	galois::DGAccumulator<uint64_t> remote_write_to_host[num_hosts];
+
+	std::ofstream file;
+	file.open(graphName + "_" + std::to_string(num_hosts) + "procs_id" + std::to_string(host_id));
+	file << "#####   Stat   #####" << std::endl;
+	file << "host " << host_id << " total edges: " << hg->sizeEdges() << std::endl;
+
     // ALGORITHM TIME
     if(BENCH){
         galois::runtime::getHostBarrier().wait();
         algo_start = MPI_Wtime();
         ph1_gen_msg_start = MPI_Wtime();
     }
+
+	local_read_stream.reset();
+	local_read_random.reset();
+	local_write_random.reset();
+	remote_read_stream.reset();
+	remote_read_random.reset();
+	remote_write_stream.reset();
+	remote_write_random.reset();
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		remote_read_to_host[i].reset();
+		remote_write_to_host[i].reset();
+	}
 
     // ****************************************************
     //               1. FIND + SEND PAIRS
@@ -301,16 +361,31 @@ int main(int argc, char** argv) {
     galois::do_all(
         galois::iterate(hg_ref.allNodesWithEdgesRange()),
         [&](const PGNode& node) {
+            auto src_globalID = hg_ref.getGID(node);
+			local_read_stream += 1;
+
             // Iterate over all edges in a node
             for (auto e : hg_ref.edges(node)) {
+				local_read_stream += 1;
+
                 auto edge_dest = hg_ref.getEdgeDst(e);
-                auto src_globalID = hg_ref.getGID(node);
                 auto dest_globalID = hg_ref.getGID(edge_dest);
+				
+				if (hg_ref.isOwned(dest_globalID)) {
+					local_read_random += 1;
+				}
+				else {
+					remote_read_random += 1;
+					
+					unsigned to_host = hg_ref.getHostID(dest_globalID);
+					remote_read_to_host[to_host] += 1;
+				}
 
                 // Assume: Bi-Directional Edges: So if this is false, dw the dest will handle it!
                 // Based on the current edge, add smallerGlobalID -> largerGlobalID to smallerGlobalID's NodeData
                 auto min_globalID = std::min(src_globalID, dest_globalID);
                 auto max_globalID = std::max(src_globalID, dest_globalID);
+				auto min_node = hg_ref.getLID(min_globalID);
 
                 // Ensure you dont have self-loops
                 if(min_globalID < max_globalID){
@@ -320,12 +395,40 @@ int main(int argc, char** argv) {
                     minData.my_lock->lock();
                     minData.dests.insert(max_globalID);  // ok since its a set .. no duplicates
                     minData.my_lock->unlock();
-                    // Add Mirrors to the bitset, bc want only mirrors to communicate to masters
-                    if (!hg_ref.isOwned(min_globalID)) bitset_dests.set(node);  // GOTTA BE LOCAL ID, since per host communication
+					
+					if (hg_ref.isOwned(min_globalID)) {
+						local_write_random += 1;
+					}
+					else {
+						remote_write_random += 1;
+
+						unsigned to_host = hg_ref.getHostID(min_globalID);
+						remote_write_to_host[to_host] += 1;
+
+                    	// Add Mirrors to the bitset, bc want only mirrors to communicate to masters
+                    	bitset_dests.set(min_node);  // GOTTA BE LOCAL ID, since per host communication
+
+					}
                 } 
             }
         },
         galois::steal());
+
+	file << "#####   Round 0   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round local read random: " << local_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round local write random: " << local_write_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote read stream: " << remote_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote read random: " << remote_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote write stream: " << remote_write_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote write random: " << remote_write_random.read_local() << std::endl;
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": " << remote_read_to_host[i].read_local() << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": " << remote_write_to_host[i].read_local() << std::endl;
+	}
 
     if(BENCH){
         galois::runtime::getHostBarrier().wait();
@@ -343,7 +446,19 @@ int main(int argc, char** argv) {
         std::cout << "Time_Phase1_Comm, " << ph1_comm_end - ph1_comm_start << "\n";
         ph2_gen_msg_start = MPI_Wtime();
     }
+	
+	local_read_stream.reset();
+	local_read_random.reset();
+	local_write_random.reset();
+	remote_read_stream.reset();
+	remote_read_random.reset();
+	remote_write_stream.reset();
+	remote_write_random.reset();
 
+	for (uint32_t i=0; i<num_hosts; i++) {
+		remote_read_to_host[i].reset();
+		remote_write_to_host[i].reset();
+	}
 
     // ****************************************************
     //         2. CALC MISSING EDGES + ASK
@@ -352,13 +467,33 @@ int main(int argc, char** argv) {
     galois::do_all(
         galois::iterate(hg_ref.masterNodesRange()),
         [&](const PGNode& src) {
-            for (auto global_dst : hg_ref.getData(src).dests) {
-                // assert(hg_ref.getGID(src) < global_dst);
-                *thread_num_tri_ptr += intersect_merge<NodeData, void>(hg_ref, src, global_dst);
+			auto& srcData = hg_ref.getData(src);
+			local_read_stream += 1;
+
+			for (auto global_dst : srcData.dests) {
+				local_read_stream += 1;
+
+				// assert(hg_ref.getGID(src) < global_dst);
+                *thread_num_tri_ptr += intersect_merge<NodeData, void>(hg_ref, src, global_dst, local_read_stream, local_read_random, remote_write_stream, remote_write_to_host);
             }
         },
         galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("LocalTCCount"));
+	
+	file << "#####   Round 1   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round local read random: " << local_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round local write random: " << local_write_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote read stream: " << remote_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote read random: " << remote_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote write stream: " << remote_write_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote write random: " << remote_write_random.read_local() << std::endl;
 
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": " << remote_read_to_host[i].read_local() << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": " << remote_write_to_host[i].read_local() << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": 0" << std::endl;
+	}
 
     if(BENCH){
         galois::runtime::getHostBarrier().wait();
@@ -374,6 +509,67 @@ int main(int argc, char** argv) {
     if(BENCH){
         ph2_comm_end = MPI_Wtime();
         std::cout << "Time_Phase2_Comm, " << ph2_comm_end - ph2_comm_start << "\n";
+		ph3_comp_start = MPI_Wtime();
+    }
+	
+	local_read_stream.reset();
+	local_read_random.reset();
+	local_write_random.reset();
+	remote_read_stream.reset();
+	remote_read_random.reset();
+	remote_write_stream.reset();
+	remote_write_random.reset();
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		remote_read_to_host[i].reset();
+		remote_write_to_host[i].reset();
+	}
+
+    // ****************************************************
+    //         3. HANDLE REQUESTS
+    // ****************************************************
+    // Handle requested edges on each master
+    galois::do_all(
+        galois::iterate(hg_ref.masterNodesRange()),
+        [&](const PGNode& src) {
+			auto& srcData = hg_ref.getData(src);
+			local_read_stream += 1;
+
+			for (auto global_requested_dst : srcData.requested_edges) {
+				local_read_stream += 1;
+
+				for (auto global_dst : srcData.dests) {
+					local_read_stream += 1;
+
+					if (global_requested_dst == global_dst) {
+						*thread_num_tri_ptr += 1;
+						break;
+					}
+				}
+            }
+        },
+        galois::chunk_size<CHUNK_SIZE>(), galois::steal(), galois::loopname("LocalTCCount"));
+	
+	file << "#####   Round 2   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round local read random: " << local_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round local write random: " << local_write_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote read stream: " << remote_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote read random: " << remote_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote write stream: " << remote_write_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote write random: " << remote_write_random.read_local() << std::endl;
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": 0" << std::endl;
+	}
+
+    if(BENCH){
+        galois::runtime::getHostBarrier().wait();
+        ph3_comp_end = MPI_Wtime();
+        std::cout << "Time_Phase3_Comp, " << ph3_comp_end - ph3_comp_start << "\n";
     }
 
     // ****************************************************
