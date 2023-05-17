@@ -27,6 +27,8 @@
 #ifndef GALOIS_RUNTIME_DIST_STATS_H
 #define GALOIS_RUNTIME_DIST_STATS_H
 
+#define MORE_DIST_STATS 1
+
 //! Turn on if you want more distributed stats to be printed
 #ifndef MORE_DIST_STATS
 #define MORE_DIST_STATS 0
