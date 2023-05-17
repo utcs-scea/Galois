@@ -456,6 +456,9 @@ public:
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
+	
+	std::string master_nodes_str = "NumMasterNodesOf_" + std::to_string(id);
+	galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, userGraph.numMasters());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
