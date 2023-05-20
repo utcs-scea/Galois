@@ -87,6 +87,23 @@ public:
   galois::Accumulator<uint64_t> local_rnd_read_counts;
   galois::Accumulator<uint64_t> local_rnd_read_bytes;
 #endif
+  void print_profile()
+  {
+#if GRAPH_PROFILE
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_write_counts=" << local_seq_write_counts.reduce() << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_write_bytes =" << local_seq_write_bytes.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_read_counts =" << local_seq_read_counts.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_read_bytes  =" << local_seq_read_bytes.reduce()   << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_rmw_counts  =" << local_seq_rmw_counts.reduce()   << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_rmw_bytes   =" << local_seq_rmw_bytes.reduce()    << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_rmw_counts  =" << local_rnd_rmw_counts.reduce()   << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_rmw_bytes   =" << local_rnd_rmw_bytes.reduce()    << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_write_counts=" << local_rnd_write_counts.reduce() << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_write_bytes =" << local_rnd_write_bytes.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_read_counts =" << local_rnd_read_counts.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_read_bytes  =" << local_rnd_read_bytes.reduce()   << std::endl;
+#endif
+  }
 
 
   template <bool _has_id>
@@ -545,7 +562,7 @@ public:
 
 #if GRAPH_PROFILE
     this->local_rnd_rmw_counts += 1;
-    this->local_rnd_rmw_counts += 8;
+    this->local_rnd_rmw_bytes += 8;
 #endif
 
     auto edgeStart = ee;
@@ -582,7 +599,7 @@ public:
 #if GRAPH_PROFILE
     //Atomic for dense object space
     this->local_rnd_rmw_counts += 1;
-    this->local_rnd_rmw_counts += 8;
+    this->local_rnd_rmw_bytes += 8;
 
     //Copy data stuff
     this->local_seq_write_bytes   += sizeof(EdgeTy) * num_dst;
@@ -607,7 +624,7 @@ public:
     numEdges.fetch_add(num_dst, std::memory_order_relaxed);
 #if GRAPH_PROFILE
     this->local_rnd_rmw_counts += 1;
-    this->local_rnd_rmw_counts += 8;
+    this->local_rnd_rmw_bytes += 8;
 #endif
 
   }
@@ -971,7 +988,10 @@ public:
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
-    //TODO How do we want to do memory?
+#if GRAPH_PROFILE
+    this->local_rnd_write_counts += 4;
+    this->local_rnd_write_bytes  += 8 * 4;
+#endif
   }
 
   void allocateFrom(uint64_t nNodes, uint64_t nEdges) {
@@ -991,7 +1011,10 @@ public:
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
-    //TODO How do we want to do memory?
+#if GRAPH_PROFILE
+    this->local_rnd_write_counts += 4;
+    this->local_rnd_write_bytes  += 8 * 4;
+#endif
   }
 
   void destroyAndAllocateFrom(uint64_t nNodes, uint64_t nEdges) {
@@ -1030,8 +1053,8 @@ public:
         galois::no_stats(), galois::loopname("CONSTRUCT_NODES"));
 #endif
 #if GRAPH_PROFILE
-    this->local_rnd_write_counts += sizeof(NodeInfo) * numNodes / 8;
-    this->local_rnd_write_bytes  += sizeof(NodeInfo) * numNodes;
+    this->local_seq_write_counts += sizeof(NodeInfo) * numNodes / 8;
+    this->local_seq_write_bytes  += sizeof(NodeInfo) * numNodes;
 #endif
   }
 
