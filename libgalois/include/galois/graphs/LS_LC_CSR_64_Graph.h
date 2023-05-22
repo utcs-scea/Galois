@@ -35,6 +35,9 @@
 #include "galois/graphs/FileGraph.h"
 #include "galois/graphs/GraphHelpers.h"
 #include "galois/PODResizeableArray.h"
+#include "galois/Reduction.h"
+
+
 
 namespace galois::graphs {
 /**
@@ -69,6 +72,40 @@ class LS_LC_CSR_64_Graph :
   friend class LC_InOut_Graph;
 
 public:
+
+#if GRAPH_PROFILE
+  galois::Accumulator<uint64_t> local_seq_write_counts;
+  galois::Accumulator<uint64_t> local_seq_write_bytes;
+  galois::Accumulator<uint64_t> local_seq_read_counts;
+  galois::Accumulator<uint64_t> local_seq_read_bytes;
+  galois::Accumulator<uint64_t> local_seq_rmw_bytes;
+  galois::Accumulator<uint64_t> local_seq_rmw_counts;
+  galois::Accumulator<uint64_t> local_rnd_rmw_bytes;
+  galois::Accumulator<uint64_t> local_rnd_rmw_counts;
+  galois::Accumulator<uint64_t> local_rnd_write_counts;
+  galois::Accumulator<uint64_t> local_rnd_write_bytes;
+  galois::Accumulator<uint64_t> local_rnd_read_counts;
+  galois::Accumulator<uint64_t> local_rnd_read_bytes;
+#endif
+  void print_profile()
+  {
+#if GRAPH_PROFILE
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_write_counts=" << local_seq_write_counts.reduce() << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_write_bytes =" << local_seq_write_bytes.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_read_counts =" << local_seq_read_counts.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_read_bytes  =" << local_seq_read_bytes.reduce()   << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_rmw_counts  =" << local_seq_rmw_counts.reduce()   << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_seq_rmw_bytes   =" << local_seq_rmw_bytes.reduce()    << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_rmw_counts  =" << local_rnd_rmw_counts.reduce()   << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_rmw_bytes   =" << local_rnd_rmw_bytes.reduce()    << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_write_counts=" << local_rnd_write_counts.reduce() << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_write_bytes =" << local_rnd_write_bytes.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_read_counts =" << local_rnd_read_counts.reduce()  << std::endl;
+    std::cout << "LS_LC_CSR_64_Graph::local_rnd_read_bytes  =" << local_rnd_read_bytes.reduce()   << std::endl;
+#endif
+  }
+
+
   template <bool _has_id>
   struct with_id {
     typedef LS_LC_CSR_64_Graph type;
@@ -522,13 +559,30 @@ public:
     acquireNode(src, galois::MethodFlag::WRITE);
     auto orig_deg = getDegree(src);
     auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
+
+#if GRAPH_PROFILE
+    this->local_rnd_rmw_counts += 1;
+    this->local_rnd_rmw_bytes += 8;
+#endif
+
     auto edgeStart = ee;
     auto orig_itr   = edge_begin(src);
     auto orig_end   = edge_end(src);
     auto dst_end    = dst + num_dst;
 
     std::memcpy(&edgeDst[edgeStart], &edgeDst[*orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
+
+#if GRAPH_PROFILE
+    this->local_seq_write_bytes += sizeof(EdgeDst::value_type) * orig_deg;
+    this->local_seq_write_counts += sizeof(EdgeDst::value_type) * orig_deg / 8;
+#endif
+
     std::memcpy(&edgeDst[edgeStart + orig_deg], dst, sizeof(EdgeDst::value_type) * num_dst);
+
+#if GRAPH_PROFILE
+    this->local_seq_write_bytes += sizeof(EdgeDst::value_type) * num_dst;
+    this->local_seq_write_counts += sizeof(EdgeDst::value_type) * num_dst / 8;
+#endif
 
     if(EdgeData::has_value && setEdgeVals)
     {
@@ -542,11 +596,38 @@ public:
       }
     }
 
+#if GRAPH_PROFILE
+    //Atomic for dense object space
+    this->local_rnd_rmw_counts += 1;
+    this->local_rnd_rmw_bytes += 8;
+
+    //Copy data stuff
+    this->local_seq_write_bytes   += sizeof(EdgeTy) * num_dst;
+    this->local_seq_write_counts  += sizeof(EdgeTy) * num_dst / 8;
+
+    //hashmap modification
+    this->local_rnd_read_counts   += 1 * num_dst;
+    this->local_rnd_read_bytes    += 8 * num_dst;
+    this->local_rnd_write_counts  += 1 * num_dst;
+    this->local_rnd_write_bytes   += 8 * num_dst;
+#endif
+
+
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgeStart + num_dst + orig_deg;
 
-    if (!keep_size)
+#if GRAPH_PROFILE
+    this->local_rnd_write_counts  += 1;
+    this->local_rnd_write_bytes   += 8;
+#endif
+
+    if (!keep_size) {
       numEdges.fetch_add(num_dst, std::memory_order_relaxed);
+      #if GRAPH_PROFILE
+      this->local_rnd_rmw_counts += 1;
+      this->local_rnd_rmw_bytes += 8;
+      #endif
+    }
   }
 
   void addEdgeSort(const uint64_t src, const uint64_t dst)
@@ -908,6 +989,10 @@ public:
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
+#if GRAPH_PROFILE
+    this->local_rnd_write_counts += 4;
+    this->local_rnd_write_bytes  += 8 * 4;
+#endif
   }
 
   void allocateFrom(uint64_t nNodes, uint64_t nEdges) {
@@ -927,6 +1012,10 @@ public:
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
+#if GRAPH_PROFILE
+    this->local_rnd_write_counts += 4;
+    this->local_rnd_write_bytes  += 8 * 4;
+#endif
   }
 
   void destroyAndAllocateFrom(uint64_t nNodes, uint64_t nEdges) {
@@ -963,6 +1052,10 @@ public:
           this->outOfLineConstructAt(x);
         },
         galois::no_stats(), galois::loopname("CONSTRUCT_NODES"));
+#endif
+#if GRAPH_PROFILE
+    this->local_seq_write_counts += sizeof(NodeInfo) * numNodes / 8;
+    this->local_seq_write_bytes  += sizeof(NodeInfo) * numNodes;
 #endif
   }
 
