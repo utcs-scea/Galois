@@ -1,0 +1,1 @@
+app_dist(ego ego-graph-generation)
