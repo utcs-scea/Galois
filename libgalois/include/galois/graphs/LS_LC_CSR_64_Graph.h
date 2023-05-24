@@ -74,37 +74,30 @@ class LS_LC_CSR_64_Graph :
 public:
 
 #ifdef GRAPH_PROFILE
-  galois::GAccumulator<uint64_t> local_seq_write_counts;
-  galois::GAccumulator<uint64_t> local_seq_write_bytes;
-  galois::GAccumulator<uint64_t> local_seq_read_counts;
-  galois::GAccumulator<uint64_t> local_seq_read_bytes;
-  galois::GAccumulator<uint64_t> local_seq_rmw_bytes;
-  galois::GAccumulator<uint64_t> local_seq_rmw_counts;
-  galois::GAccumulator<uint64_t> local_rnd_rmw_bytes;
-  galois::GAccumulator<uint64_t> local_rnd_rmw_counts;
-  galois::GAccumulator<uint64_t> local_rnd_write_counts;
-  galois::GAccumulator<uint64_t> local_rnd_write_bytes;
-  galois::GAccumulator<uint64_t> local_rnd_read_counts;
-  galois::GAccumulator<uint64_t> local_rnd_read_bytes;
+  galois::GAccumulator<uint64_t> local_seq_write_count;
+  galois::GAccumulator<uint64_t> local_seq_write_size;
+  galois::GAccumulator<uint64_t> local_seq_read_count;
+  galois::GAccumulator<uint64_t> local_seq_read_size;
+  galois::GAccumulator<uint64_t> local_rand_write_count;
+  galois::GAccumulator<uint64_t> local_rand_write_size;
+  galois::GAccumulator<uint64_t> local_rand_read_count;
+  galois::GAccumulator<uint64_t> local_rand_read_size;
 #endif
-  void print_profile()
-  {
-#ifdef GRAPH_PROFILE
-    std::cout << "LS_LC_CSR_64_Graph::local_seq_write_counts=" << local_seq_write_counts.reduce() << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_seq_write_bytes =" << local_seq_write_bytes.reduce()  << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_seq_read_counts =" << local_seq_read_counts.reduce()  << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_seq_read_bytes  =" << local_seq_read_bytes.reduce()   << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_seq_rmw_counts  =" << local_seq_rmw_counts.reduce()   << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_seq_rmw_bytes   =" << local_seq_rmw_bytes.reduce()    << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_rnd_rmw_counts  =" << local_rnd_rmw_counts.reduce()   << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_rnd_rmw_bytes   =" << local_rnd_rmw_bytes.reduce()    << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_rnd_write_counts=" << local_rnd_write_counts.reduce() << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_rnd_write_bytes =" << local_rnd_write_bytes.reduce()  << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_rnd_read_counts =" << local_rnd_read_counts.reduce()  << std::endl;
-    std::cout << "LS_LC_CSR_64_Graph::local_rnd_read_bytes  =" << local_rnd_read_bytes.reduce()   << std::endl;
-#endif
-  }
 
+#ifdef GRAPH_PROFILE
+  void print_profile(int id)
+  {
+    std::cout << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_write_count=" << local_seq_write_count.reduce() << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_write_size=" << local_seq_write_size.reduce()  << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_read_count=" << local_seq_read_count.reduce()  << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_read_size=" << local_seq_read_size.reduce()   << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_write_count=" << local_rand_write_count.reduce() << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_write_size=" << local_rand_write_size.reduce()  << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_read_count=" << local_rand_read_count.reduce()  << std::endl;
+    std::cout << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_read_size=" << local_rand_read_size.reduce()   << std::endl;
+  }
+#endif
 
   template <bool _has_id>
   struct with_id {
@@ -561,8 +554,10 @@ public:
     auto ee = edgeEnd.fetch_add(num_dst + orig_deg, std::memory_order_relaxed);
 
 #ifdef GRAPH_PROFILE
-    this->local_rnd_rmw_counts += 1;
-    this->local_rnd_rmw_bytes += 8;
+    this->local_rand_read_count += 1;
+    this->local_rand_read_size += 8;
+    this->local_rand_write_count += 1;
+    this->local_rand_write_size += 8;
 #endif
 
     auto edgeStart = ee;
@@ -573,15 +568,15 @@ public:
     std::memcpy(&edgeDst[edgeStart], &edgeDst[*orig_itr], sizeof(EdgeDst::value_type) * orig_deg);
 
 #ifdef GRAPH_PROFILE
-    this->local_seq_write_bytes += sizeof(EdgeDst::value_type) * orig_deg;
-    this->local_seq_write_counts += sizeof(EdgeDst::value_type) * orig_deg / 8;
+    this->local_seq_write_size += std::ceil(sizeof(EdgeDst::value_type) * orig_deg / 8) * 8;
+    this->local_seq_write_count += std::ceil(sizeof(EdgeDst::value_type) * orig_deg / 8);
 #endif
 
     std::memcpy(&edgeDst[edgeStart + orig_deg], dst, sizeof(EdgeDst::value_type) * num_dst);
 
 #ifdef GRAPH_PROFILE
-    this->local_seq_write_bytes += sizeof(EdgeDst::value_type) * num_dst;
-    this->local_seq_write_counts += sizeof(EdgeDst::value_type) * num_dst / 8;
+    this->local_seq_write_size += std::ceil(sizeof(EdgeDst::value_type) * num_dst / 8) * 8;
+    this->local_seq_write_count += std::ceil(sizeof(EdgeDst::value_type) * num_dst / 8);
 #endif
 
     if(EdgeData::has_value && setEdgeVals)
@@ -598,18 +593,20 @@ public:
 
 #ifdef GRAPH_PROFILE
     //Atomic for dense object space
-    this->local_rnd_rmw_counts += 1;
-    this->local_rnd_rmw_bytes += 8;
+    this->local_rand_read_count   += 1;
+    this->local_rand_read_size    += 8;
+    this->local_rand_write_count  += 1;
+    this->local_rand_write_size   += 8;
 
     //Copy data stuff
-    this->local_seq_write_bytes   += sizeof(EdgeTy) * num_dst;
-    this->local_seq_write_counts  += sizeof(EdgeTy) * num_dst / 8;
+    this->local_seq_write_size   += std::ceil(sizeof(EdgeTy) * num_dst / 8) * 8;
+    this->local_seq_write_count  += std::ceil(sizeof(EdgeTy) * num_dst / 8);
 
     //hashmap modification
-    this->local_rnd_read_counts   += 1 * num_dst;
-    this->local_rnd_read_bytes    += 8 * num_dst;
-    this->local_rnd_write_counts  += 1 * num_dst;
-    this->local_rnd_write_bytes   += 8 * num_dst;
+    this->local_rand_read_count   += 1 * num_dst;
+    this->local_rand_read_size    += 8 * num_dst;
+    this->local_rand_write_count  += 1 * num_dst;
+    this->local_rand_write_size   += 8 * num_dst;
 #endif
 
 
@@ -617,15 +614,17 @@ public:
     edgeIndData[src].second = edgeStart + num_dst + orig_deg;
 
 #ifdef GRAPH_PROFILE
-    this->local_rnd_write_counts  += 1;
-    this->local_rnd_write_bytes   += 8;
+    this->local_rand_write_count  += 1;
+    this->local_rand_write_size   += 8;
 #endif
 
     if (!keep_size) {
       numEdges.fetch_add(num_dst, std::memory_order_relaxed);
       #ifdef GRAPH_PROFILE
-      this->local_rnd_rmw_counts += 1;
-      this->local_rnd_rmw_bytes += 8;
+      this->local_rand_read_count   += 1;
+      this->local_rand_read_size    += 8;
+      this->local_rand_write_count  += 1;
+      this->local_rand_write_size   += 8;
       #endif
     }
   }
@@ -990,8 +989,8 @@ public:
       this->outOfLineAllocateInterleaved(numNodes);
     }
 #ifdef GRAPH_PROFILE
-    this->local_rnd_write_counts += 4;
-    this->local_rnd_write_bytes  += 8 * 4;
+    this->local_rand_write_count += 4;
+    this->local_rand_write_size  += 8 * 4;
 #endif
   }
 
@@ -1013,8 +1012,8 @@ public:
       this->outOfLineAllocateInterleaved(numNodes);
     }
 #ifdef GRAPH_PROFILE
-    this->local_rnd_write_counts += 4;
-    this->local_rnd_write_bytes  += 8 * 4;
+    this->local_rand_write_count += 4;
+    this->local_rand_write_size  += 8 * 4;
 #endif
   }
 
@@ -1054,8 +1053,8 @@ public:
         galois::no_stats(), galois::loopname("CONSTRUCT_NODES"));
 #endif
 #ifdef GRAPH_PROFILE
-    this->local_seq_write_counts += sizeof(NodeInfo) * numNodes / 8;
-    this->local_seq_write_bytes  += sizeof(NodeInfo) * numNodes;
+    this->local_seq_write_count += std::ceil(sizeof(NodeInfo) * numNodes / 8);
+    this->local_seq_write_size  += std::ceil(sizeof(NodeInfo) * numNodes / 8) * 8;
 #endif
   }
 
