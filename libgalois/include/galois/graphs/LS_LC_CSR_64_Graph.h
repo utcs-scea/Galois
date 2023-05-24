@@ -88,14 +88,14 @@ public:
   void print_profile(std::ofstream &output, int id)
   {
     output << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_write_count=" << local_seq_write_count.reduce() << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_write_size=" << local_seq_write_size.reduce()  << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_read_count=" << local_seq_read_count.reduce()  << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_seq_read_size=" << local_seq_read_size.reduce()   << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_write_count=" << local_rand_write_count.reduce() << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_write_size=" << local_rand_write_size.reduce()  << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_read_count=" << local_rand_read_count.reduce()  << std::endl;
-    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph::local_rand_read_size=" << local_rand_read_size.reduce()   << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_seq_write_count=" << local_seq_write_count.reduce() << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_seq_write_size=" << local_seq_write_size.reduce()  << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_seq_read_count=" << local_seq_read_count.reduce()  << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_seq_read_size=" << local_seq_read_size.reduce()   << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_rand_write_count=" << local_rand_write_count.reduce() << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_rand_write_size=" << local_rand_write_size.reduce()  << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_rand_read_count=" << local_rand_read_count.reduce()  << std::endl;
+    output << "PROFILE: " << "[" << id << "] " << "LS_LC_CSR_64_Graph:local_rand_read_size=" << local_rand_read_size.reduce()   << std::endl;
   }
 #endif
 
