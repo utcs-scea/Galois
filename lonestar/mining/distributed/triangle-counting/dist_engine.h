@@ -169,6 +169,7 @@ int main(int argc, char** argv) {
             [&](auto node) {
                 auto& data = hg_ref.getData(node);
                 data.edge_iterator = hg_ref.edge_begin(node);
+                // local_read_stream += 1;
                 data.queries.clear();
                 },
             galois::no_stats(), galois::steal(),
@@ -180,19 +181,6 @@ int main(int argc, char** argv) {
         algo_start = MPI_Wtime();
     }
 
-	local_read_stream.reset();
-	local_read_random.reset();
-	local_write_random.reset();
-	remote_read_stream.reset();
-	remote_read_random.reset();
-	remote_write_stream.reset();
-	remote_write_random.reset();
-
-	for (uint32_t i=0; i<num_hosts; i++) {
-		remote_read_to_host[i].reset();
-		remote_write_to_host[i].reset();
-	}
-
     uint64_t _num_iterations = 0;
     // using DGTerminatorDetector =
     // typename std::conditional<async, galois::DGTerminator<unsigned int>,
@@ -203,16 +191,48 @@ int main(int argc, char** argv) {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
 
+      local_read_stream.reset();
+      local_read_random.reset();
+      local_write_random.reset();
+      remote_read_stream.reset();
+      remote_read_random.reset();
+      remote_write_stream.reset();
+      remote_write_random.reset();
+
+      for (uint32_t i=0; i<num_hosts; i++) {
+        remote_read_to_host[i].reset();
+        remote_write_to_host[i].reset();
+      }
+
       galois::do_all(
             galois::iterate(allNodes),
-            [&](auto A) {
+            [&](Graph::GraphNode A) {
                 auto& data = hg_ref.getData(A);
                 data.queries.clear();
-                for (auto A_gid = hg_ref.getGID(A);data.queries.size() < query_size && data.edge_iterator != hg_ref.edge_end(A); data.edge_iterator++) {
+                auto A_gid = hg_ref.getGID(A);
+                local_read_stream += 1;
+                for (;data.queries.size() < query_size && data.edge_iterator != hg_ref.edge_end(A); data.edge_iterator++) {
+                    local_read_stream += 1;
                     auto C = hg_ref.getEdgeDst(data.edge_iterator);
                     auto C_gid = hg_ref.getGID(C);
+                    if (hg_ref.isOwned(C_gid)) {
+                        local_read_random += 1;
+                    }
+                    else {
+                        remote_read_random += 1;
+                        
+                        unsigned to_host = hg_ref.getHostID(C_gid);
+                        remote_read_to_host[to_host] += 1;
+                    }
                     if (A_gid > C_gid) {  // A > C; only query lower neighbors
                         data.queries.insert(C_gid);
+                        if (hg_ref.isOwned(A_gid)) {
+                            local_write_random += 1;
+                        } else {
+                            remote_write_random += 1;
+                            unsigned to_host = hg_ref.getHostID(A_gid);
+                            remote_write_to_host[to_host] += 1;
+                        }
                         bitset_queries.set(A);
                         dga += 1;
                     }
@@ -231,7 +251,7 @@ int main(int argc, char** argv) {
 
         galois::do_all(
             galois::iterate(nodesWithEdges),
-            [&](auto B) {
+            [&](Graph::GraphNode B) {
                 
 #if SORTED_EDGES
                 auto& data = hg_ref.getData(B);
@@ -239,9 +259,21 @@ int main(int argc, char** argv) {
 #else
                 auto e = hg_ref.edge_begin(B);
 #endif
-                for (auto B_gid = hg_ref.getGID(B); e != hg_ref.edge_end(B); e++) {
+                auto B_gid = hg_ref.getGID(B);
+                local_read_stream += 1;
+                for (; e != hg_ref.edge_end(B); e++) {
+                    local_read_stream += 1;
                     auto A = hg_ref.getEdgeDst(e);
                     auto A_gid = hg_ref.getGID(A);
+                    if (hg_ref.isOwned(A_gid)) {
+                        local_read_random += 1;
+                    }
+                    else {
+                        remote_read_random += 1;
+                        
+                        unsigned to_host = hg_ref.getHostID(A_gid);
+                        remote_read_to_host[to_host] += 1;
+                    }
                     // A > B; only pull queries from upper neghbors
                     if (B_gid >= A_gid) {
                         continue;
@@ -256,8 +288,18 @@ int main(int argc, char** argv) {
 #endif
                         }
                         for (auto&& e_: hg_ref.edges(B)) {
+                            local_read_stream += 1;
                             auto C_ = hg_ref.getEdgeDst(e_);
                             auto C_gid_ = hg_ref.getGID(C_);
+                            if (hg_ref.isOwned(C_gid_)) {
+                                local_read_random += 1;
+                            }
+                            else {
+                                remote_read_random += 1;
+                                
+                                unsigned to_host = hg_ref.getHostID(C_gid_);
+                                remote_read_to_host[to_host] += 1;
+                            }
                             if (C_gid == C_gid_) {
                                 num_triangles += 1;
                                 continue;
@@ -277,6 +319,22 @@ int main(int argc, char** argv) {
     auto num_works = dga.reduce(syncSubstrate->get_run_identifier());
     if (num_works < hg_ref.size()) query_size = (uint64_t)query_size << 1;
     // galois::gPrint(_num_iterations, " ", num_works, "\n");
+
+    file << "#####   Round " << _num_iterations << "   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round local read random: " << local_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round local write random: " << local_write_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote read stream: " << remote_read_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote read random: " << remote_read_random.read_local() << std::endl;
+	file << "host " << host_id << " round remote write stream: " << remote_write_stream.read_local() << std::endl;
+	file << "host " << host_id << " round remote write random: " << remote_write_random.read_local() << std::endl;
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": " << remote_read_to_host[i].read_local() << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": " << remote_write_to_host[i].read_local() << std::endl;
+	}
 
     //   galois::runtime::reportStat_Tsum(
     //       REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
