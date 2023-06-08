@@ -114,11 +114,12 @@ int main(int argc, char** argv) {
     double mk_graph_end = 0;
     double algo_start = 0;
     double algo_end = 0;
+    galois::DistMemSys G;
+    auto& net = galois::runtime::getSystemNetworkInterface();
 
     if(BENCH) e2e_start = MPI_Wtime();
     
     // Initialize Galois Runtime
-    galois::DistMemSys G;
     DistBenchStart(argc, argv, name, desc, url);
     DGAccumulatorTy num_triangles;
     num_triangles.reset();
@@ -130,6 +131,7 @@ int main(int argc, char** argv) {
     }
     std::unique_ptr<Graph> hg;
     std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
+    
     if(BENCH){
         galois::runtime::getHostBarrier().wait();
         mk_graph_end = MPI_Wtime();
@@ -139,7 +141,6 @@ int main(int argc, char** argv) {
     Graph& hg_ref = *hg;
     bitset_queries.resize(hg_ref.size());
 
-    auto& net = galois::runtime::getSystemNetworkInterface();
 	uint32_t num_hosts = hg->getNumHosts();
 	uint64_t host_id = net.ID;
     if (host_id == 0) {
@@ -318,7 +319,7 @@ int main(int argc, char** argv) {
 
     auto num_works = dga.reduce(syncSubstrate->get_run_identifier());
     if (num_works < hg_ref.size()) query_size = (uint64_t)query_size << 1;
-    // galois::gPrint(_num_iterations, " ", num_works, "\n");
+    galois::gPrint(_num_iterations, " ", num_works, "\n");
 
     file << "#####   Round " << _num_iterations << "   #####" << std::endl;
 	file << "host " << host_id << " round local read stream: " << local_read_stream.read_local() << std::endl;
