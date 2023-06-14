@@ -103,9 +103,11 @@ int main(int argc, char* argv[]) {
   std::tie(graph, syncSubstrate) =
       distGraphInitialization<NodeData, EdgeData>();
   if (net.ID == 0) {
-    galois::gPrint("#Nodes = ", graph->size(), "\n");
-    galois::gPrint("#Edges = ", graph->sizeEdges(), "\n");
+    galois::gPrint("Global #Nodes = ", graph->globalSize(), "\n");
+    galois::gPrint("Global #Edges = ", graph->globalSizeEdges(), "\n");
   }
+  galois::gPrint(net.ID, "#Nodes = ", graph->size(), "\n");
+  galois::gPrint(net.ID, "#Edges = ", graph->sizeEdges(), "\n");
 
   bitset_level_id.resize(graph->size());
 
@@ -118,6 +120,55 @@ int main(int argc, char* argv[]) {
   std::unique_ptr<NodeBag> ego_nodes = std::make_unique<NodeBag>();
   std::unique_ptr<EdgeBag> ego_edges = std::make_unique<EdgeBag>();
 
+  galois::DGAccumulator<uint64_t> perHostSourceCounter;
+  perHostSourceCounter.reset();
+  std::unique_ptr<NodeBag> sources = std::make_unique<NodeBag>();
+  galois::do_all(
+      galois::iterate(graph->allNodesWithEdgesRange()),
+      [&](auto& node) {
+        if (node > graph->numMasters()) { // mirror node
+          sources->emplace(node);
+          return;
+        }
+        // bfs to detect mirror accessibility
+        std::unique_ptr<std::set<uint64_t>> next =
+            std::make_unique<std::set<uint64_t>>();
+        std::unique_ptr<std::set<uint64_t>> curr =
+            std::make_unique<std::set<uint64_t>>();
+        curr->insert(node);
+        for (auto i = 0ul; i < levels.size(); i++) {
+          for (auto&& src : *curr) {
+            auto j = levels[i];
+            for (auto&& e : graph->edges(src)) {
+              if (j == 0) {
+                break;
+              }
+              auto dst = graph->getEdgeDst(e);
+              if (dst > graph->numMasters()) { // mirror node accessible
+                sources->emplace(node);
+                return;
+              }
+              next->insert(dst);
+              j--;
+            }
+          }
+          if (next->empty()) {
+            return;
+          }
+          std::swap(curr, next);
+          next->clear();
+        }
+      },
+      galois::loopname("sources"));
+  std::unordered_set<Graph::GraphNode> source_set(sources->begin(),
+                                                  sources->end());
+  perHostSourceCounter += source_set.size();
+  galois::gPrint(net.ID, " ", perHostSourceCounter.read_local(), "\n");
+  auto totalNumSources = perHostSourceCounter.reduce();
+  if (net.ID == 0) {
+    galois::gPrint("TOTAL SOURCES: ", totalNumSources, "\n");
+  }
+
   std::unique_ptr<NodeBag> curr = std::make_unique<NodeBag>();
   std::unique_ptr<NodeBag> next = std::make_unique<NodeBag>();
 
@@ -126,12 +177,22 @@ int main(int argc, char* argv[]) {
   auto totalNumThreads = galois::runtime::activeThreads;
   galois::substrate::PerThreadStorage<uint64_t> perThreadNum;
 
+  std::random_device rd;  // a seed source for the random number engine
+  std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+  // std::uniform_int_distribution<> distrib(0, numRuns);
+  std::vector<Graph::GraphNode> sample_sources;
+  std::sample(source_set.begin(), source_set.end(),
+              std::back_inserter(sample_sources), (int)numRuns, gen);
   for (auto run = 0; run < numRuns; ++run) {
+    // start_node = distrib(gen);
     galois::gPrint("[", net.ID, "] Run ", run, " started\n");
     inst->log_run(run);
 
-    if (graph->isLocal(start_node)) {
-      ego_nodes->emplace(graph->getLID(start_node));
+    // if (graph->isLocal(start_node)) {
+    //   ego_nodes->emplace(graph->getLID(start_node));
+    // }
+    if (run % net.Num == net.ID) {
+      ego_nodes->emplace(sample_sources[run / net.Num]);
     }
 
     curr->clear();
@@ -147,7 +208,10 @@ int main(int argc, char* argv[]) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer mainTimer(timer_str.c_str());
     mainTimer.start();
-    initializeWorkList(*graph, *next, perHostNodeCounter[net.ID]);
+    if (run % net.Num == net.ID) {
+      start_node = graph->getGID(sample_sources[run / net.Num]);
+      initializeWorkList(*graph, *next, perHostNodeCounter[net.ID]);
+    }
 
     for (uint64_t level = 0; level < levels.size(); level++) {
       // compute how many work items on this host
@@ -164,7 +228,7 @@ int main(int argc, char* argv[]) {
       }
 
       if (totalNumCandidates == 0) {
-        galois::gPrint("No neighboring nodes found at level ", level - 1,
+        galois::gDebug("No neighboring nodes found at level ", level - 1,
                        "; early stop\n");
         break;
       }
@@ -198,7 +262,7 @@ int main(int argc, char* argv[]) {
             if (n >= hostNumWorkItems)
               return;
 
-            auto& data     = graph->getData(node);
+            auto& data = graph->getData(node);
             inst->record_local_read_stream();
             auto old_level = galois::atomicMin(data.level_id, level);
             if (old_level > level) {
@@ -255,7 +319,7 @@ int main(int argc, char* argv[]) {
     galois::on_each([&](const unsigned tid, const unsigned numT) {
       auto start = numLocalNodes < numT ? tid : tid * numLocalNodes / numT,
            stop  = numLocalNodes < numT ? tid + 1
-                                       : (tid + 1) * numLocalNodes / numT;
+                                        : (tid + 1) * numLocalNodes / numT;
       if (start >= numLocalNodes) {
         return;
       }
@@ -263,15 +327,19 @@ int main(int argc, char* argv[]) {
       uint64_t id = start;
       for (auto it = begin; it != ego_nodes->end() && id != stop; it++, id++) {
         auto& nodeData = graph->getData(*it);
-        nodeData.lid   = numNodesPrefix[net.ID] + id;
+        inst->record_local_read_stream();
+        nodeData.lid = numNodesPrefix[net.ID] + id;
       }
     });
 
     galois::do_all(galois::iterate(*ego_nodes), [&](auto src) {
       auto& sdata = graph->getData(src);
+      inst->record_local_read_stream();
       for (auto it = graph->edge_begin(src); it != graph->edge_end(src); it++) {
-        auto dst    = graph->getEdgeDst(it);
+        auto dst = graph->getEdgeDst(it);
+        inst->record_local_read_stream();
         auto& ddata = graph->getData(dst);
+        inst->record_read_random(dst);
         if (src != dst && ddata.lid != NaN) {
           ego_edges->emplace(sdata.lid, ddata.lid);
         }
@@ -282,35 +350,38 @@ int main(int argc, char* argv[]) {
 
     mainTimer.stop();
 
-    if ((run + 1) != numRuns) {
-      syncSubstrate->set_num_run(run + 1);
-      bitset_level_id.reset();
-      initializeGraph(*graph);
-      ego_nodes->clear();
-    }
+    // if ((run + 1) != numRuns) {
+    syncSubstrate->set_num_run(run + 1);
+    bitset_level_id.reset();
+    initializeGraph(*graph);
+    ego_nodes->clear();
+    ego_edges->clear();
+    // }
   }
 
   totalTimer.stop();
 
-  uint64_t numNodes = 0, numEdges = 0;
-  for (auto i = ego_nodes->begin(); i != ego_nodes->end(); i++) {
-    numNodes++;
-    auto& data = graph->getData(*i);
-    galois::gPrint("node ", data.lid, " at level ",
-                   data.level_id.load(std::memory_order_relaxed),
-                   " was originally node ", *i, "\n");
-  }
+  // uint64_t numNodes = 0, numEdges = 0;
+  // for (auto i = ego_nodes->begin(); i != ego_nodes->end(); i++) {
+  //   numNodes++;
+  //   auto& data = graph->getData(*i);
+  //   galois::gPrint("node ", data.lid, " at level ",
+  //                  data.level_id.load(std::memory_order_relaxed),
+  //                  " was originally node ", *i, "\n");
+  // }
 
-  std::unordered_set<std::pair<Graph::GraphNode, Graph::GraphNode>,
-                     boost::hash<std::pair<Graph::GraphNode, Graph::GraphNode>>>
-      ego_edges_set(ego_edges->begin(), ego_edges->end()); // ugly deduplication
-  for (auto i = ego_edges_set.begin(); i != ego_edges_set.end(); i++) {
-    numEdges++;
-    auto [src, dst] = *i;
-    galois::gPrint(src, "->", dst, "\n");
-  }
-  galois::gPrint("#Ego graph nodes = ", numNodes, "\n");
-  galois::gPrint("#Ego graph edges = ", numEdges, "\n");
+  // std::unordered_set<std::pair<Graph::GraphNode, Graph::GraphNode>,
+  //                    boost::hash<std::pair<Graph::GraphNode,
+  //                    Graph::GraphNode>>>
+  //     ego_edges_set(ego_edges->begin(), ego_edges->end()); // ugly
+  //     deduplication
+  // for (auto i = ego_edges_set.begin(); i != ego_edges_set.end(); i++) {
+  //   numEdges++;
+  //   auto [src, dst] = *i;
+  //   galois::gPrint(src, "->", dst, "\n");
+  // }
+  // galois::gPrint("#Ego graph nodes = ", numNodes, "\n");
+  // galois::gPrint("#Ego graph edges = ", numEdges, "\n");
 
   inst.reset();
 

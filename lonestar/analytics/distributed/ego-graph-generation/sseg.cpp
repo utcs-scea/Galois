@@ -270,6 +270,7 @@ int main(int argc, char* argv[]) {
       bitset_level_id.reset();
       initializeGraph(*graph);
       ego_nodes->clear();
+      ego_edges->clear();
     }
   }
 

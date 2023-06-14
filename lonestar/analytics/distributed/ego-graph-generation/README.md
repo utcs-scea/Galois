@@ -1,6 +1,9 @@
-
+# Usage
 ```
-./ego-graph-generation-dist -startNode=<int Global ID, default to 0> <inputGraph.gr>
+./single-source-ego-graph-generation-dist -startNode=<int Global ID, default to 0> <inputGraph.gr>
+
+# Instrumentation
+./instrumented-single-source-ego-graph-generation-dist <input.sgr> -runs=<sample size> -t=<#threads>
 ```
 
 # Algorithm
