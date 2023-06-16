@@ -45,6 +45,7 @@ int personality = CPU;
 #endif
 
 namespace cll = llvm::cl;
+static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
 constexpr static const char* const REGION_NAME = "TC";
 
@@ -62,17 +63,97 @@ struct TC {
   Graph* graph;
   using DGAccumulatorTy = galois::DGAccumulator<uint64_t>;
   DGAccumulatorTy& numTriangles;
+    
+  galois::DGAccumulator<uint64_t>& local_read_stream_phase1;
+  galois::DGAccumulator<uint64_t>& local_read_stream_phase2;
+  galois::DGAccumulator<uint64_t>& local_read_stream_phase3;
+  galois::DGAccumulator<uint64_t>& local_read_random_phase1;
+  galois::DGAccumulator<uint64_t>& local_read_random_phase2;
+  galois::DGAccumulator<uint64_t>& local_write_random_phase1;
+  galois::DGAccumulator<uint64_t>& remote_read_random_phase1;
+  galois::DGAccumulator<uint64_t>& remote_write_stream_phase2;
+  galois::DGAccumulator<uint64_t>& remote_write_random_phase1;
+  galois::DGAccumulator<uint64_t>* remote_read_random_to_host;
+  galois::DGAccumulator<uint64_t>* remote_write_stream_to_host;
+  galois::DGAccumulator<uint64_t>* remote_write_random_to_host;
+  galois::DGAccumulator<uint64_t>* local_read_stream_to_host;
 
-  TC(Graph* _graph, DGAccumulatorTy& _numTriangles)
-      : graph(_graph), numTriangles(_numTriangles) {}
+  std::ofstream& file;
+
+  TC(Graph* _graph, 
+     DGAccumulatorTy& _numTriangles, 
+     galois::DGAccumulator<uint64_t>& _local_read_stream_phase1,
+     galois::DGAccumulator<uint64_t>& _local_read_stream_phase2,
+     galois::DGAccumulator<uint64_t>& _local_read_stream_phase3,
+     galois::DGAccumulator<uint64_t>& _local_read_random_phase1,
+     galois::DGAccumulator<uint64_t>& _local_read_random_phase2,
+     galois::DGAccumulator<uint64_t>& _local_write_random_phase1,
+     galois::DGAccumulator<uint64_t>& _remote_read_random_phase1,
+     galois::DGAccumulator<uint64_t>& _remote_write_stream_phase2,
+     galois::DGAccumulator<uint64_t>& _remote_write_random_phase1,
+     galois::DGAccumulator<uint64_t>* _remote_read_random_to_host,
+     galois::DGAccumulator<uint64_t>* _remote_write_stream_to_host,
+     galois::DGAccumulator<uint64_t>* _remote_write_random_to_host,
+     galois::DGAccumulator<uint64_t>* _local_read_stream_to_host,
+     std::ofstream& _file)
+      : graph(_graph), 
+        numTriangles(_numTriangles), 
+        local_read_stream_phase1(_local_read_stream_phase1),
+        local_read_stream_phase2(_local_read_stream_phase2),
+        local_read_stream_phase3(_local_read_stream_phase3),
+        local_read_random_phase1(_local_read_random_phase1),
+        local_read_random_phase2(_local_read_random_phase2),
+        local_write_random_phase1(_local_write_random_phase1),
+        remote_read_random_phase1(_remote_read_random_phase1),
+        remote_write_stream_phase2(_remote_write_stream_phase2),
+        remote_write_random_phase1(_remote_write_random_phase1),
+        remote_read_random_to_host(_remote_read_random_to_host),
+        remote_write_stream_to_host(_remote_write_stream_to_host),
+        remote_write_random_to_host(_remote_write_random_to_host),
+        local_read_stream_to_host(_local_read_stream_to_host),
+        file(_file) {}
 
   // use the below line once CPU code is added
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph, 
+                 galois::DGAccumulator<uint64_t>& local_read_stream_phase1,
+                 galois::DGAccumulator<uint64_t>& local_read_stream_phase2,
+                 galois::DGAccumulator<uint64_t>& local_read_stream_phase3,
+                 galois::DGAccumulator<uint64_t>& local_read_random_phase1,
+                 galois::DGAccumulator<uint64_t>& local_read_random_phase2,
+                 galois::DGAccumulator<uint64_t>& local_write_random_phase1,
+                 galois::DGAccumulator<uint64_t>& remote_read_random_phase1,
+                 galois::DGAccumulator<uint64_t>& remote_write_stream_phase2,
+                 galois::DGAccumulator<uint64_t>& remote_write_random_phase1,
+                 galois::DGAccumulator<uint64_t>* remote_read_random_to_host,
+                 galois::DGAccumulator<uint64_t>* remote_write_stream_to_host,
+                 galois::DGAccumulator<uint64_t>* remote_write_random_to_host,
+                 galois::DGAccumulator<uint64_t>* local_read_stream_to_host,
+                 std::ofstream& file) {
     unsigned _num_iterations = 0;
     DGAccumulatorTy numTriangles;
     syncSubstrate->set_num_round(_num_iterations);
     numTriangles.reset();
     const auto& allMasterNodes = _graph.masterNodesRange();
+
+    uint32_t num_hosts = _graph.getNumHosts();
+    uint64_t host_id = galois::runtime::getSystemNetworkInterface().ID;
+	
+    local_read_stream_phase1.reset();
+    local_read_stream_phase2.reset();
+    local_read_stream_phase3.reset();
+    local_read_random_phase1.reset();
+    local_read_random_phase2.reset();
+    local_write_random_phase1.reset();
+    remote_read_random_phase1.reset();
+    remote_write_stream_phase2.reset();
+    remote_write_random_phase1.reset();
+
+    for (uint32_t i=0; i<num_hosts; i++) {
+      remote_read_random_to_host[i].reset();
+      remote_write_stream_to_host[i].reset();
+      remote_write_random_to_host[i].reset();
+      local_read_stream_to_host[i].reset();
+    }
 
 #ifdef GALOIS_ENABLE_GPU
     if (personality == GPU_CUDA) { ///< GPU TC.
@@ -86,12 +167,81 @@ struct TC {
     } else { ///< CPU TC.
 #endif
       galois::do_all(
-          galois::iterate(allMasterNodes), TC(&_graph, numTriangles),
+          galois::iterate(allMasterNodes), 
+          TC(&_graph, 
+             numTriangles,
+             local_read_stream_phase1,
+             local_read_stream_phase2,
+             local_read_stream_phase3,
+             local_read_random_phase1,
+             local_read_random_phase2,
+             local_write_random_phase1,
+             remote_read_random_phase1,
+             remote_write_stream_phase2,
+             remote_write_random_phase1,
+             remote_read_random_to_host,
+             remote_write_stream_to_host,
+             remote_write_random_to_host,
+             local_read_stream_to_host,
+             file),
           galois::steal(),
           galois::loopname(syncSubstrate->get_run_identifier("TC").c_str()));
 #ifdef GALOIS_ENABLE_GPU
     }
 #endif
+    
+    file << "#####   Round 0   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream_phase1.read_local() << std::endl;
+	file << "host " << host_id << " round local read random: " << local_read_random_phase1.read_local() << std::endl;
+	file << "host " << host_id << " round local write random: " << local_write_random_phase1.read_local() << std::endl;
+	file << "host " << host_id << " round remote read stream: 0" << std::endl;
+	file << "host " << host_id << " round remote read random: " << remote_read_random_phase1.read_local() << std::endl;
+	file << "host " << host_id << " round remote write stream: 0" << std::endl;
+	file << "host " << host_id << " round remote write random: " << remote_write_random_phase1.read_local() << std::endl;
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": " << remote_read_random_to_host[i].read_local() << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": " << remote_write_random_to_host[i].read_local() << std::endl;
+	}
+    
+    file << "#####   Round 1   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream_phase2.read_local() << std::endl;
+	file << "host " << host_id << " round local read random: " << local_read_random_phase2.read_local() << std::endl;
+	file << "host " << host_id << " round local write random: 0" << std::endl;
+	file << "host " << host_id << " round remote read stream: 0" << std::endl;
+	file << "host " << host_id << " round remote read random: 0" << std::endl;
+	file << "host " << host_id << " round remote write stream: " << remote_write_stream_phase2.read_local() << std::endl;
+	file << "host " << host_id << " round remote write random: 0" << std::endl;
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": " << remote_write_stream_to_host[i].read_local() << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": 0" << std::endl;
+	}
+
+    for (uint32_t i=0; i<num_hosts; i++) {
+      remote_write_stream_to_host[i].reduce();
+      local_read_stream_to_host[i].reduce();
+    }
+    
+    file << "#####   Round 2   #####" << std::endl;
+	file << "host " << host_id << " round local read stream: " << local_read_stream_phase3.read_local() + remote_write_stream_to_host[host_id].read_local() + local_read_stream_to_host[host_id].read_local() << std::endl;
+	file << "host " << host_id << " round local read random: 0" << std::endl;
+	file << "host " << host_id << " round local write random: 0" << std::endl;
+	file << "host " << host_id << " round remote read stream: 0" << std::endl;
+	file << "host " << host_id << " round remote read random: 0" << std::endl;
+	file << "host " << host_id << " round remote write stream: 0" << std::endl;
+	file << "host " << host_id << " round remote write random: 0" << std::endl;
+
+	for (uint32_t i=0; i<num_hosts; i++) {
+		file << "host " << host_id << " remote read stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote read random to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write stream to host " << i << ": 0" << std::endl;
+		file << "host " << host_id << " remote write random to host " << i << ": 0" << std::endl;
+	}
 
     uint64_t total_triangles = numTriangles.reduce();
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
@@ -100,20 +250,69 @@ struct TC {
   }
 
   void operator()(GNode v) const {
-    size_t numTriangles_local = 0;
-    for (auto vIter : graph->edges(v)) {
-      GNode w                       = graph->getEdgeDst(vIter);
-      Graph::edge_iterator vIterBeg = graph->edge_begin(v);
-      Graph::edge_iterator vIterEnd = graph->edge_end(v);
+    // uint64_t v_GID = graph->getGID(v);
+      
+    local_read_stream_phase1 += 1;
+    local_read_stream_phase2 += 1;
+    local_read_stream_phase3 += 1;
 
-      for (auto wIter : graph->edges(w)) {
-        auto x                      = graph->getEdgeDst(wIter);
-        Graph::edge_iterator vvIter = vIterBeg;
-        while (graph->getEdgeDst(vvIter) < x && vvIter < vIterEnd) {
-          vvIter++;
-        }
-        if (vvIter < vIterEnd && x == graph->getEdgeDst(vvIter)) {
-          ++numTriangles_local;
+    size_t numTriangles_local = 0;
+      
+    for (auto vIter : graph->edges(v)) {
+      auto w = graph->getEdgeDst(vIter);
+      uint64_t w_GID = graph->getGID(w);
+      bool w_owned = graph->isOwned(w_GID);
+      unsigned to_host = graph->getHostID(w_GID);
+
+      if (w_owned) {
+          local_read_stream_phase1 += 2;
+          local_read_random_phase1 += 2;
+
+          local_write_random_phase1 = 1;
+      }
+      else {
+          local_read_stream_phase1 += 1;
+          remote_read_random_phase1 += 1;
+          remote_read_random_to_host[to_host] += 1;
+          
+          remote_write_random_phase1 += 1;
+          remote_write_random_to_host[to_host] += 1;
+      }
+
+      local_read_stream_phase2 += 1;
+
+      for (auto vIter2 : graph->edges(v)) {
+        auto x = graph->getEdgeDst(vIter2);      
+        uint64_t x_GID = graph->getGID(x);
+        // bool x_owned = graph->isOwned(x_GID);
+
+        local_read_stream_phase2 += 1;
+
+        if (w_GID < x_GID) {
+            if (w_owned) {
+                local_read_random_phase2 += 1;
+            }
+            else {
+                remote_write_stream_phase2 += 1;        
+                remote_write_stream_to_host[to_host] += 1;
+            }
+
+            for (auto wIter: graph->edges(w)) {
+                auto m = graph->getEdgeDst(wIter);             
+                // uint64_t m_GID = graph->getGID(m);
+                // bool m_owned = graph->isOwned(m_GID);
+
+                if (w_owned) {
+                    local_read_stream_phase2 += 1;
+                }
+                else {
+                    local_read_stream_to_host[to_host] += 1;
+                }
+                
+                if (m == x) {
+                    ++numTriangles_local;
+                }
+            }
         }
       }
     } ///< Finding triangles is done.
@@ -169,8 +368,30 @@ int main(int argc, char** argv) {
     hg->sortEdgesByDestination();
     edgeSortTime.stop();
   }
+
+  uint32_t num_hosts = hg->getNumHosts();
+  uint64_t host_id = net.ID;
+
   ///! accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_numTriangles;
+  galois::DGAccumulator<uint64_t> local_read_stream_phase1;
+  galois::DGAccumulator<uint64_t> local_read_stream_phase2;
+  galois::DGAccumulator<uint64_t> local_read_stream_phase3;
+  galois::DGAccumulator<uint64_t> local_read_random_phase1;
+  galois::DGAccumulator<uint64_t> local_read_random_phase2;
+  galois::DGAccumulator<uint64_t> local_write_random_phase1;
+  galois::DGAccumulator<uint64_t> remote_read_random_phase1;
+  galois::DGAccumulator<uint64_t> remote_write_stream_phase2;
+  galois::DGAccumulator<uint64_t> remote_write_random_phase1;
+  galois::DGAccumulator<uint64_t> remote_read_random_to_host[num_hosts];
+  galois::DGAccumulator<uint64_t> remote_write_stream_to_host[num_hosts];
+  galois::DGAccumulator<uint64_t> remote_write_random_to_host[num_hosts];
+  galois::DGAccumulator<uint64_t> local_read_stream_to_host[num_hosts];
+
+  std::ofstream file;
+  file.open(graphName + "_" + std::to_string(num_hosts) + "procs_id" + std::to_string(host_id));
+  file << "#####   Stat   #####" << std::endl;
+  file << "host " << host_id << " total edges: " << hg->sizeEdges() << std::endl;
 
   for (auto run = 0; run < numRuns; ++run) {
     galois::gPrint("[", net.ID, "] TC::go run ", run, " called\n");
@@ -178,7 +399,21 @@ int main(int argc, char** argv) {
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
 
     StatTimer_main.start();
-    TC<false>::go(*hg);
+    TC<false>::go(*hg,
+                  local_read_stream_phase1,
+                  local_read_stream_phase2,
+                  local_read_stream_phase3,
+                  local_read_random_phase1,
+                  local_read_random_phase2,
+                  local_write_random_phase1,
+                  remote_read_random_phase1,
+                  remote_write_stream_phase2,
+                  remote_write_random_phase1,
+                  remote_read_random_to_host,
+                  remote_write_stream_to_host,
+                  remote_write_random_to_host,
+                  local_read_stream_to_host,
+                  file);
     StatTimer_main.stop();
 
     syncSubstrate->set_num_run(run + 1);
