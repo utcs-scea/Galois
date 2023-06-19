@@ -274,8 +274,8 @@ protected:
   std::atomic<uint64_t> numEdges;
   std::atomic<uint64_t> edgeEnd;
 
-  const uint64_t maxNodes = ((uint64_t)1) << 30;
-  const uint64_t maxEdges = ((uint64_t)1) << 32;
+  uint64_t maxNodes = ((uint64_t)1) << 30;
+  uint64_t maxEdges = ((uint64_t)1) << 32;
 
   typedef internal::EdgeSortIterator<
       GraphNode, uint64_t, EdgeDst, EdgeData>
@@ -974,19 +974,23 @@ public:
 
   void allocateFrom(const FileGraph& graph) {
     numNodes = graph.size();
-    numEdges = graph.sizeEdges();
+    numEdges = 0;
+    edgeEnd = 0;
+    maxEdges = graph.sizeEdges();
+    maxNodes = numNodes;
+
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
-      edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
-      edgeData.allocateBlocked(numEdges);
-      this->outOfLineAllocateBlocked(numNodes);
+      nodeData.allocateBlocked(maxNodes);
+      edgeIndData.allocateBlocked(maxNodes);
+      edgeDst.allocateBlocked(maxEdges);
+      edgeData.allocateBlocked(maxEdges);
+      this->outOfLineAllocateBlocked(maxNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
-      edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
-      edgeData.allocateInterleaved(numEdges);
-      this->outOfLineAllocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(maxNodes);
+      edgeIndData.allocateInterleaved(maxNodes);
+      edgeDst.allocateInterleaved(maxEdges);
+      edgeData.allocateInterleaved(maxEdges);
+      this->outOfLineAllocateInterleaved(maxNodes);
     }
 #ifdef GRAPH_PROFILE
     this->local_rand_write_count += 4;
@@ -996,20 +1000,23 @@ public:
 
   void allocateFrom(uint64_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
-    numEdges = nEdges;
+    numEdges = 0;
+    edgeEnd = 0;
+    maxEdges = nEdges;
+    maxNodes = nNodes;
 
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
-      edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
-      edgeData.allocateBlocked(numEdges);
-      this->outOfLineAllocateBlocked(numNodes);
+      nodeData.allocateBlocked(maxNodes);
+      edgeIndData.allocateBlocked(maxNodes);
+      edgeDst.allocateBlocked(maxEdges);
+      edgeData.allocateBlocked(maxEdges);
+      this->outOfLineAllocateBlocked(maxNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
-      edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
-      edgeData.allocateInterleaved(numEdges);
-      this->outOfLineAllocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(maxNodes);
+      edgeIndData.allocateInterleaved(maxNodes);
+      edgeDst.allocateInterleaved(maxEdges);
+      edgeData.allocateInterleaved(maxEdges);
+      this->outOfLineAllocateInterleaved(maxNodes);
     }
 #ifdef GRAPH_PROFILE
     this->local_rand_write_count += 4;
@@ -1019,21 +1026,24 @@ public:
 
   void destroyAndAllocateFrom(uint64_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
-    numEdges = nEdges;
+    numEdges = 0;
+    edgeEnd = 0;
+    maxEdges = nEdges;
+    maxNodes = nNodes;
 
     deallocate();
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
-      edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
-      edgeData.allocateBlocked(numEdges);
-      this->outOfLineAllocateBlocked(numNodes);
+      nodeData.allocateBlocked(maxNodes);
+      edgeIndData.allocateBlocked(maxNodes);
+      edgeDst.allocateBlocked(maxEdges);
+      edgeData.allocateBlocked(maxEdges);
+      this->outOfLineAllocateBlocked(maxNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
-      edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
-      edgeData.allocateInterleaved(numEdges);
-      this->outOfLineAllocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(maxNodes);
+      edgeIndData.allocateInterleaved(maxNodes);
+      edgeDst.allocateInterleaved(maxEdges);
+      edgeData.allocateInterleaved(maxEdges);
+      this->outOfLineAllocateInterleaved(maxNodes);
     }
   }
 
