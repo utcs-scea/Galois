@@ -271,8 +271,8 @@ protected:
   EdgeData edgeData;
 
   std::atomic<uint64_t> numNodes;
-  std::atomic<uint64_t> numEdges;
-  std::atomic<uint64_t> edgeEnd;
+  std::atomic<uint64_t> numEdges = 0;
+  std::atomic<uint64_t> edgeEnd  = 0;
 
   uint64_t maxNodes = ((uint64_t)1) << 30;
   uint64_t maxEdges = ((uint64_t)1) << 32;
