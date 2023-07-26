@@ -21,6 +21,7 @@
 #include "DistBench/Start.h"
 #include "galois/DistGalois.h"
 #include "galois/gstl.h"
+#include "galois/substrate/PerThreadStorage.h"
 #include "galois/DReducible.h"
 #include "galois/DTerminationDetector.h"
 #include "galois/runtime/Tracer.h"
@@ -35,6 +36,73 @@ struct CUDA_Context* cuda_ctx;
 enum { CPU, GPU_CUDA };
 int personality = CPU;
 #endif
+
+#ifdef STACK_CAPTURE
+struct StackCap
+{
+private:
+  using stack_ptr = uint64_t;
+  bool grows_down;
+  stack_ptr init_top;
+  stack_ptr init_bot;
+  galois::substrate::PerThreadStorage<stack_ptr> top;
+  galois::substrate::PerThreadStorage<stack_ptr> bot;
+
+  stack_ptr getStackPtr() { uint64_t a; return (uint64_t)&a;}
+
+public:
+  StackCap()
+  {
+    uint64_t bot_val;
+    uint64_t top_p = getStackPtr();
+    grows_down = ((uint64_t)&bot_val > top_p) ? true : false;
+    init_top = grows_down ? UINT64_MAX : 0;
+    init_bot = grows_down ? 0 : UINT64_MAX;
+
+    assert(top.size() == bot.size());
+    for(unsigned i = 0; i < top.size(); i++)
+    {
+      *top.getRemote(i) = init_top;
+      *bot.getRemote(i) = init_bot;
+    }
+  }
+
+  void capture_stack_info()
+  {
+    stack_ptr curr = getStackPtr();
+    bool change_top = grows_down ? (curr < *top.getLocal()) : (curr > *top.getLocal());
+    bool change_bot = grows_down ? (curr > *bot.getLocal()) : (curr < *bot.getLocal());
+    if(change_top) *top.getLocal() = curr;
+    if(change_bot) *bot.getLocal() = curr;
+  }
+
+  uint64_t get_max()
+  {
+    stack_ptr max = 0;
+    for(unsigned i = 0; i < top.size(); i++)
+    {
+      bool valid_vals = (*top.getRemote(i) != init_top) && (*bot.getRemote(i) != init_bot);
+      stack_ptr candidate_max = grows_down ? (*bot.getRemote(i) - *top.getRemote(i))
+                                           : (*top.getRemote(i) - *bot.getRemote(i));
+      if(valid_vals && (candidate_max > max)) max = candidate_max;
+    }
+
+  return max;
+  }
+};
+
+#else
+struct StackCap
+{
+  StackCap() {}
+
+  void capture_stack_info() {}
+
+  uint64_t get_max() { return 0; }
+
+};
+#endif
+StackCap* stack_capture;
 
 constexpr static const char* const REGION_NAME = "BFS";
 
@@ -267,9 +335,11 @@ struct BFS {
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
+    stack_capture->capture_stack_info();
 
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
+      stack_capture->capture_stack_info();
 
       if (local_priority > snode.dist_current) {
         snode.dist_old = snode.dist_current;
@@ -283,7 +353,9 @@ struct BFS {
           uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
           if (old_dist > new_dist)
             bitset_dist_current.set(dst);
+          stack_capture->capture_stack_info();
         }
+        stack_capture->capture_stack_info();
       }
     }
   }
@@ -405,7 +477,14 @@ constexpr static const char* const desc = "BFS on Distributed Galois.";
 constexpr static const char* const url  = nullptr;
 
 int main(int argc, char** argv) {
+
   galois::DistMemSys G;
+
+  stack_capture = new StackCap();
+  stack_capture->capture_stack_info();
+
+  galois::on_each([&](unsigned i, const unsigned& nt){(void) i; (void)nt; stack_capture->capture_stack_info();});
+
   DistBenchStart(argc, argv, name, desc, url);
 
   const auto& net = galois::runtime::getSystemNetworkInterface();
@@ -471,6 +550,7 @@ int main(int argc, char** argv) {
   }
 
   StatTimer_total.stop();
+  galois::gPrint("[", net.ID, "] Max Stack Size ", stack_capture->get_max(), " bytes\n");
 
   if (output) {
     std::vector<uint32_t> results = makeResults(hg);
