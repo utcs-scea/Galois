@@ -6,6 +6,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 
 include(GNUInstallDirs)
 
+if(STACK_CAPTURE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finstrument-functions")
+  set(INSTRUMENT_EXCLUDE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/libgalois/include/galois/runtime/StackTracer.h")
+  set(INSTRUMENT_EXCLUDE_FILE "${INSTRUMENT_EXCLUDE_FILE},/usr/include/c++/11/sstream")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finstrument-functions-exclude-file-list=${INSTRUMENT_EXCLUDE_FILE}")
+endif(STACK_CAPTURE)
+
 file(STRINGS config/version.txt GALOIS_VERSION)
 string(REGEX REPLACE "[ \t\n]" "" GALOIS_VERSION ${GALOIS_VERSION})
 string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\1" GALOIS_VERSION_MAJOR ${GALOIS_VERSION})

@@ -157,6 +157,7 @@ public:
       cont_cap->top = init_top;
       cont_cap->bot = init_bot;
     }
+    return 0;
   }
 
 };
