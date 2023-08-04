@@ -115,6 +115,9 @@ public:
     if(change_bot) __atomic_store_8(&cap.bot, curr, __ATOMIC_RELAXED);
   }
 
+  /**
+   * @return the maximum stack value
+   * */
   uint64_t get_max()
   {
     uint64_t max = 0;
@@ -132,6 +135,12 @@ public:
     return max;
   }
 
+  /**
+   * @param idx the index of the capacity you want to get
+   * @param top a reference where the top of the stack should be put
+   * @param bot a reference where the bottom of the stack should be put
+   * @return tells you if the value at top and bot should be trusted (no errors is 0)
+   **/
   int get_top_bot(uint16_t idx, uint64_t& top, uint64_t& bot)
   {
     uintptr_t tr_cap_addr = 0;
