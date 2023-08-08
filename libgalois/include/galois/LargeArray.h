@@ -73,6 +73,12 @@ public:
     const static size_t value = sizeof(T);
   };
 
+  // print out memory address info
+  void printMemAddr() {
+      galois::gPrint("start address = 0x", std::hex, m_data);
+      galois::gPrint(", size = ", m_size, " bytes\n");
+  }
+
 protected:
   enum AllocType { Blocked, Local, Interleaved, Floating };
   void allocate(size_type n, AllocType t) {

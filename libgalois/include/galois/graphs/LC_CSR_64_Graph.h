@@ -274,6 +274,20 @@ public:
 
   LC_CSR_64_Graph& operator=(LC_CSR_64_Graph&&) = default;
 
+  // Print out memory addresses for this data structure
+  void printMemInfo() {
+      galois::gPrint("Node Data: ");
+      nodeData.printMemAddr();
+      
+      galois::gPrint("Edge Ind Data: ");
+      edgeIndData.printMemAddr();
+      
+      galois::gPrint("Edge Dst: ");
+      edgeDst.printMemAddr();
+      
+      // edgeData.printMemAddr();
+  }
+
   /**
    * Serializes node data using Boost.
    *

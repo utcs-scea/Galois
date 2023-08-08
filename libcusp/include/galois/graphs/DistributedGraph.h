@@ -509,6 +509,11 @@ public:
     numGlobalEdges = 0;
   }
 
+  // Print out memory address information of this data structur
+  void printMemInfo() {
+      graph.printMemInfo();
+  }
+
   /**
    * Return a vector of pairs denoting mirror node ranges.
    *

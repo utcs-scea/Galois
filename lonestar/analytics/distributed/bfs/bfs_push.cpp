@@ -530,7 +530,14 @@ int main(int argc, char** argv) {
   }
 
   StatTimer_total.stop();
+  hg->printMemInfo();
   galois::gPrint("[", net.ID, "] Max Stack Size ", stack_capture.get_max(), " bytes\n");
+  uint16_t stack_cap;
+  uint64_t stack_top;
+  uint64_t stack_bot;
+  stack_capture.get_top_bot(stack_cap, stack_top, stack_bot);
+  galois::gPrint("[", net.ID, "] Stack Top Address = 0x", std::hex, stack_top, "\n");
+  galois::gPrint("[", net.ID, "] Stack Bottom Address = 0x", std::hex, stack_bot, "\n");
 
 
   struct rusage r_usage;
