@@ -75,8 +75,8 @@ public:
 
   // print out memory address info
   void printMemAddr() {
-      galois::gPrint("start address = 0x", std::hex, m_data);
-      galois::gPrint(", size = ", m_size, " bytes\n");
+      galois::gPrint("start address = ", std::hex, m_data);
+      galois::gPrint(" size = ", m_size * sizeof(T), " bytes\n");
   }
 
 protected:

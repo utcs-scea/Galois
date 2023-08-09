@@ -376,13 +376,15 @@ public:
   
   // Print out memory addresses for this data structure
   void printMemInfo() {
-      galois::gPrint("Node Data: ");
+      const auto& net = galois::runtime::getSystemNetworkInterface();
+
+      galois::gPrint("[ ", net.ID, " ] Node Data: ");
       nodeData.printMemAddr();
       
-      galois::gPrint("Edge Ind Data: ");
+      galois::gPrint("[ ", net.ID, " ] Edge Ind Data: ");
       edgeIndData.printMemAddr();
       
-      galois::gPrint("Edge Dst: ");
+      galois::gPrint("[ ", net.ID, " ] Edge Dst: ");
       edgeDst.printMemAddr();
       
       // edgeData.printMemAddr();

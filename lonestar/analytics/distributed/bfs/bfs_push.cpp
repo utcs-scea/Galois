@@ -422,7 +422,7 @@ constexpr static const char* const url  = nullptr;
 
 int main(int argc, char** argv) {
 
-  stack_capture.reset();
+  // stack_capture.reset();
 
   auto st = std::chrono::high_resolution_clock::now();
 
@@ -498,11 +498,11 @@ int main(int argc, char** argv) {
       bitset_dist_current.reset();
     }
 
-    galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
+    galois::gPrint("[ ", net.ID, " ] InitializeGraph::go called\n");
     InitializeGraph::go((*hg));
     galois::runtime::getHostBarrier().wait();
 
-    galois::gPrint("[", net.ID, "] BFS::go run ", run, " called\n");
+    galois::gPrint("[ ", net.ID, " ] BFS::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
 
@@ -531,20 +531,20 @@ int main(int argc, char** argv) {
 
   StatTimer_total.stop();
   hg->printMemInfo();
-  galois::gPrint("[", net.ID, "] Max Stack Size ", stack_capture.get_max(), " bytes\n");
+  galois::gPrint("[ ", net.ID, " ] Max Stack Size ", stack_capture.get_max(), " bytes\n");
   uint16_t stack_cap;
   uint64_t stack_top;
   uint64_t stack_bot;
   stack_capture.get_top_bot(stack_cap, stack_top, stack_bot);
-  galois::gPrint("[", net.ID, "] Stack Top Address = 0x", std::hex, stack_top, "\n");
-  galois::gPrint("[", net.ID, "] Stack Bottom Address = 0x", std::hex, stack_bot, "\n");
+  galois::gPrint("[ ", net.ID, " ] Stack Top Address = 0x", std::hex, stack_top, "\n");
+  galois::gPrint("[ ", net.ID, " ] Stack Bottom Address = 0x", std::hex, stack_bot, "\n");
 
 
   struct rusage r_usage;
   getrusage(RUSAGE_SELF,&r_usage);
-  galois::gPrint("[", net.ID, "] Memory usage: ", r_usage.ru_maxrss, " KB\n");
+  galois::gPrint("[ ", net.ID, " ] Memory usage: ", r_usage.ru_maxrss, " KB\n");
   auto en = std::chrono::high_resolution_clock::now();
 
-  galois::gPrint("[", net.ID, "] E2ETime: ", std::chrono::duration_cast<std::chrono::nanoseconds>(en - st).count(), " ns\n");
+  galois::gPrint("[ ", net.ID, " ] E2ETime: ", std::chrono::duration_cast<std::chrono::nanoseconds>(en - st).count(), " ns\n");
   return 0;
 }
