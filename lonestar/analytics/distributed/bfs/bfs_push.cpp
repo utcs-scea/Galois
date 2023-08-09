@@ -73,6 +73,11 @@ static cll::opt<Exec> execution(
                 clEnumVal(Async, "Bulk-asynchronous Parallel (BASP)")),
     cll::init(Async));
 
+static cll::opt<std::string>
+  graphName("graphName",
+        cll::desc("Name of the input graph"),
+        cll::init("temp"));
+
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
 /******************************************************************************/
@@ -85,6 +90,7 @@ struct NodeData {
 };
 
 galois::DynamicBitSet bitset_dist_current;
+galois::DynamicBitSet touched;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
