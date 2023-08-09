@@ -561,6 +561,8 @@ public:
   }
 
   bool isTransposed() { return transposed; }
+  
+  uint32_t getNumHosts() { return numHosts; }
 
   /**
    * Converts a local node id into a global node id
