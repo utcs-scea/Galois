@@ -175,9 +175,7 @@ struct FirstItr_BFS {
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current,
                         Bitset_dist_current, async>("BFS");
 
-    galois::runtime::reportStat_Tsum(
-        REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
-        __end - __begin);
+    // galois::runtime::reportStat_Tsum(REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"), __end - __begin);
   }
 
   void operator()(GNode src) const {
@@ -259,9 +257,7 @@ struct BFS {
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current,
                           Bitset_dist_current, async>("BFS");
 
-      galois::runtime::reportStat_Tsum(
-          REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
-          (unsigned long)work_edges.read_local());
+      // galois::runtime::reportStat_Tsum(REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"), (unsigned long)work_edges.read_local());
 
       ++_num_iterations;
     } while ((async || (_num_iterations < maxIterations)) &&
@@ -276,12 +272,12 @@ struct BFS {
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
     //stack_capture->capture_stack_info();
-    cyg_profile_func_stack(nullptr, nullptr);
+    // cyg_profile_func_stack(nullptr, nullptr);
 
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
       //stack_capture->capture_stack_info();
-      cyg_profile_func_stack(nullptr, nullptr);
+      // cyg_profile_func_stack(nullptr, nullptr);
 
       if (local_priority > snode.dist_current) {
         snode.dist_old = snode.dist_current;
@@ -296,10 +292,10 @@ struct BFS {
           if (old_dist > new_dist)
             bitset_dist_current.set(dst);
           //stack_capture->capture_stack_info();
-          cyg_profile_func_stack(nullptr, nullptr);
+          // cyg_profile_func_stack(nullptr, nullptr);
         }
         //stack_capture->capture_stack_info();
-        cyg_profile_func_stack(nullptr, nullptr);
+        // cyg_profile_func_stack(nullptr, nullptr);
       }
     }
   }
@@ -532,10 +528,10 @@ int main(int argc, char** argv) {
   StatTimer_total.stop();
   hg->printMemInfo();
   galois::gPrint("[ ", net.ID, " ] Max Stack Size ", stack_capture.get_max(), " bytes\n");
-  uint16_t stack_cap;
-  uint64_t stack_top;
-  uint64_t stack_bot;
-  stack_capture.get_top_bot(stack_cap, stack_top, stack_bot);
+  uint16_t stack_cap = 0;
+  uint64_t stack_top = 0;
+  uint64_t stack_bot = 0;
+  // stack_capture.get_top_bot(stack_cap, stack_top, stack_bot);
   galois::gPrint("[ ", net.ID, " ] Stack Top Address = 0x", std::hex, stack_top, "\n");
   galois::gPrint("[ ", net.ID, " ] Stack Bottom Address = 0x", std::hex, stack_bot, "\n");
 
