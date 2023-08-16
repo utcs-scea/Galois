@@ -168,8 +168,9 @@ struct FirstItr_BFS {
       // one node
       galois::do_all(
           galois::iterate(__begin, __end), FirstItr_BFS{&_graph},
-          galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
+          galois::no_stats());
+          // galois::no_stats(),
+          // galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
     }
 
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current,
@@ -251,8 +252,9 @@ struct BFS {
         galois::do_all(
             galois::iterate(nodesWithEdges),
             BFS(priority, &_graph, dga, work_edges), galois::steal(),
-            galois::no_stats(),
-            galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
+            galois::no_stats());
+            // galois::no_stats(),
+            // galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current,
                           Bitset_dist_current, async>("BFS");
@@ -263,10 +265,7 @@ struct BFS {
     } while ((async || (_num_iterations < maxIterations)) &&
              dga.reduce(syncSubstrate->get_run_identifier()));
 
-    galois::runtime::reportStat_Tmax(
-        REGION_NAME,
-        "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-        (unsigned long)_num_iterations);
+    // galois::runtime::reportStat_Tmax(REGION_NAME, "NumIterations_" + std::to_string(syncSubstrate->get_run_num()), (unsigned long)_num_iterations);
   }
 
   void operator()(GNode src) const {
@@ -527,13 +526,13 @@ int main(int argc, char** argv) {
 
   StatTimer_total.stop();
   hg->printMemInfo();
-  galois::gPrint("[ ", net.ID, " ] Max Stack Size ", stack_capture.get_max(), " bytes\n");
-  uint16_t stack_cap = 0;
-  uint64_t stack_top = 0;
-  uint64_t stack_bot = 0;
+  // galois::gPrint("[ ", net.ID, " ] Max Stack Size ", stack_capture.get_max(), " bytes\n");
+  // uint16_t stack_cap;
+  // uint64_t stack_top;
+  // uint64_t stack_bot;
   // stack_capture.get_top_bot(stack_cap, stack_top, stack_bot);
-  galois::gPrint("[ ", net.ID, " ] Stack Top Address = 0x", std::hex, stack_top, "\n");
-  galois::gPrint("[ ", net.ID, " ] Stack Bottom Address = 0x", std::hex, stack_bot, "\n");
+  // galois::gPrint("[ ", net.ID, " ] Stack Top Address = 0x", std::hex, stack_top, "\n");
+  // galois::gPrint("[ ", net.ID, " ] Stack Bottom Address = 0x", std::hex, stack_bot, "\n");
 
 
   struct rusage r_usage;
