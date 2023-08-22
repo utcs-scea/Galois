@@ -327,7 +327,7 @@ public:
    * @param scaleFactor Vector specifying if certain divisions should get more
    * than other divisions
    */
-  auto divideByNode(size_t nodeWeight, size_t edgeWeight, size_t id,
+  virtual auto divideByNode(size_t nodeWeight, size_t edgeWeight, size_t id,
                     size_t total,
                     std::vector<unsigned> scaleFactor = std::vector<unsigned>())
       -> GraphRange {
