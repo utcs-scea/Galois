@@ -35,6 +35,7 @@
 #include "galois/graphs/FileGraph.h"
 #include "galois/graphs/GraphHelpers.h"
 #include "galois/PODResizeableArray.h"
+#include "galois/PrefixSum.h"
 
 namespace galois::graphs {
 /**
@@ -220,6 +221,7 @@ protected:
   typedef LargeArray<EdgeInd> EdgeIndData;
   typedef LargeArray<NodeInfo> NodeData;
 
+
 public:
   typedef uint64_t GraphNode;
   typedef EdgeTy edge_data_type;
@@ -239,7 +241,15 @@ protected:
   EdgeIndData edgeIndData;
   EdgeDst edgeDst;
   EdgeData edgeData;
+  EdgeDst prefixSumCache;
 
+  uint64_t transmute (const EdgeInd& p) {return p.second - p.first;};
+  uint64_t scan_op   (const EdgeInd& p, const EdgeDst::value_type& l) {return p.second - p.first + l;};
+  uint64_t combiner  (const EdgeDst::value_type& f, const EdgeDst::value_type& s){return f + s;};
+
+  PrefixSum<EdgeInd, EdgeDst::value_type, transmute, scan_op, combiner, CacheLinePaddedArr> pfxsum {&edgeIndData[0], &prefixSumCache[0]};
+
+  std::atomic<bool>     prefixValid = false;
   std::atomic<uint64_t> numNodes;
   std::atomic<uint64_t> numEdges;
   std::atomic<uint64_t> edgeEnd;
@@ -425,18 +435,27 @@ public:
     ar >> edgeData;
   }
 
+  //Compute the prefix sum using the two level method
+  void computePrefixSum()
+  {
+    pfxsum.computePrefixSum(numNodes);
+    prefixValid = true;
+  }
+
   /**
-   * Accesses the "prefix sum" of this graph; takes advantage of the fact
-   * that edge_end(n) is basically prefix_sum[n] (if a prefix sum existed +
-   * if prefix_sum[0] = number of edges in node 0).
-   *
+   * DO NOT USE WHILE MODIFYING THE GRAPH!
    * ONLY USE IF GRAPH HAS BEEN LOADED
    *
    * @param n Index into edge prefix sum
    * @returns The value that would be located at index n in an edge prefix sum
    * array
    */
-  uint64_t operator[](uint64_t n) { return *(edge_end(n)); }
+  uint64_t operator[](uint64_t n)
+  {
+    if(!prefixValid)
+      computePrefixSum();
+    return pfxsum[n];
+  }
 
   template <typename EdgeNumFnTy, typename EdgeDstFnTy, typename EdgeDataFnTy>
   LS_LC_CSR_64_Graph(uint64_t _numNodes, uint64_t _numEdges, EdgeNumFnTy edgeNum,
@@ -690,6 +709,7 @@ public:
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgePlace + num_dst;
     numEdges.fetch_add(num_dst, std::memory_order_relaxed);
+    prefixValid = false;
   }
 
   template<typename Cont>
@@ -726,6 +746,7 @@ public:
     edgeIndData[src].first  = edgeStart;
     edgeIndData[src].second = edgePlace;
     numEdges.fetch_add(dst_sz, std::memory_order_relaxed);
+    prefixValid = false;
   }
 
   void sortVertexSerially(uint64_t src)
@@ -754,6 +775,12 @@ public:
     swap(lhs.edgeIndData, rhs.edgeIndData);
     swap(lhs.edgeDst, rhs.edgeDst);
     swap(lhs.edgeData, rhs.edgeData);
+    swap(lhs.pfxsum, rhs.pfxsum);
+
+    bool pv = lhs.prefixValid;
+    lhs.prefixValid = rhs.prefixValid;
+    rhs.prefixValid = pv;
+
     uint64_t blah = lhs.numNodes;
     lhs.numNodes = rhs.numNodes;
     rhs.numNodes = blah;
@@ -898,12 +925,14 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
+      pfxsum.allocateInterleaved(numNodes);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
+      pfxsum.allocateInterleaved(numNodes);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -917,12 +946,14 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
+      pfxsum.allocateBlocked(numNodes);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
+      pfxsum.allocateInterleaved(numNodes);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -937,12 +968,14 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
+      pfxsum.allocateBlocked(numNodes);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
+      pfxsum.allocateInterleaved(numNodes);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -976,6 +1009,9 @@ public:
 
     edgeData.deallocate();
     edgeData.destroy();
+
+    prefixSumCache.deallocate();
+    prefixSumCache.destroy();
   }
 
   void constructEdge(uint64_t e, uint64_t dst,
@@ -993,6 +1029,7 @@ public:
    * Perform an in-memory transpose of the graph, replacing the original
    * CSR to CSC
    */
+  template<bool ComputePFXSum = true>
   void transpose(const char* regionName = NULL) {
     galois::StatTimer timer("TIMER_GRAPH_TRANSPOSE", regionName);
     timer.start();
@@ -1001,6 +1038,7 @@ public:
     EdgeData edgeData_new;
     EdgeIndData edgeIndData_old;
     EdgeIndData edgeIndData_temp;
+
 
     if (UseNumaAlloc) {
       edgeIndData_old.allocateBlocked(numNodes);
@@ -1096,6 +1134,12 @@ public:
     }
     edgeEnd.store(numEdges, std::memory_order_relaxed);
 
+    if(ComputePFXSum)
+    {
+      pfxsum.computePrefixSum();
+      prefixValid = true;
+    }
+
     timer.stop();
   }
 
@@ -1182,7 +1226,11 @@ public:
    *
    * @returns reference to LargeArray edgeIndData
    */
-  const EdgeIndData& getEdgePrefixSum() const { return edgeIndData; }
+  const EdgeDst& getEdgePrefixSum() {
+    if(!prefixValid)
+      computePrefixSum();
+      return edgeIndData;
+  }
 
   auto divideByNode(size_t nodeSize, size_t edgeSize, size_t id, size_t total) {
     return galois::graphs::divideNodesBinarySearch(
