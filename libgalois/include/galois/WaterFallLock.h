@@ -8,6 +8,10 @@
 
 using namespace galois::substrate;
 namespace galois {
+  /** This is an array that is cacheline padded
+   * TODO(AdityaAtulTewari) Should be moved to substrate
+   * @author AdityaAtulTewari
+   */
   template<typename T>
   class CacheLinePaddedArr
   {
@@ -29,19 +33,24 @@ namespace galois {
         initialize_values(def);
       }
 
+    CacheLinePaddedArr(uint64_t sz, T def) :
+      arr(new CacheLineStorage<T>[sz]),
+      sz(sz) {
+        initialize_values(def);
+      }
+
     T* get(uint64_t i) {return &arr[i].data;}
 
     uint64_t size() {return sz;}
 
     template<typename n_type>
     T& operator[](n_type i) {return arr[i].data;}
-    /*
-    template<typename n_type>
-    const T& operator[](n_type i) {return arr[i].data;}
-    */
-
   };
 
+  /** This is a Barrier style lock used for fine grained release control
+   * TODO(AdityaAtulTewari) Should be moved to a substrate
+   * @author AdityaAtulTewari
+   */
   template<typename T>
   class WaterFallLock
   {
@@ -55,7 +64,6 @@ namespace galois {
     {
       for(unsigned i = 0; i < wfc.size(); i++) *(wfc.get(i)) = 0;
     }
-
 
     const char* name()
     {
@@ -72,7 +80,6 @@ namespace galois {
     {
       __atomic_store_1((char*) wfc.get(num), val, __ATOMIC_RELEASE);
     }
-
 
   };
 }
