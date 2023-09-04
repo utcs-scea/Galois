@@ -953,22 +953,25 @@ public:
 
   void allocateFrom(uint64_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
-    numEdges = nEdges;
+    numEdges = 0;
+    edgeEnd  = 0;
+    maxEdges = nEdges;
+    maxNodes = nNodes;
 
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
-      edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
-      edgeData.allocateBlocked(numEdges);
-      prefixSumCache.allocateBlocked(numNodes);
-      this->outOfLineAllocateBlocked(numNodes);
+      nodeData.allocateBlocked(maxNodes);
+      edgeIndData.allocateBlocked(maxNodes);
+      edgeDst.allocateBlocked(maxEdges);
+      edgeData.allocateBlocked(maxEdges);
+      prefixSumCache.allocateBlocked(maxNodes);
+      this->outOfLineAllocateBlocked(maxNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
-      edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
-      edgeData.allocateInterleaved(numEdges);
-      prefixSumCache.allocateInterleaved(numNodes);
-      this->outOfLineAllocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(maxNodes);
+      edgeIndData.allocateInterleaved(maxNodes);
+      edgeDst.allocateInterleaved(maxEdges);
+      edgeData.allocateInterleaved(maxEdges);
+      prefixSumCache.allocateInterleaved(maxNodes);
+      this->outOfLineAllocateInterleaved(maxNodes);
     }
     resetPrefixSum();
   }
