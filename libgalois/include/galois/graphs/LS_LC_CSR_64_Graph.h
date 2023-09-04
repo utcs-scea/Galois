@@ -1153,8 +1153,7 @@ public:
     resetPrefixSum();
     if(ComputePFXSum)
     {
-      pfxsum.computePrefixSum();
-      prefixValid = true;
+      computePrefixSum();
     }
 
     timer.stop();
