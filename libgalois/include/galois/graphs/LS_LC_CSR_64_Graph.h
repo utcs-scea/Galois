@@ -459,7 +459,7 @@ public:
   {
     if(!prefixValid)
       computePrefixSum();
-    return pfxsum[n];
+    return prefixSumCache[n];
   }
 
   template <typename EdgeNumFnTy, typename EdgeDstFnTy, typename EdgeDataFnTy>
