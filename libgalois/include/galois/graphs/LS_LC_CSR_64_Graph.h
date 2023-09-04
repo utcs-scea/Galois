@@ -243,9 +243,9 @@ protected:
   EdgeData edgeData;
   EdgeDst prefixSumCache;
 
-  uint64_t transmute (const EdgeInd& p) {return p.second - p.first;};
-  uint64_t scan_op   (const EdgeInd& p, const EdgeDst::value_type& l) {return p.second - p.first + l;};
-  uint64_t combiner  (const EdgeDst::value_type& f, const EdgeDst::value_type& s){return f + s;};
+  static uint64_t transmute (const EdgeInd& p) {return p.second - p.first;};
+  static uint64_t scan_op   (const EdgeInd& p, const EdgeDst::value_type& l) {return p.second - p.first + l;};
+  static uint64_t combiner  (const EdgeDst::value_type& f, const EdgeDst::value_type& s){return f + s;};
 
   PrefixSum<EdgeInd, EdgeDst::value_type, transmute, scan_op, combiner, CacheLinePaddedArr> pfxsum {&edgeIndData[0], &prefixSumCache[0]};
 
@@ -435,6 +435,11 @@ public:
     ar >> edgeData;
   }
 
+  void resetPrefixSum()
+  {
+    pfxsum.src = &edgeIndData[0];
+    pfxsum.dst = &prefixSumCache[0];
+  }
   //Compute the prefix sum using the two level method
   void computePrefixSum()
   {
@@ -469,6 +474,7 @@ public:
       edgeIndData.allocateBlocked(maxNodes);
       edgeDst.allocateBlocked(maxEdges);
       edgeData.allocateBlocked(maxEdges);
+      prefixSumCache.allocateBlocked(maxNodes);
       //! [numaallocex]
       this->outOfLineAllocateBlocked(maxNodes);
     } else {
@@ -476,8 +482,10 @@ public:
       edgeIndData.allocateInterleaved(maxNodes);
       edgeDst.allocateInterleaved(maxEdges);
       edgeData.allocateInterleaved(maxEdges);
+      prefixSumCache.allocateInterleaved(maxNodes);
       this->outOfLineAllocateInterleaved(maxNodes);
     }
+    resetPrefixSum();
     for (size_t n = 0; n < numNodes; ++n) {
       nodeData.constructAt(n);
     }
@@ -513,6 +521,7 @@ public:
       edgeIndData.allocateBlocked(maxNodes);
       edgeDst.allocateBlocked(maxEdges);
       edgeData.allocateBlocked(maxEdges);
+      prefixSumCache.allocateBlocked(maxNodes);
       //! [numaallocex]
       this->outOfLineAllocateBlocked(maxNodes);
     } else {
@@ -520,9 +529,10 @@ public:
       edgeIndData.allocateInterleaved(maxNodes);
       edgeDst.allocateInterleaved(maxEdges);
       edgeData.allocateInterleaved(maxEdges);
+      prefixSumCache.allocateInterleaved(maxNodes);
       this->outOfLineAllocateInterleaved(maxNodes);
     }
-
+    resetPrefixSum();
     galois::do_all(galois::iterate((uint64_t) 0, _numNodes),
       [&](uint64_t n){
         nodeData.constructAt(n);
@@ -564,6 +574,7 @@ public:
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgeStart + num_dst + orig_deg;
     numEdges.fetch_add(num_dst, std::memory_order_relaxed);
+    prefixValid = false;
   }
 
   void addEdgeSort(const uint64_t src, const uint64_t dst)
@@ -602,6 +613,7 @@ public:
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgePlace;
     numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
+    prefixValid = false;
   }
 
   template<typename PQ>
@@ -662,7 +674,7 @@ public:
     edgeIndData[src].first = edgeStart;
     edgeIndData[src].second = edgePlace;
     numEdges.fetch_add(edgePlace - edgeStart - orig_deg, std::memory_order_relaxed);
-    //releaseNode(src);
+    prefixValid = false;
   }
 
   template<typename PTM>
@@ -776,6 +788,7 @@ public:
     swap(lhs.edgeDst, rhs.edgeDst);
     swap(lhs.edgeData, rhs.edgeData);
     swap(lhs.pfxsum, rhs.pfxsum);
+    swap(lhs.prefixSumCache, rhs.prefixSumCache);
 
     bool pv = lhs.prefixValid;
     lhs.prefixValid = rhs.prefixValid;
@@ -935,6 +948,7 @@ public:
       pfxsum.allocateInterleaved(numNodes);
       this->outOfLineAllocateInterleaved(numNodes);
     }
+    resetPrefixSum();
   }
 
   void allocateFrom(uint64_t nNodes, uint64_t nEdges) {
@@ -946,16 +960,17 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
-      pfxsum.allocateBlocked(numNodes);
+      prefixSumCache.allocateBlocked(numNodes);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
-      pfxsum.allocateInterleaved(numNodes);
+      prefixSumCache.allocateInterleaved(numNodes);
       this->outOfLineAllocateInterleaved(numNodes);
     }
+    resetPrefixSum();
   }
 
   void destroyAndAllocateFrom(uint64_t nNodes, uint64_t nEdges) {
@@ -968,16 +983,17 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
-      pfxsum.allocateBlocked(numNodes);
+      prefixSumCache.allocateBlocked(numNodes);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
-      pfxsum.allocateInterleaved(numNodes);
+      prefixSumCache.allocateInterleaved(numNodes);
       this->outOfLineAllocateInterleaved(numNodes);
     }
+    resetPrefixSum();
   }
 
   void constructNodes() {
@@ -1134,6 +1150,7 @@ public:
     }
     edgeEnd.store(numEdges, std::memory_order_relaxed);
 
+    resetPrefixSum();
     if(ComputePFXSum)
     {
       pfxsum.computePrefixSum();
@@ -1188,6 +1205,7 @@ public:
         edgeDst[*nn] = graph.getEdgeDst(nn);
       }
     }
+    resetPrefixSum();
   }
 
   template <typename E                                           = EdgeTy,
@@ -1218,18 +1236,19 @@ public:
         edgeDst[*nn] = graph.getEdgeDst(nn);
       }
     }
+    resetPrefixSum();
   }
 
   /**
    * Returns the reference to the edgeIndData LargeArray
    * (a prefix sum of edges)
    *
-   * @returns reference to LargeArray edgeIndData
+   * @returns reference to LargeArray prefixSumCache
    */
   const EdgeDst& getEdgePrefixSum() {
     if(!prefixValid)
       computePrefixSum();
-      return edgeIndData;
+    return prefixSumCache;
   }
 
   auto divideByNode(size_t nodeSize, size_t edgeSize, size_t id, size_t total) {
@@ -1276,6 +1295,7 @@ public:
       }
     });
 
+    resetPrefixSum();
     initializeLocalRanges();
   }
   void constructFrom(
