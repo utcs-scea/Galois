@@ -136,6 +136,7 @@ if(CXX_CLANG_TIDY)
 endif()
 
 ###### Configure features ######
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
 
 if(GALOIS_ENABLE_VTUNE)
   set(VTune_ROOT /opt/intel/vtune_amplifier)

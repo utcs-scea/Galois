@@ -109,6 +109,50 @@ if(GALOIS_ENABLE_DIST)
       set_property(TARGET ${target_name}_cuda PROPERTY CUDA_STANDARD 14)
     endif()
   endfunction()
+  
+  function(app_dist_static name target_name)
+    set(options NO_GPU)
+    set(one_value_args)
+    set(multi_value_args)
+
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    set(BUILD_SHARED_LIBS OFF)
+    set(CMAKE_EXE_LINKER_FLAGS "-static")
+
+    cmake_parse_arguments(X "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+    string(CONCAT target_name ${target_name} "-dist")
+
+    FILE(GLOB CPPSOURCES ${name}*.cpp)
+    add_executable(${target_name} ${CPPSOURCES})
+    add_dependencies(apps ${target_name})
+
+    target_link_libraries(${target_name} -static)
+
+    target_link_libraries(${target_name} Galois::shmem LLVMSupport)
+    install(TARGETS ${target_name} DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT apps EXCLUDE_FROM_ALL)
+
+    target_link_libraries(${target_name} distbench)
+    if(GALOIS_PER_ROUND_STATS)
+      target_compile_definitions(${target_name} PRIVATE GALOIS_PER_ROUND_STATS=1)
+    endif()
+    if(GALOIS_COMM_STATS)
+      target_compile_definitions(${target_name} PRIVATE GALOIS_COMM_STATS=1)
+    endif()
+    if(GALOIS_USE_BARE_MPI)
+      target_compile_definitions(${target_name} PRIVATE GALOIS_USE_BARE_MPI=1)
+    endif()
+
+    if(GALOIS_ENABLE_GPU AND NOT ${X_NO_GPU})
+      target_compile_definitions(${target_name} PRIVATE GALOIS_ENABLE_GPU=1)
+      target_link_libraries(${target_name} ${target_name}_cuda)
+
+      FILE(GLOB CUSOURCES ${name}*.cu)
+      add_library(${target_name}_cuda ${CUSOURCES})
+      target_compile_options(${target_name}_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-w>)
+      target_link_libraries(${target_name}_cuda Galois::gpu)
+      set_property(TARGET ${target_name}_cuda PROPERTY CUDA_STANDARD 14)
+    endif()
+  endfunction()
 
   set(RESULT_CHECKER ${PROJECT_SOURCE_DIR}/scripts/result_checker.py)
   cmake_host_system_information(RESULT HOSTNAME QUERY HOSTNAME)
