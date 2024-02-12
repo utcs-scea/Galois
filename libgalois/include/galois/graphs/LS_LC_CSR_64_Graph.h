@@ -35,6 +35,7 @@
 #include "galois/graphs/FileGraph.h"
 #include "galois/graphs/GraphHelpers.h"
 #include "galois/PODResizeableArray.h"
+#include "MyVector.h"
 
 namespace galois::graphs {
 /**
@@ -237,7 +238,8 @@ public:
 protected:
   NodeData nodeData;
   EdgeIndData edgeIndData;
-  EdgeDst edgeDst;
+  // EdgeDst edgeDst;
+  MyVector<uint64_t> edgeDst;
   EdgeData edgeData;
 
   std::atomic<uint64_t> numNodes;
@@ -444,18 +446,19 @@ public:
       : numNodes(_numNodes), numEdges(_numEdges), edgeEnd(_numEdges) {
         assert (numNodes <= maxNodes);
         assert (numEdges <= maxEdges);
+    edgeDst.setSize(numEdges);
     if (UseNumaAlloc) {
       //! [numaallocex]
       nodeData.allocateBlocked(maxNodes);
       edgeIndData.allocateBlocked(maxNodes);
-      edgeDst.allocateBlocked(maxEdges);
+      // edgeDst.allocateBlocked(maxEdges);
       edgeData.allocateBlocked(maxEdges);
       //! [numaallocex]
       this->outOfLineAllocateBlocked(maxNodes);
     } else {
       nodeData.allocateInterleaved(maxNodes);
       edgeIndData.allocateInterleaved(maxNodes);
-      edgeDst.allocateInterleaved(maxEdges);
+      // edgeDst.allocateInterleaved(maxEdges);
       edgeData.allocateInterleaved(maxEdges);
       this->outOfLineAllocateInterleaved(maxNodes);
     }
@@ -488,18 +491,19 @@ public:
   {
     assert(numNodes <= maxNodes);
     assert(numEdges <= maxEdges);
+    edgeDst.setSize(numEdges);
     if (UseNumaAlloc) {
       //! [numaallocex]
       nodeData.allocateBlocked(maxNodes);
       edgeIndData.allocateBlocked(maxNodes);
-      edgeDst.allocateBlocked(maxEdges);
+      // edgeDst.allocateBlocked(maxEdges);
       edgeData.allocateBlocked(maxEdges);
       //! [numaallocex]
       this->outOfLineAllocateBlocked(maxNodes);
     } else {
       nodeData.allocateInterleaved(maxNodes);
       edgeIndData.allocateInterleaved(maxNodes);
-      edgeDst.allocateInterleaved(maxEdges);
+      // edgeDst.allocateInterleaved(maxEdges);
       edgeData.allocateInterleaved(maxEdges);
       this->outOfLineAllocateInterleaved(maxNodes);
     }
@@ -893,16 +897,17 @@ public:
   void allocateFrom(const FileGraph& graph) {
     numNodes = graph.size();
     numEdges = graph.sizeEdges();
+    edgeDst.setSize(numEdges);
     if (UseNumaAlloc) {
       nodeData.allocateBlocked(numNodes);
       edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
+      // edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
+      // edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
@@ -912,16 +917,17 @@ public:
     numNodes = nNodes;
     numEdges = nEdges;
 
+    edgeDst.setSize(numEdges);
     if (UseNumaAlloc) {
       nodeData.allocateBlocked(numNodes);
       edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
+      // edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
+      // edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
@@ -932,16 +938,17 @@ public:
     numEdges = nEdges;
 
     deallocate();
+    edgeDst.setSize(numEdges);
     if (UseNumaAlloc) {
       nodeData.allocateBlocked(numNodes);
       edgeIndData.allocateBlocked(numNodes);
-      edgeDst.allocateBlocked(numEdges);
+      // edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
-      edgeDst.allocateInterleaved(numEdges);
+      // edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
@@ -971,8 +978,9 @@ public:
     edgeIndData.deallocate();
     edgeIndData.destroy();
 
-    edgeDst.deallocate();
-    edgeDst.destroy();
+    // edgeDst.deallocate();
+    // edgeDst.destroy();
+    edgeDst.~MyVector();
 
     edgeData.deallocate();
     edgeData.destroy();
@@ -997,20 +1005,21 @@ public:
     galois::StatTimer timer("TIMER_GRAPH_TRANSPOSE", regionName);
     timer.start();
 
-    EdgeDst edgeDst_old;
+    MyVector<uint64_t> edgeDst_old;
     EdgeData edgeData_new;
     EdgeIndData edgeIndData_old;
     EdgeIndData edgeIndData_temp;
 
+    edgeDst_old.setSize(numEdges);
     if (UseNumaAlloc) {
       edgeIndData_old.allocateBlocked(numNodes);
       edgeIndData_temp.allocateBlocked(numNodes);
-      edgeDst_old.allocateBlocked(edgeEnd);
+      // edgeDst_old.allocateBlocked(edgeEnd);
       edgeData_new.allocateBlocked(maxEdges);
     } else {
       edgeIndData_old.allocateInterleaved(numNodes);
       edgeIndData_temp.allocateInterleaved(numNodes);
-      edgeDst_old.allocateInterleaved(edgeEnd);
+      // edgeDst_old.allocateInterleaved(edgeEnd);
       edgeData_new.allocateInterleaved(maxEdges);
     }
 
@@ -1302,15 +1311,15 @@ public:
     /**
      * Load edgeDst array
      **/
-    assert(edgeDst.data());
-    if (!edgeDst.data()) {
+    assert(edgeDst.data);
+    if (!edgeDst.data) {
       GALOIS_DIE("out of memory");
     }
 
     readPosition = ((4 + numNodes) * sizeof(uint64_t));
     graphFile.seekg(readPosition);
     if (version == 1) {
-      graphFile.read(reinterpret_cast<char*>(edgeDst.data()),
+      graphFile.read(reinterpret_cast<char*>(edgeDst.data),
                      sizeof(uint32_t) * numEdges);
       readPosition =
           ((4 + numNodes) * sizeof(uint64_t) + numEdges * sizeof(uint32_t));
@@ -1319,7 +1328,7 @@ public:
         readPosition += sizeof(uint32_t);
       }
     } else if (version == 2) {
-      graphFile.read(reinterpret_cast<char*>(edgeDst.data()),
+      graphFile.read(reinterpret_cast<char*>(edgeDst.data),
                      sizeof(uint64_t) * numEdges);
       readPosition =
           ((4 + numNodes) * sizeof(uint64_t) + numEdges * sizeof(uint64_t));
@@ -1383,17 +1392,17 @@ public:
     /**
      * Load edgeDst array
      **/
-    assert(edgeDst.data());
-    if (!edgeDst.data()) {
+    assert(edgeDst.data);
+    if (!edgeDst.data) {
       GALOIS_DIE("out of memory");
     }
     readPosition = ((4 + numNodes) * sizeof(uint64_t));
     graphFile.seekg(readPosition);
     if (version == 1) {
-      graphFile.read(reinterpret_cast<char*>(edgeDst.data()),
+      graphFile.read(reinterpret_cast<char*>(edgeDst.data),
                      sizeof(uint32_t) * numEdges);
     } else if (version == 2) {
-      graphFile.read(reinterpret_cast<char*>(edgeDst.data()),
+      graphFile.read(reinterpret_cast<char*>(edgeDst.data),
                      sizeof(uint64_t) * numEdges);
     } else {
       GALOIS_DIE("unknown file version: ", version);
