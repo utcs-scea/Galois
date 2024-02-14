@@ -35,6 +35,7 @@ void check() {
     std::cout << "- " << msg << " -" << std::endl;
     for (auto src : g.vertices()) {
       for (auto dst : g.edges(src)) {
+
         std::cout << src << "->" << g.getEdgeDst(dst) << std::endl;
       }
     }
@@ -45,6 +46,10 @@ void check() {
   g.addEdgesTopologyOnly(2, {1});
 
   print_graph("added 2->1");
+
+  g.deleteEdges(1, {3});
+
+  print_graph("deleted 1->3");
 
   std::cout << std::endl << std::endl;
 }
