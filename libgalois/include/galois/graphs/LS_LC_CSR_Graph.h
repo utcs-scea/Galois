@@ -26,6 +26,8 @@
 
 #include "boost/range/counting_range.hpp"
 
+#include "galois/LargeVector.h"
+
 namespace galois::graphs {
 
 /**
@@ -48,7 +50,7 @@ protected:
   class EdgeRange;
 
   std::vector<VertexMetadata> m_vertices;
-  std::vector<EdgeMetadata> m_edges;
+  LargeVector<EdgeMetadata> m_edges;
 
 public:
   LS_LC_CSR_Graph(uint64_t num_vertices)

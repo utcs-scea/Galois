@@ -26,12 +26,16 @@ int main() {
   galois::SharedMemSys Galois_runtime;
 
   LargeVector<uint64_t> the_vector;
-  the_vector.push_back(10);
-  auto& ten = the_vector[0];
 
-  the_vector.push_back(20);
-  if (!(ten == 10)) {
-    throw std::runtime_error("sad");
+  // should use 4 hugepages
+  std::vector<uint64_t*> refs;
+  for (size_t i = 0; i < (1 << 21); ++i) {
+    refs.emplace_back(&the_vector.emplace_back(i));
+  }
+
+  for (size_t i = 0; i < (1 << 21); ++i) {
+    if (*(refs[i]) != i)
+      throw std::runtime_error("broken!");
   }
 
   return 0;

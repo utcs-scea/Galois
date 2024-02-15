@@ -38,8 +38,10 @@ protected:
 
   void unlock() { m_lock.clear(std::memory_order_release); }
 
-  void change_capacity() {
+  void grow() {
     // assumes lock is held or constructor
+    m_capacity *= 2;
+
     const size_t file_size =
         (sizeof(T) * m_capacity + 2097152 - 1) & (~(2097152 - 1));
 
@@ -67,7 +69,7 @@ public:
                                strerror(errno));
     }
 
-    change_capacity();
+    grow();
   }
 
   ~LargeVector() {
@@ -77,20 +79,24 @@ public:
     close(m_fd);
   }
 
-  void push_back(const T& value) {
+  // no consistency guarantees with push_back, but size only increases
+  uint64_t size() const noexcept { return m_size; }
+
+  template <typename... Args>
+  T& emplace_back(Args&&... args) {
     lock();
     if (m_size == m_capacity) {
-      m_capacity *= 2;
-      change_capacity();
+      grow();
     }
-    m_data[m_size++] = value;
-    unlock(); // acts as a memory barrier for iterators
+    T& ret = *new (m_data + m_size++) T(std::forward<Args>(args)...);
+    unlock();
+    return ret;
   }
 
-  T& operator[](size_t index) { return m_data[index]; }
+  T& push_back(const T& t) { return emplace_back(t); }
+  T& push_back(T&& t) { return emplace_back(std::move(t)); }
 
-  // no consistency guarantees with push_back, but size only increases
-  uint64_t getSize() const { return m_size; }
+  T& operator[](size_t index) const { return m_data[index]; }
 
   class iterator : public std::iterator<std::random_access_iterator_tag, T> {
   public:
