@@ -18,44 +18,21 @@
  */
 
 #include <iostream>
-#include <queue>
 
 #include "galois/Galois.h"
-#include "galois/graphs/LS_LC_CSR_Graph.h"
-
-template <typename GraphTy>
-void check() {
-  GraphTy g(4);
-
-  g.addEdgesTopologyOnly(0, {1, 2});
-  g.addEdgesTopologyOnly(1, {2, 3});
-  g.addEdgesTopologyOnly(2, {3});
-
-  auto print_graph = [&g](std::string_view msg) {
-    std::cout << "- " << msg << " -" << std::endl;
-    for (auto src : g.vertices()) {
-      for (auto dst : g.edges(src)) {
-        std::cout << src << "->" << g.getEdgeDst(dst) << std::endl;
-      }
-    }
-  };
-
-  print_graph("initial graph");
-
-  g.addEdgesTopologyOnly(2, {1});
-
-  print_graph("added 2->1");
-
-  g.deleteEdges(1, {3});
-
-  print_graph("deleted 1->3");
-
-  std::cout << std::endl << std::endl;
-}
+#include "galois/LargeVector.h"
 
 int main() {
   galois::SharedMemSys Galois_runtime;
-  check<galois::graphs::LS_LC_CSR_Graph>();
+
+  LargeVector<uint64_t> the_vector;
+  the_vector.push_back(10);
+  auto& ten = the_vector[0];
+
+  the_vector.push_back(20);
+  if (!(ten == 10)) {
+    throw std::runtime_error("sad");
+  }
 
   return 0;
 }
