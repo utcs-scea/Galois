@@ -59,7 +59,7 @@ void check() {
 
 int main() {
   galois::SharedMemSys Galois_runtime;
-  check<galois::graphs::LS_LC_CSR_Graph>();
+  check<galois::graphs::LS_LC_CSR_Graph<>>();
 
   return 0;
 }
