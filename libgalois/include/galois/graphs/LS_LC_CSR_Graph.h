@@ -156,7 +156,6 @@ public:
     std::unordered_set<VertexTopologyID> edges_set(edges.begin(), edges.end());
 
     auto& vertex_meta = m_vertices[src];
-    // todo: acquire vertex lock
     vertex_meta.lock();
     {
       for (auto i = vertex_meta.begin; i < vertex_meta.end; ++i) {
