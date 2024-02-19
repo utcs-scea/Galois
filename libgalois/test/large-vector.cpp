@@ -25,7 +25,7 @@
 int main() {
   galois::SharedMemSys Galois_runtime;
 
-  LargeVector<uint64_t> the_vector;
+  galois::LargeVector<uint64_t> the_vector;
 
   // should use 4 hugepages
   std::vector<uint64_t*> refs;

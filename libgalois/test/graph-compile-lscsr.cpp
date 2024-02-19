@@ -35,7 +35,7 @@ void check() {
     std::cout << "- " << msg << " -" << std::endl;
     for (auto src : g.vertices()) {
       for (auto dst : g.edges(src)) {
-        std::cout << src << "->" << g.getEdgeDst(dst) << std::endl;
+        std::cout << src << "->" << dst << std::endl;
       }
     }
   };
@@ -49,6 +49,10 @@ void check() {
   g.deleteEdges(1, {3});
 
   print_graph("deleted 1->3");
+
+  g.compact();
+
+  print_graph("compacted");
 
   std::cout << std::endl << std::endl;
 }
