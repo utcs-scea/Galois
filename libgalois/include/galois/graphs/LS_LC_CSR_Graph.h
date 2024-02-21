@@ -91,6 +91,8 @@ public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
       : m_vertices(num_vertices, VertexMetadata()) {}
 
+  inline uint64_t size() const noexcept { return m_vertices.size(); }
+
   inline VertexTopologyID begin() const noexcept {
     return static_cast<VertexTopologyID>(0);
   }
