@@ -218,9 +218,9 @@ protected:
     edgeData.set(*nn, {});
   }
 
-  size_t getId(GraphNode N) { return N; }
+  uint64_t getId(GraphNode N) { return N; }
 
-  GraphNode getNode(size_t n) { return n; }
+  GraphNode getNode(uint64_t n) { return n; }
 
 private:
   friend class boost::serialization::access;
