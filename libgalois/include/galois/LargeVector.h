@@ -36,7 +36,9 @@ private:
   std::list<std::pair<void*, size_t>> m_mappings; // sorted by size decreasing
 
   void ensure_capacity(size_t new_cap) {
-    if (m_capacity == new_cap)
+    if (new_cap > m_capacity)
+      new_cap = std::max(new_cap, m_capacity * 2);
+    else if (new_cap > 0)
       return;
 
     // Round up to the nearest huge page size.
@@ -62,6 +64,9 @@ private:
     // similarly-sized allocations, we always at least double the size.
     size_t const mmap_size =
         std::max(m_mappings.front().second * 2, m_capacity * sizeof(T));
+
+    std::cout << "new_cap = " << new_cap << "\tmmap_size = " << mmap_size
+              << std::endl;
 
     m_data =
         static_cast<T*>(mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
