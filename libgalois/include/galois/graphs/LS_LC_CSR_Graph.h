@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include <iterator>
 #include <cstddef>
+#include <atomic>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
@@ -78,6 +79,8 @@ private:
   // must be held to acquire m_edges_lock.
   SpinLock m_edges_lock;
 
+  std::atomic_uint64_t m_edges_tail = ATOMIC_VAR_INIT(0);
+
   // returns a reference to the metadata for the pointed-to edge
   inline EdgeMetadata& getEdgeMetadata(EdgeHandle const& handle) {
     return getEdgeMetadata(handle.buffer, handle.index);
@@ -118,17 +121,21 @@ public:
     // Copies the edge list to the end of m_edges[1], prepending
     // the new edges.
 
-    vertex_meta.lock();
+    vertex_meta.lock(); // prevents compaction
     {
       uint64_t const new_degree = vertex_meta.degree + dsts.size();
-      uint64_t new_begin;
-      m_edges_lock.lock();
-      {
-        new_begin = m_edges[1].size();
-        m_edges[1].resize(new_begin + new_degree);
-      }
-      m_edges_lock.unlock();
+      uint64_t const new_begin =
+          m_edges_tail.fetch_add(new_degree, std::memory_order_relaxed);
       uint64_t const new_end = new_begin + new_degree;
+
+      if (m_edges[1].size() < new_end) {
+        m_edges_lock.lock();
+        {
+          if (m_edges[1].size() < new_end)
+            m_edges[1].resize(std::max(m_edges[1].size() * 2, new_end));
+        }
+        m_edges_lock.unlock();
+      }
 
       // insert new edges
       std::transform(dsts.begin(), dsts.end(), &getEdgeMetadata(1, new_begin),
@@ -242,6 +249,7 @@ public:
     {
       m_edges[0].resize(0);
       swap(m_edges[0], m_edges[1]);
+      m_edges_tail.store(0, std::memory_order_relaxed); // fine because lock
     }
     m_edges_lock.unlock();
 
