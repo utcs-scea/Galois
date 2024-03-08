@@ -89,7 +89,7 @@ jobs:
       timeout-minutes: 10
       run: |
         mkdir -p ${{ env.GALOIS_CCACHE_DIR }} -m=777
-        CONTAINER_CMD="make setup-ci" \
+        CONTAINER_CMD="bash -l make setup-ci" \
           CONTAINER_OPTS="-e=BUILD_TYPE=${{ matrix.build-type }}" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
           VERSION="${{ env.IMAGE_VERSION }}" \
@@ -98,7 +98,7 @@ jobs:
     - name: Build
       timeout-minutes: 15
       run: |
-        CONTAINER_CMD="bash -lc 'ninja -j10 || ninja || ninja'" \
+        CONTAINER_CMD="bash -c 'ninja -j10 || ninja || ninja'" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
           VERSION="${{ env.IMAGE_VERSION }}" \
           CONTAINER_WORKDIR="${{ env.CONTAINER_BUILD_DIR }}" \
