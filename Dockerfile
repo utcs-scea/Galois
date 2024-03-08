@@ -83,6 +83,6 @@ RUN echo "PATH=/home/${UNAME}/.local/bin/:\$PATH" >> /home/${UNAME}/.zshenv
 
 RUN echo "export SRC_DIR=${SRC_DIR}" >> /home/${UNAME}/.bashrc
 RUN echo "export BUILD_DIR=${BUILD_DIR}" >> /home/${UNAME}/.bashrc
-RUN echo "source /opt/intel/oneapi/setvars.sh" >> /home/${UNAME}/.bashrc
+RUN echo "source /opt/intel/oneapi/setvars.sh > /dev/null" >> /home/${UNAME}/.bashrc
 
 WORKDIR ${SRC_DIR}
