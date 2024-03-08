@@ -89,7 +89,7 @@ jobs:
       timeout-minutes: 10
       run: |
         mkdir -p ${{ env.GALOIS_CCACHE_DIR }} -m=777
-        CONTAINER_CMD="bash -lc 'make setup-ci'" \
+        CONTAINER_CMD="bash -lc 'source /opt/intel/oneapi/setvars.sh && make setup-ci'" \
           CONTAINER_OPTS="-e=BUILD_TYPE=${{ matrix.build-type }}" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
           VERSION="${{ env.IMAGE_VERSION }}" \
