@@ -114,9 +114,9 @@ setup: run-cmake
 setup-ci: run-cmake
 
 run-tests:
-	@ctest --test-dir dockerbuild -R wmd --verbose
-	@ctest --test-dir dockerbuild -R large-vec --verbose
-	@ctest --test-dir dockerbuild -R compile-lscsr --verbose
+	@ctest --test-dir build -R wmd --verbose
+	@ctest --test-dir build -R large-vec --verbose
+	@ctest --test-dir build -R compile-lscsr --verbose
 
 # this command is slow since hooks are not stored in the container image
 # this is mostly for CI use
