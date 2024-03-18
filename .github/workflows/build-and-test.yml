@@ -81,7 +81,7 @@ jobs:
           echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV -e=GALOIS_EXTRA_CXX_FLAGS='\"-fsanitize=address -fsanitize=undefined\"'" >> $GITHUB_ENV
         fi
         if [ ${{ matrix.build-type }} == 'Debug' ]; then
-          echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV -e=GALOIS_EXTRA_CXX_FLAGS='-O3'" >> $GITHUB_ENV
+          echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV" >> $GITHUB_ENV
         fi
         cat $GITHUB_ENV
 
