@@ -24,6 +24,7 @@
 #include <iterator>
 #include <cstddef>
 #include <atomic>
+#include <new>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
@@ -31,6 +32,12 @@
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
+
+#ifdef __cpp_lib_hardware_interference_size
+using std::hardware_destructive_interference_size;
+#else
+constexpr std::size_t hardware_destructive_interference_size = 64;
+#endif
 
 namespace galois::graphs {
 
@@ -74,7 +81,11 @@ private:
   std::vector<VertexMetadata> m_vertices;
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
-  std::atomic_uint64_t m_edges_tail = ATOMIC_VAR_INIT(0);
+
+  alignas(hardware_destructive_interference_size) std::atomic_uint64_t
+      m_edges_tail = ATOMIC_VAR_INIT(0);
+  alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
+      ATOMIC_VAR_INIT(0);
 
   // returns a reference to the metadata for the pointed-to edge
   inline EdgeMetadata& getEdgeMetadata(EdgeHandle const& handle) {
@@ -90,6 +101,23 @@ public:
       : m_vertices(num_vertices, VertexMetadata()) {}
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
+
+  // returns an estimated memory footprint
+  inline uint64_t getFootprint() {
+    uint64_t estimate;
+    m_edges_lock.lock();
+    {
+      estimate =
+          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
+          sizeof(EdgeMetadata);
+    }
+    m_edges_lock.unlock();
+    return estimate;
+  }
+
+  inline uint64_t numHoles() const noexcept {
+    return m_holes.load(std::memory_order_relaxed);
+  }
 
   inline VertexTopologyID begin() const noexcept {
     return static_cast<VertexTopologyID>(0);
@@ -147,6 +175,8 @@ public:
     vertex_meta.buffer = 1;
     vertex_meta.begin  = new_begin;
     vertex_meta.end    = new_end;
+
+    m_holes.fetch_add(vertex_meta.degree, std::memory_order_relaxed);
     vertex_meta.degree += dsts.size();
 
     return 0;
@@ -156,7 +186,8 @@ public:
                   const std::vector<VertexTopologyID>& edges) {
     std::unordered_set<VertexTopologyID> edges_set(edges.begin(), edges.end());
 
-    auto& vertex_meta = m_vertices[src];
+    auto& vertex_meta    = m_vertices[src];
+    uint64_t holes_added = 0;
     for (auto i = vertex_meta.begin; i < vertex_meta.end; ++i) {
       EdgeMetadata& edge_meta =
           getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i));
@@ -164,6 +195,7 @@ public:
           edges_set.find(edge_meta.dst) != edges_set.end()) {
         edge_meta.tomb();
         --vertex_meta.degree;
+        ++holes_added;
         // remove tombstoned edges from the start of the edge list
         if (i == vertex_meta.begin)
           ++vertex_meta.begin;
@@ -179,6 +211,8 @@ public:
         break;
       }
     }
+
+    m_holes.fetch_add(holes_added, std::memory_order_relaxed);
 
     return 0;
   }
@@ -231,7 +265,9 @@ public:
     {
       m_edges[0].resize(0);
       swap(m_edges[0], m_edges[1]);
-      m_edges_tail.store(0, std::memory_order_relaxed); // fine because lock
+      // relaxed is fine because of locks held:
+      m_edges_tail.store(0, std::memory_order_relaxed);
+      m_holes.store(0, std::memory_order_relaxed);
     }
     m_edges_lock.unlock();
   }
