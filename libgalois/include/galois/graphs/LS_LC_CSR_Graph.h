@@ -234,25 +234,7 @@ public:
                      VertexMetadata& vertex_meta = m_vertices[vertex_id];
 
                      if (vertex_meta.buffer == 0) {
-                       uint64_t new_begin;
-                       m_edges_lock.lock();
-                       {
-                         new_begin = m_edges[1].size();
-                         m_edges[1].resize(new_begin + vertex_meta.degree);
-                       }
-                       m_edges_lock.unlock();
-
-                       uint64_t new_end = new_begin + vertex_meta.degree;
-
-                       std::copy_if(&getEdgeMetadata(0, vertex_meta.begin),
-                                    &getEdgeMetadata(0, vertex_meta.end),
-                                    &getEdgeMetadata(1, new_begin),
-                                    [](EdgeMetadata& edge_meta) {
-                                      return !edge_meta.is_tomb();
-                                    });
-
-                       vertex_meta.begin = new_begin;
-                       vertex_meta.end   = new_end;
+                       this->addEdgesTopologyOnly(vertex_id, {});
                      }
 
                      // we are about to swap the buffers, so all vertices will
