@@ -24,6 +24,7 @@
 #include <iterator>
 #include <cstddef>
 #include <atomic>
+#include <new>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
@@ -31,6 +32,12 @@
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
+
+#ifdef __cpp_lib_hardware_interference_size
+using std::hardware_destructive_interference_size;
+#else
+constexpr std::size_t hardware_destructive_interference_size = 64;
+#endif
 
 namespace galois::graphs {
 
@@ -74,8 +81,11 @@ private:
   std::vector<VertexMetadata> m_vertices;
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
-  std::atomic_uint64_t m_edges_tail = ATOMIC_VAR_INIT(0);
-  std::atomic_uint64_t m_holes      = ATOMIC_VAR_INIT(0);
+
+  alignas(hardware_destructive_interference_size) std::atomic_uint64_t
+      m_edges_tail = ATOMIC_VAR_INIT(0);
+  alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
+      ATOMIC_VAR_INIT(0);
 
   // returns a reference to the metadata for the pointed-to edge
   inline EdgeMetadata& getEdgeMetadata(EdgeHandle const& handle) {
