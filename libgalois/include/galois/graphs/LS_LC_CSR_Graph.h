@@ -25,13 +25,17 @@
 #include <cstddef>
 #include <atomic>
 #include <new>
+#include <type_traits>
+#include <unordered_map>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
 #include <boost/iterator/iterator_facade.hpp>
+#include <boost/functional/hash.hpp>
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
+#include "galois/LargeArray.h"
 
 #ifdef __cpp_lib_hardware_interference_size
 using std::hardware_destructive_interference_size;
@@ -44,7 +48,7 @@ namespace galois::graphs {
 /**
  * Local computation graph.
  */
-template <bool concurrent = true>
+template <typename VertexData, typename EdgeData, bool concurrent = true>
 class LS_LC_CSR_Graph : private boost::noncopyable {
 public:
   using VertexTopologyID = uint64_t;
@@ -55,10 +59,10 @@ public:
   private:
     uint8_t buffer : 1;
     uint64_t index : 48;
+    VertexTopologyID src : 48;
 
-    EdgeHandle(uint8_t buffer, uint64_t index) : buffer(buffer), index(index) {}
-
-    EdgeHandle(uint64_t const& v) : buffer(v >> 63), index(v) {}
+    EdgeHandle(uint8_t buffer, uint64_t index, uint64_t src)
+        : buffer(buffer), index(index), src(src) {}
 
     friend class LS_LC_CSR_Graph;
 
@@ -69,55 +73,80 @@ public:
   } __attribute__((packed));
 
 private:
-  using SpinLock = galois::substrate::PaddedLock<concurrent>;
+  using SpinLock      = galois::substrate::PaddedLock<concurrent>;
+  using HasVertexData = std::negation<std::is_same<VertexData, void>>;
+  using VertexDataStore =
+      std::conditional_t<HasVertexData::value,
+                         typename galois::LargeArray<VertexData>,
+                         typename std::tuple<>>;
 
-  // forward-declarations
+  using HasEdgeData   = std::negation<std::is_same<EdgeData, void>>;
+  using EdgeDataStore = std::conditional_t<
+      HasEdgeData::value,
+      typename std::unordered_map<
+          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
+          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
+      typename std::tuple<>>;
+
+  // forward-declarations of internal structs
   struct VertexMetadata;
   struct EdgeMetadata;
 
   class EdgeIterator;
   using EdgeRange = boost::iterator_range<EdgeIterator>;
 
+  VertexDataStore m_vertex_data;
   std::vector<VertexMetadata> m_vertices;
+
+  // m_edges[0] is the CSR with gaps, m_edges[1] is the update log.
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
+  EdgeDataStore m_edge_data;
 
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
+
+  // m_holes is the number of holes in the log (m_edges[1])
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
       ATOMIC_VAR_INIT(0);
 
   // returns a reference to the metadata for the pointed-to edge
-  inline EdgeMetadata& getEdgeMetadata(EdgeHandle const& handle) {
-    return getEdgeMetadata(handle.buffer, handle.index);
-  }
-
   inline EdgeMetadata& getEdgeMetadata(uint8_t buffer, uint64_t index) const {
     return m_edges[buffer][index];
   }
 
+  inline EdgeMetadata& getEdgeMetadata(EdgeHandle handle) const {
+    return getEdgeMetadata(handle.buffer, handle.index);
+  }
+
 public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
-      : m_vertices(num_vertices, VertexMetadata()) {}
+      : m_vertices(num_vertices, VertexMetadata()) {
+    if constexpr (HasVertexData::value) {
+      m_vertex_data.allocateBlocked(num_vertices);
+    }
+  }
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
 
-  // returns an estimated memory footprint
-  inline uint64_t getFootprint() {
-    uint64_t estimate;
-    m_edges_lock.lock();
-    {
-      estimate =
-          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
-          sizeof(EdgeMetadata);
-    }
-    m_edges_lock.unlock();
-    return estimate;
+  /** Data Manipulations **/
+
+  inline void setData(VertexTopologyID vertex,
+                      std::enable_if<HasVertexData::value, VertexData> data) {
+    m_vertex_data[vertex] = data;
   }
 
-  inline uint64_t numHoles() const noexcept {
-    return m_holes.load(std::memory_order_relaxed);
+  // return data associated with a vertex
+  inline std::enable_if<HasVertexData::value, VertexData>&
+  getData(VertexTopologyID vertex) {
+    return m_vertex_data[vertex];
   }
+
+  void setEdgeData(EdgeHandle handle,
+                   std::enable_if<HasEdgeData::value, EdgeData> data) {
+    m_edge_data[make_pair(handle.src, getEdgeMetadata(handle).dst)] = data;
+  }
+  
 
   inline VertexTopologyID begin() const noexcept {
     return static_cast<VertexTopologyID>(0);
@@ -129,16 +158,25 @@ public:
 
   VertexRange vertices() { return VertexRange(begin(), end()); }
 
+  VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
+
   EdgeRange edges(VertexTopologyID node) {
     auto& vertex_meta = m_vertices[node];
-    auto const* ii    = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-    auto const* ee    = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
 
-    return EdgeRange(EdgeIterator(ii, ee), EdgeIterator(ee, ee));
+    return EdgeRange(EdgeIterator(this, vertex_meta.buffer, vertex_meta.begin,
+                                  vertex_meta.end, node),
+                     EdgeIterator(this, vertex_meta.buffer, vertex_meta.end,
+                                  vertex_meta.end, node));
   }
 
-  int addEdgesTopologyOnly(VertexTopologyID src,
-                           const std::vector<VertexTopologyID> dsts) {
+  void
+  addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
+           std::vector<std::enable_if<HasEdgeData::value, EdgeData>> data) {
+    this->addEdgesTopologyOnly(src, dsts);
+  }
+
+  void addEdgesTopologyOnly(VertexTopologyID src,
+                            const std::vector<VertexTopologyID> dsts) {
 
     // Copies the edge list to the end of m_edges[1], prepending
     // the new edges.
@@ -178,19 +216,16 @@ public:
 
     m_holes.fetch_add(vertex_meta.degree, std::memory_order_relaxed);
     vertex_meta.degree += dsts.size();
-
-    return 0;
   }
 
-  int deleteEdges(VertexTopologyID src,
-                  const std::vector<VertexTopologyID>& edges) {
+  void deleteEdges(VertexTopologyID src,
+                   const std::vector<VertexTopologyID>& edges) {
     std::unordered_set<VertexTopologyID> edges_set(edges.begin(), edges.end());
 
     auto& vertex_meta    = m_vertices[src];
     uint64_t holes_added = 0;
     for (auto i = vertex_meta.begin; i < vertex_meta.end; ++i) {
-      EdgeMetadata& edge_meta =
-          getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i));
+      EdgeMetadata& edge_meta = getEdgeMetadata(vertex_meta.buffer, i);
       if (!edge_meta.is_tomb() &&
           edges_set.find(edge_meta.dst) != edges_set.end()) {
         edge_meta.tomb();
@@ -204,7 +239,7 @@ public:
 
     // remove tombstoned edges from the end of the edge list
     for (auto i = vertex_meta.end; i > vertex_meta.begin; --i) {
-      if (getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i - 1)).is_tomb()) {
+      if (getEdgeMetadata(vertex_meta.buffer, i - 1).is_tomb()) {
         --vertex_meta.end;
         --vertex_meta.degree;
       } else {
@@ -213,12 +248,6 @@ public:
     }
 
     m_holes.fetch_add(holes_added, std::memory_order_relaxed);
-
-    return 0;
-  }
-
-  VertexTopologyID getEdgeDst(EdgeHandle edge) {
-    return getEdgeMetadata(edge).dst;
   }
 
   // Performs the compaction algorithm by copying any vertices left in buffer 0
@@ -254,6 +283,28 @@ public:
     m_edges_lock.unlock();
   }
 
+  /*
+    Compaction policy utilities.
+  */
+
+  // Returns an estimated memory usage in bytes for the entire data structure.
+  inline size_t getMemoryUsageBytes() {
+    size_t estimate = m_vertices.size() * sizeof(VertexMetadata);
+    m_edges_lock.lock();
+    {
+      estimate +=
+          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
+          sizeof(EdgeMetadata);
+    }
+    m_edges_lock.unlock();
+    return estimate;
+  }
+
+  // Returns the number of bytes used for holes in the log.
+  inline size_t getLogHolesMemoryUsageBytes() {
+    return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
+  }
+
 private:
   struct VertexMetadata {
     uint8_t buffer : 1;
@@ -285,25 +336,31 @@ private:
   static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
 
   class EdgeIterator
-      : public boost::iterator_facade<EdgeIterator, EdgeMetadata const,
+      : public boost::iterator_facade<EdgeIterator, EdgeHandle const,
                                       boost::forward_traversal_tag,
-                                      VertexTopologyID> {
+                                      EdgeHandle const> {
   private:
-    EdgeMetadata const* m_ptr;
-    EdgeMetadata const* const m_end;
+    LS_LC_CSR_Graph* graph;
+    uint8_t buffer;
+    uint64_t index;
+    uint64_t end;
+    VertexTopologyID src;
 
-    explicit EdgeIterator(EdgeMetadata const* ptr, EdgeMetadata const* end)
-        : m_ptr(ptr), m_end(end) {}
+    explicit EdgeIterator(LS_LC_CSR_Graph* graph, uint8_t buffer,
+                          uint64_t index, uint64_t end, VertexTopologyID src)
+        : graph(graph), buffer(buffer), index(index), end(end), src(src) {}
 
     void increment() {
-      while (++m_ptr < m_end && m_ptr->is_tomb())
+      while (++index < end && graph->getEdgeMetadata(buffer, index).is_tomb())
         ;
-    };
+    }
 
-    // note: equality fails across generations
-    bool equal(EdgeIterator const& other) const { return m_ptr == other.m_ptr; }
+    // updates to the graph will invalidate iterators
+    bool equal(EdgeIterator const& other) const {
+      return graph == other.graph && index == other.index;
+    }
 
-    VertexTopologyID dereference() const { return m_ptr->dst; }
+    EdgeHandle dereference() const { return EdgeHandle(buffer, index, src); }
 
     friend class LS_LC_CSR_Graph;
     friend class boost::iterator_core_access;

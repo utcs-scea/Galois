@@ -34,8 +34,8 @@ void check() {
   auto print_graph = [&g](std::string_view msg) {
     std::cout << "- " << msg << " -" << std::endl;
     for (auto src : g.vertices()) {
-      for (auto dst : g.edges(src)) {
-        std::cout << src << "->" << dst << std::endl;
+      for (auto edge : g.edges(src)) {
+        std::cout << src << "->" << g.getEdgeDst(edge) << std::endl;
       }
     }
   };
@@ -59,7 +59,25 @@ void check() {
 
 int main() {
   galois::SharedMemSys Galois_runtime;
-  check<galois::graphs::LS_LC_CSR_Graph<>>();
+  check<galois::graphs::LS_LC_CSR_Graph<void, void>>();
+  check<galois::graphs::LS_LC_CSR_Graph<float, float>>();
+
+  // check that we can access data on nodes/edges
+  LS_LC_CSR_Graph<uint32_t, uint32_t> g(4);
+
+  g.setData(0, 0);
+  GALOIS_ASSERT(g.getData(0) == 0);
+  g.setData(1, 1);
+  GALOIS_ASSERT(g.getData(1) == 1);
+  g.setData(2, 2);
+  GALOIS_ASSERT(g.getData(2) == 2);
+  g.setData(3, 3);
+  GALOIS_ASSERT(g.getData(3) == 3);
+
+  g.addEdges(0, {1, 2, 3}, {1, 2, 3});
+  for (auto const& handle : g.edges(0)) {
+    GALOIS_ASSERT(g.getEdgeDst(handle) == g.getEdgeData(handle));
+  }
 
   return 0;
 }
