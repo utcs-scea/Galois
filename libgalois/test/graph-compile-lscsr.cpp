@@ -63,7 +63,7 @@ int main() {
   check<galois::graphs::LS_LC_CSR_Graph<float, float>>();
 
   // check that we can access data on nodes/edges
-  LS_LC_CSR_Graph<uint32_t, uint32_t> g(4);
+  galois::graphs::LS_LC_CSR_Graph<uint32_t, uint32_t> g(4);
 
   g.setData(0, 0);
   GALOIS_ASSERT(g.getData(0) == 0);
