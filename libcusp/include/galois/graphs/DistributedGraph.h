@@ -29,6 +29,7 @@
 
 #include <unordered_map>
 #include <fstream>
+#include <optional>
 
 #include "galois/graphs/LS_LC_CSR_64_Graph.h"
 #include "galois/graphs/BufferedGraph.h"
@@ -1225,17 +1226,9 @@ public:
   setData(typename GraphTy::node_data_reference vertex, T data) {
       graph.setData(vertex, data);
   }
-  // Function that sets data, enabled only if Y is void
-  //template<typename T = NodeTy>
-  //typename std::enable_if<std::is_void<T>::value>::type
-  //setData(typename GraphTy::node_data_reference vertex) {
-  //    // Handle case where Y is void
-  //}
 
   /** Data Manipulations **/
 
-  //template<typename T = NodeTy>
-  //typename std::enable_if<!std::is_void<T>::value>::type
   typename GraphTy::node_data_reference getData(typename GraphTy::node_data_reference vertex) {
     return graph.getData(getTokenID(vertex));
   }
@@ -1252,28 +1245,92 @@ public:
     return graph.getEdgeData(eh);
   }
 
+  
+  enum Task {
+    ADD_VERTEX,
+    ADD_VERTEX_TOPOLOGY_ONLY,
+    ADD_EDGES,
+    ADD_EDGES_TOPOLOGY_ONLY,
+    DELETE_VERTEX,
+    DELETE_EDGES
+  }; 
+
+  template<typename T, typename D>
+  void sendModifyRequest(uint32_t host, uint64_t token, Task task, std::optional<T>& data = std::nullopt, std::optional<D>& dsts = std::nullopt) {
+    galois::runtime::SendBuffer b;
+    galois::runtime::gSerialize(b, task);
+    galois::runtime::gSerialize(b, token);
+    if(data.has_value()) {
+      galois::runtime::gSerialize(b, data.value());
+    }
+    if(dsts.has_value()) {
+      galois::runtime::gSerialize(b, dsts.value());
+    }
+    galois::runtime::getSystemNetworkInterface().sendTagged(host, galois::runtime::evilPhase, std::move(b));
+  }
+
+  void addToLocalMap(uint64_t token) {
+    if(globalToLocalMap.find(token) == globalToLocalMap.end()) {
+      localToGlobalVector.push_back(token);
+      globalToLocalMap[token] = localToGlobalVector.size() - 1;
+    }
+  }
+
   /** Topology Modifications **/
-  typename GraphTy::node_data_reference addVertexTopologyOnly(uint32_t token) {
-    //atomically add to G2L and L2G maps
-    return graph.addVertexTopologyOnly(token);
+  void addVertexTopologyOnly(uint32_t token) {
+    uint64_t belongsTo = getHostID(token);
+    if(belongsTo == id) {
+      addToLocalMap(token);
+      graph.addVertexTopologyOnly(getLID(token));
+    } else {
+      sendModifyRequest(belongsTo, token, ADD_VERTEX_TOPOLOGY_ONLY);
+    }
   }
 
-  template<typename T = NodeTy>
-  typename std::enable_if<!std::is_void<T>::value>::type
-   addVertex(uint32_t token, T data) {
-    //atomically add to G2L and L2G maps
-    return graph.addVertex(token, data);
+  template<typename T>
+  void addVertex(uint64_t token, T data) {
+    uint64_t belongsTo = getHostID(token);
+    if(belongsTo == id) {
+      addToLocalMap(token);
+      graph.addVertex(getLID(token), data);
+    } else {
+      sendModifyRequest(belongsTo, token, ADD_VERTEX, data);
+    }
   }
 
-  bool addEdgesTopologyOnly(typename GraphTy::node_data_reference src, std::vector<uint32_t> dsts) {
-    return graph.addEdgesTopologyOnly(src, dsts); 
+  void addEdgesTopologyOnly(uint64_t src, std::vector<uint32_t> dsts) {
+    uint64_t belongsTo = getHostID(src);
+    if(belongsTo == id) {
+      for(auto dst : dsts) {
+        addToLocalMap(dst);
+      }
+      graph.addEdgesTopologyOnly(getLID(src), dsts);
+    } else {
+      sendModifyRequest(belongsTo, src, ADD_EDGES_TOPOLOGY_ONLY, dsts);
+    }
   }
-  bool addEdges(typename GraphTy::node_data_reference src, std::vector<uint32_t> dsts,
+
+  void addEdges(uint64_t src, std::vector<uint32_t> dsts,
                          std::vector<EdgeTy> data) {
-    return graph.addEdges(src, dsts, data);
+    uint64_t belongsTo = getHostID(src);
+    if(belongsTo == id) {
+      for(auto dst : dsts) {
+        addToLocalMap(dst);
+      }
+      graph.addEdges(getLID(src), dsts, data);
+    } else {
+      sendModifyRequest(belongsTo, src, ADD_EDGES, data, dsts);
+    }
   }
-  bool deleteEdges(typename GraphTy::node_data_reference src, std::vector<edge_iterator> edges) {
-    return graph.deleteEdges(src, edges);
+
+  void deleteEdges(uint64_t src, std::vector<edge_iterator> edges) {
+    //TODO:Remove dst tokens from local map?
+    uint64_t belongsTo = getHostID(src);
+    if(belongsTo == id) {
+      return graph.deleteEdges(getLID(src), edges);
+    } else {
+      sendModifyRequest(belongsTo, src, DELETE_EDGES, edges);
+    }
   }
 };
 
