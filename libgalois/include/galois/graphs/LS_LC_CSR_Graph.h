@@ -76,9 +76,17 @@ public:
 private:
   using SpinLock = galois::substrate::PaddedLock<concurrent>;
   static constexpr bool HasVertexData = !std::is_same_v<VertexData, void>;
+  static constexpr bool HasEdgeData   = !std::is_same_v<EdgeData, void>;
+
   using VertexDataStore =
       std::conditional_t<HasVertexData, typename galois::LargeArray<VertexData>,
                          typename std::tuple<>>;
+  using EdgeDataStore = std::conditional_t<
+      HasEdgeData,
+      phmap::flat_hash_map<
+          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
+          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
+      std::tuple<>>;
 
   // forward-declarations of internal structs
   struct VertexMetadata;
@@ -93,13 +101,7 @@ private:
   // m_edges[0] is the CSR with gaps, m_edges[1] is the update log.
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
-  std::conditional_t<
-      !std::is_same_v<EdgeData, void>,
-      typename phmap::flat_hash_map<
-          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
-          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
-      std::tuple<>>
-      m_edge_data;
+  EdgeDataStore m_edge_data;
 
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
@@ -302,6 +304,9 @@ public:
   // Returns an estimated memory usage in bytes for the entire data structure.
   inline size_t getMemoryUsageBytes() {
     size_t estimate = m_vertices.size() * sizeof(VertexMetadata);
+    if constexpr (HasVertexData) {
+      estimate += m_vertices.size() * sizeof(VertexData);
+    }
     m_edges_lock.lock();
     {
       estimate +=
@@ -309,6 +314,11 @@ public:
           sizeof(EdgeMetadata);
     }
     m_edges_lock.unlock();
+    if constexpr (HasEdgeData) {
+      estimate += m_edge_data.size() *
+                  (sizeof(EdgeData) +
+                   sizeof(std::pair<VertexTopologyID, VertexTopologyID>));
+    }
     return estimate;
   }
 
