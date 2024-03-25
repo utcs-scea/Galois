@@ -26,12 +26,13 @@
 #include <atomic>
 #include <new>
 #include <type_traits>
-#include <unordered_map>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
 #include <boost/iterator/iterator_facade.hpp>
 #include <boost/functional/hash.hpp>
+
+#include <parallel_hashmap/phmap.h>
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
@@ -73,20 +74,11 @@ public:
   } __attribute__((packed));
 
 private:
-  using SpinLock      = galois::substrate::PaddedLock<concurrent>;
-  using HasVertexData = std::negation<std::is_same<VertexData, void>>;
+  using SpinLock = galois::substrate::PaddedLock<concurrent>;
+  static constexpr bool HasVertexData = !std::is_same_v<VertexData, void>;
   using VertexDataStore =
-      std::conditional_t<HasVertexData::value,
-                         typename galois::LargeArray<VertexData>,
+      std::conditional_t<HasVertexData, typename galois::LargeArray<VertexData>,
                          typename std::tuple<>>;
-
-  using HasEdgeData   = std::negation<std::is_same<EdgeData, void>>;
-  using EdgeDataStore = std::conditional_t<
-      HasEdgeData::value,
-      typename std::unordered_map<
-          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
-          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
-      typename std::tuple<>>;
 
   // forward-declarations of internal structs
   struct VertexMetadata;
@@ -101,7 +93,13 @@ private:
   // m_edges[0] is the CSR with gaps, m_edges[1] is the update log.
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
-  EdgeDataStore m_edge_data;
+  std::conditional_t<
+      !std::is_same_v<EdgeData, void>,
+      typename phmap::flat_hash_map<
+          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
+          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
+      std::tuple<>>
+      m_edge_data;
 
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
@@ -122,7 +120,7 @@ private:
 public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
       : m_vertices(num_vertices, VertexMetadata()) {
-    if constexpr (HasVertexData::value) {
+    if constexpr (HasVertexData) {
       m_vertex_data.allocateBlocked(num_vertices);
     }
   }
@@ -131,22 +129,25 @@ public:
 
   /** Data Manipulations **/
 
-  inline void setData(VertexTopologyID vertex,
-                      std::enable_if<HasVertexData::value, VertexData> data) {
+  template <typename V = VertexData,
+            typename   = std::enable_if_t<!std::is_same_v<V, void>>>
+  inline void setData(VertexTopologyID vertex, V data) {
     m_vertex_data[vertex] = data;
   }
 
   // return data associated with a vertex
-  inline std::enable_if<HasVertexData::value, VertexData>&
-  getData(VertexTopologyID vertex) {
+  template <typename V = VertexData,
+            typename   = std::enable_if_t<!std::is_same_v<V, void>>>
+  inline V& getData(VertexTopologyID vertex) {
     return m_vertex_data[vertex];
   }
 
-  void setEdgeData(EdgeHandle handle,
-                   std::enable_if<HasEdgeData::value, EdgeData> data) {
-    m_edge_data[make_pair(handle.src, getEdgeMetadata(handle).dst)] = data;
+  template <typename E = EdgeData,
+            typename   = std::enable_if_t<!std::is_same_v<E, void>>>
+  void setEdgeData(EdgeHandle handle, E data) {
+    VertexTopologyID const src                                    = handle.src;
+    m_edge_data[std::make_pair(src, getEdgeMetadata(handle).dst)] = data;
   }
-  
 
   inline VertexTopologyID begin() const noexcept {
     return static_cast<VertexTopologyID>(0);
@@ -160,6 +161,13 @@ public:
 
   VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
 
+  template <typename E = EdgeData,
+            typename   = std::enable_if_t<!std::is_same_v<E, void>>>
+  inline E& getEdgeData(EdgeHandle handle) {
+    VertexTopologyID const src = handle.src;
+    return m_edge_data[std::make_pair(src, getEdgeDst(handle))];
+  }
+
   EdgeRange edges(VertexTopologyID node) {
     auto& vertex_meta = m_vertices[node];
 
@@ -169,10 +177,14 @@ public:
                                   vertex_meta.end, node));
   }
 
-  void
-  addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
-           std::vector<std::enable_if<HasEdgeData::value, EdgeData>> data) {
+  void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
+                std::vector<EdgeData> data) {
+    GALOIS_ASSERT(data.size() == dsts.size());
     this->addEdgesTopologyOnly(src, dsts);
+    for (size_t i = 0; i < dsts.size(); ++i) {
+      m_edge_data[std::make_pair(src, dsts[i])] = data[i];
+    }
+    // todo: save edge data
   }
 
   void addEdgesTopologyOnly(VertexTopologyID src,

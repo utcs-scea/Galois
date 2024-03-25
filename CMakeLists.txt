@@ -258,6 +258,7 @@ endif()
 
 add_custom_target(lib)
 add_custom_target(apps)
+add_subdirectory(external)
 
 # Core libraries (lib)
 add_subdirectory(libsupport)
