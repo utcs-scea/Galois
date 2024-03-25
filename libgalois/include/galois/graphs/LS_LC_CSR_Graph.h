@@ -131,21 +131,18 @@ public:
 
   /** Data Manipulations **/
 
-  template <typename V = VertexData,
-            typename   = std::enable_if_t<!std::is_same_v<V, void>>>
+  template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   inline void setData(VertexTopologyID vertex, V data) {
     m_vertex_data[vertex] = data;
   }
 
   // return data associated with a vertex
-  template <typename V = VertexData,
-            typename   = std::enable_if_t<!std::is_same_v<V, void>>>
+  template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   inline V& getData(VertexTopologyID vertex) {
     return m_vertex_data[vertex];
   }
 
-  template <typename E = EdgeData,
-            typename   = std::enable_if_t<!std::is_same_v<E, void>>>
+  template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
   void setEdgeData(EdgeHandle handle, E data) {
     VertexTopologyID const src                                    = handle.src;
     m_edge_data[std::make_pair(src, getEdgeMetadata(handle).dst)] = data;
@@ -163,8 +160,7 @@ public:
 
   VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
 
-  template <typename E = EdgeData,
-            typename   = std::enable_if_t<!std::is_same_v<E, void>>>
+  template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
   inline E& getEdgeData(EdgeHandle handle) {
     VertexTopologyID const src = handle.src;
     return m_edge_data[std::make_pair(src, getEdgeDst(handle))];
