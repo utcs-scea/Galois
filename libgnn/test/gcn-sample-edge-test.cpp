@@ -26,18 +26,21 @@
 #include "galois/layers/GraphConvolutionalLayer.h"
 #include "galois/layers/SAGELayer.h"
 
+#define TESTER_DIR TESTINPUT "/tester/"
+
 int main() {
   galois::DistMemSys G;
 
   // tester graph: 0 - 1 - 2 - 3 - 4 - 5 - 6
   galois::graphs::GNNGraph<char, void> test_graph(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
   test_graph.InitializeSamplingData();
 
   galois::GNNLayerConfig dcon;
   dcon.disable_aggregate_after_update = false;
   dcon.disable_normalization          = false;
   dcon.DebugConfig();
+
   // Choose a few sample nodes
   test_graph.SetSampledNode(0);
   test_graph.SetSampledNode(4);
