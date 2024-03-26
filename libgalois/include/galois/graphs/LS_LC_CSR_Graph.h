@@ -23,6 +23,8 @@
 #include <unordered_set>
 #include <iterator>
 #include <cstddef>
+#include <atomic>
+#include <new>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
@@ -30,6 +32,12 @@
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
+
+#ifdef __cpp_lib_hardware_interference_size
+using std::hardware_destructive_interference_size;
+#else
+constexpr std::size_t hardware_destructive_interference_size = 64;
+#endif
 
 namespace galois::graphs {
 
@@ -71,12 +79,13 @@ private:
   using EdgeRange = boost::iterator_range<EdgeIterator>;
 
   std::vector<VertexMetadata> m_vertices;
-
   LargeVector<EdgeMetadata> m_edges[2];
+  SpinLock m_edges_lock; // guards resizing of edges vectors
 
-  // To avoid deadlock between updates and compaction, at least one vertex lock
-  // must be held to acquire m_edges_lock.
-  SpinLock m_edges_lock;
+  alignas(hardware_destructive_interference_size) std::atomic_uint64_t
+      m_edges_tail = ATOMIC_VAR_INIT(0);
+  alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
+      ATOMIC_VAR_INIT(0);
 
   // returns a reference to the metadata for the pointed-to edge
   inline EdgeMetadata& getEdgeMetadata(EdgeHandle const& handle) {
@@ -92,6 +101,23 @@ public:
       : m_vertices(num_vertices, VertexMetadata()) {}
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
+
+  // returns an estimated memory footprint
+  inline uint64_t getFootprint() {
+    uint64_t estimate;
+    m_edges_lock.lock();
+    {
+      estimate =
+          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
+          sizeof(EdgeMetadata);
+    }
+    m_edges_lock.unlock();
+    return estimate;
+  }
+
+  inline uint64_t numHoles() const noexcept {
+    return m_holes.load(std::memory_order_relaxed);
+  }
 
   inline VertexTopologyID begin() const noexcept {
     return static_cast<VertexTopologyID>(0);
@@ -113,42 +139,45 @@ public:
 
   int addEdgesTopologyOnly(VertexTopologyID src,
                            const std::vector<VertexTopologyID> dsts) {
-    auto& vertex_meta = m_vertices[src];
 
     // Copies the edge list to the end of m_edges[1], prepending
     // the new edges.
 
-    vertex_meta.lock();
-    {
-      uint64_t const new_degree = vertex_meta.degree + dsts.size();
-      uint64_t new_begin;
+    auto& vertex_meta = m_vertices[src];
+
+    uint64_t const new_degree = vertex_meta.degree + dsts.size();
+    uint64_t const new_begin =
+        m_edges_tail.fetch_add(new_degree, std::memory_order_relaxed);
+    uint64_t const new_end = new_begin + new_degree;
+
+    if (m_edges[1].size() < new_end) {
       m_edges_lock.lock();
       {
-        new_begin = m_edges[1].size();
-        m_edges[1].resize(new_begin + new_degree);
+        if (m_edges[1].size() < new_end)
+          m_edges[1].resize(std::max(m_edges[1].size() * 2, new_end));
       }
       m_edges_lock.unlock();
-      uint64_t const new_end = new_begin + new_degree;
-
-      // insert new edges
-      std::transform(dsts.begin(), dsts.end(), &getEdgeMetadata(1, new_begin),
-                     [](VertexTopologyID dst) {
-                       return EdgeMetadata{.flags = 0, .dst = dst};
-                     });
-
-      // copy old, non-tombstoned edges
-      std::copy_if(&getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
-                   &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
-                   &getEdgeMetadata(1, new_begin + dsts.size()),
-                   [](EdgeMetadata& edge) { return !edge.is_tomb(); });
-
-      // update vertex metadata
-      vertex_meta.buffer = 1;
-      vertex_meta.begin  = new_begin;
-      vertex_meta.end    = new_end;
-      vertex_meta.degree += dsts.size();
     }
-    vertex_meta.unlock();
+
+    // insert new edges
+    std::transform(dsts.begin(), dsts.end(), &getEdgeMetadata(1, new_begin),
+                   [](VertexTopologyID dst) {
+                     return EdgeMetadata{.flags = 0, .dst = dst};
+                   });
+
+    // copy old, non-tombstoned edges
+    std::copy_if(&getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+                 &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
+                 &getEdgeMetadata(1, new_begin + dsts.size()),
+                 [](EdgeMetadata& edge) { return !edge.is_tomb(); });
+
+    // update vertex metadata
+    vertex_meta.buffer = 1;
+    vertex_meta.begin  = new_begin;
+    vertex_meta.end    = new_end;
+
+    m_holes.fetch_add(vertex_meta.degree, std::memory_order_relaxed);
+    vertex_meta.degree += dsts.size();
 
     return 0;
   }
@@ -157,33 +186,33 @@ public:
                   const std::vector<VertexTopologyID>& edges) {
     std::unordered_set<VertexTopologyID> edges_set(edges.begin(), edges.end());
 
-    auto& vertex_meta = m_vertices[src];
-    vertex_meta.lock();
-    {
-      for (auto i = vertex_meta.begin; i < vertex_meta.end; ++i) {
-        EdgeMetadata& edge_meta =
-            getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i));
-        if (!edge_meta.is_tomb() &&
-            edges_set.find(edge_meta.dst) != edges_set.end()) {
-          edge_meta.tomb();
-          --vertex_meta.degree;
-          // remove tombstoned edges from the start of the edge list
-          if (i == vertex_meta.begin)
-            ++vertex_meta.begin;
-        }
-      }
-
-      // remove tombstoned edges from the end of the edge list
-      for (auto i = vertex_meta.end; i > vertex_meta.begin; --i) {
-        if (getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i - 1)).is_tomb()) {
-          --vertex_meta.end;
-          --vertex_meta.degree;
-        } else {
-          break;
-        }
+    auto& vertex_meta    = m_vertices[src];
+    uint64_t holes_added = 0;
+    for (auto i = vertex_meta.begin; i < vertex_meta.end; ++i) {
+      EdgeMetadata& edge_meta =
+          getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i));
+      if (!edge_meta.is_tomb() &&
+          edges_set.find(edge_meta.dst) != edges_set.end()) {
+        edge_meta.tomb();
+        --vertex_meta.degree;
+        ++holes_added;
+        // remove tombstoned edges from the start of the edge list
+        if (i == vertex_meta.begin)
+          ++vertex_meta.begin;
       }
     }
-    vertex_meta.unlock();
+
+    // remove tombstoned edges from the end of the edge list
+    for (auto i = vertex_meta.end; i > vertex_meta.begin; --i) {
+      if (getEdgeMetadata(EdgeHandle(vertex_meta.buffer, i - 1)).is_tomb()) {
+        --vertex_meta.end;
+        --vertex_meta.degree;
+      } else {
+        break;
+      }
+    }
+
+    m_holes.fetch_add(holes_added, std::memory_order_relaxed);
 
     return 0;
   }
@@ -195,7 +224,7 @@ public:
   // Performs the compaction algorithm by copying any vertices left in buffer 0
   // to buffer 1, then swapping the buffers.
   //
-  // Should not be called from within a Galois parallel kernel.
+  // Not safe to call in parallel with insertions/deletions.
   void compact() {
     using std::swap;
 
@@ -203,55 +232,30 @@ public:
     galois::do_all(galois::iterate(vertices().begin(), vertices().end()),
                    [&](VertexTopologyID vertex_id) {
                      VertexMetadata& vertex_meta = m_vertices[vertex_id];
-                     vertex_meta.lock();
 
                      if (vertex_meta.buffer == 0) {
-                       uint64_t new_begin;
-                       m_edges_lock.lock();
-                       {
-                         new_begin = m_edges[1].size();
-                         m_edges[1].resize(new_begin + vertex_meta.degree);
-                       }
-                       m_edges_lock.unlock();
-
-                       uint64_t new_end = new_begin + vertex_meta.degree;
-
-                       std::copy_if(&getEdgeMetadata(0, vertex_meta.begin),
-                                    &getEdgeMetadata(0, vertex_meta.end),
-                                    &getEdgeMetadata(1, new_begin),
-                                    [](EdgeMetadata& edge_meta) {
-                                      return !edge_meta.is_tomb();
-                                    });
-
-                       vertex_meta.begin = new_begin;
-                       vertex_meta.end   = new_end;
+                       this->addEdgesTopologyOnly(vertex_id, {});
                      }
 
                      // we are about to swap the buffers, so all vertices will
                      // be in buffer 0
                      vertex_meta.buffer = 0;
-
-                     // don't release the vertex lock until after the edge
-                     // arrays are swapped
                    });
 
     // At this point, there are no more live edges in buffer 0.
-    // We also hold the lock for all vertices, so nobody else can hold
-    // m_edges_lock.
     m_edges_lock.lock();
     {
       m_edges[0].resize(0);
       swap(m_edges[0], m_edges[1]);
+      // relaxed is fine because of locks held:
+      m_edges_tail.store(0, std::memory_order_relaxed);
+      m_holes.store(0, std::memory_order_relaxed);
     }
     m_edges_lock.unlock();
-
-    galois::do_all(
-        galois::iterate(vertices().begin(), vertices().end()),
-        [&](VertexTopologyID vertex_id) { m_vertices[vertex_id].unlock(); });
   }
 
 private:
-  struct VertexMetadata : public SpinLock {
+  struct VertexMetadata {
     uint8_t buffer : 1;
     uint64_t begin : 48; // inclusive
     uint64_t end : 48;   // exclusive
