@@ -29,7 +29,7 @@ template <typename T>
 class LargeVector : public boost::noncopyable {
 private:
   size_t m_capacity;
-  size_t m_size;
+  size_t volatile m_size;
   T* m_data;
 
   int m_fd;
@@ -68,9 +68,9 @@ private:
     std::cout << "new_cap = " << new_cap << "\tmmap_size = " << mmap_size
               << std::endl;
 
-    m_data =
-        static_cast<T*>(mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
-                             MAP_SHARED | MAP_HUGETLB | MAP_HUGE_2MB, m_fd, 0));
+    m_data = static_cast<T*>(
+        mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
+             MAP_SHARED | MAP_HUGETLB | MAP_HUGE_2MB | MAP_POPULATE, m_fd, 0));
     if (m_data == MAP_FAILED)
       throw std::runtime_error(std::string("mmap failed: ") +
                                std::strerror(errno));
