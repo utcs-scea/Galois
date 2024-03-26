@@ -23,6 +23,8 @@
 #include "galois/layers/SoftmaxLayer.h"
 #include "galois/layers/SigmoidLayer.h"
 
+#define TESTER_DIR TESTINPUT "/tester/"
+
 int main() {
   galois::DistMemSys G;
 
@@ -34,7 +36,7 @@ int main() {
                      num_threads);
   // load test graph
   galois::graphs::GNNGraph<char, void> test_graph(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   galois::GNNLayerDimensions dimension_0;
   dimension_0.input_rows     = 7;

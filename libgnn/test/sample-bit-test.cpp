@@ -4,6 +4,8 @@
 #include "galois/Logging.h"
 #include "galois/graphs/GNNGraph.h"
 
+#define TESTER_DIR TESTINPUT "/tester/"
+
 int main() {
   galois::DistMemSys G;
 
@@ -14,7 +16,7 @@ int main() {
                      num_threads);
 
   galois::graphs::GNNGraph<char, void> graph(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
   graph.InitializeSamplingData(3, false);
 
   // first, assert all edges are not sampled (should come with all 0s)

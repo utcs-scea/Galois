@@ -4,6 +4,8 @@
 #include "galois/Logging.h"
 #include "galois/layers/GraphConvolutionalLayer.h"
 
+#define TESTER_DIR TESTINPUT "/tester/"
+
 int main() {
   galois::DistMemSys G;
 
@@ -15,7 +17,7 @@ int main() {
                      num_threads);
   // load test graph
   galois::graphs::GNNGraph<char, void> test_graph(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   galois::PointerWithSize<galois::GNNFloat> feats =
       test_graph.GetLocalFeatures();

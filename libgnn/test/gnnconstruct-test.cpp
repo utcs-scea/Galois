@@ -4,6 +4,8 @@
 #include "galois/Logging.h"
 #include "galois/GraphNeuralNetwork.h"
 
+#define TESTER_DIR TESTINPUT "/tester/"
+
 int main() {
   galois::DistMemSys G;
 
@@ -15,7 +17,7 @@ int main() {
                      num_threads);
   // load test graph
   auto test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   // 2 layer test with softmax
   std::vector<galois::GNNLayerType> layer_types = {

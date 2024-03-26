@@ -1,5 +1,8 @@
 find_package(OpenMP)
 
+set(TESTINPUT "${CMAKE_SOURCE_DIR}/inputs")
+add_definitions("-DTESTINPUT=\"${TESTINPUT}\"")
+
 set(hosts)
 set(host 12)
 while (${host} GREATER 1)

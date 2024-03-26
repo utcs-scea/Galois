@@ -9,6 +9,8 @@
 #include "galois/GNNMath.h"
 #include "galois/layers/SoftmaxLayer.h"
 
+#define TESTER_DIR TESTINPUT "/tester/"
+
 int main() {
   galois::DistMemSys G;
 
@@ -18,7 +20,7 @@ int main() {
 
   // load test graph
   galois::graphs::GNNGraph<char, void> test_graph(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   // input/output columns must be same in softmax
   galois::GNNLayerDimensions dimension_0;
