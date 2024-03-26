@@ -77,7 +77,7 @@ USER ${UNAME}
 WORKDIR /home/${UNAME}
 ENV BUILD_DIR=${BUILD_DIR}
 
-RUN pip3 install compdb pre-commit cpplint "clang-format>=12.0.1,<17.0.0"
+RUN pip3 install compdb pre-commit cpplint "clang-format>=14.0.0,<17.0.0"
 
 RUN echo "PATH=/home/${UNAME}/.local/bin/:\$PATH" >> /home/${UNAME}/.zshenv
 
