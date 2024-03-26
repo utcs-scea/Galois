@@ -16,7 +16,8 @@ int main() {
 
   // load test graph
   auto test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
 
   std::vector<galois::GNNLayerType> layer_types = {
       galois::GNNLayerType::kGraphConvolutional};

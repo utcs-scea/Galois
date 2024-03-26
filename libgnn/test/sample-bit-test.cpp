@@ -16,7 +16,8 @@ int main() {
                      num_threads);
 
   galois::graphs::GNNGraph<char, void> graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
   graph.InitializeSamplingData(3, false);
 
   // first, assert all edges are not sampled (should come with all 0s)

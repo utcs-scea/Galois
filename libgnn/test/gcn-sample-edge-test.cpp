@@ -33,7 +33,8 @@ int main() {
 
   // tester graph: 0 - 1 - 2 - 3 - 4 - 5 - 6
   galois::graphs::GNNGraph<char, void> test_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
   test_graph.InitializeSamplingData();
 
   galois::GNNLayerConfig dcon;

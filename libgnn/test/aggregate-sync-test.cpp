@@ -12,7 +12,8 @@ int main() {
   }
 
   auto test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
 
   // print edges for sanity
   for (size_t node = 0; node < test_graph->size(); node++) {

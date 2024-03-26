@@ -18,7 +18,8 @@ int main() {
 
   // load test graph
   galois::graphs::GNNGraph<char, void> test_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false,
+      false);
 
   // input/output columns must be same in softmax
   galois::GNNLayerDimensions dimension_0;
