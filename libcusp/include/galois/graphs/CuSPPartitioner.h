@@ -97,14 +97,16 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
   using DistGraphConstructor =
       galois::graphs::NewDistGraphGeneric<NodeData, EdgeData, PartitionPolicy>;
 
-  using newPtr =
-      galois::graphs::WMDGraph<NodeData, EdgeData, OECPolicy>;
-      std::vector<std::unique_ptr<galois::graphs::FileParser<galois::Edge>>> parsers;
-      parsers.emplace_back(std::make_unique<galois::graphs::FileParser<galois::Edge>>(2, graphFile));
-    if(useWMD) {
-     auto ptr = std::make_unique<newPtr>(parsers, net.ID, net.Num, galois::graphs::BALANCED_EDGES_OF_MASTERS);
-     return ptr;
-    }
+  using newPtr = galois::graphs::WMDGraph<NodeData, EdgeData, OECPolicy>;
+  std::vector<std::unique_ptr<galois::graphs::FileParser<galois::Edge>>>
+      parsers;
+  parsers.emplace_back(
+      std::make_unique<galois::graphs::FileParser<galois::Edge>>(2, graphFile));
+  if (useWMD) {
+    auto ptr = std::make_unique<newPtr>(
+        parsers, net.ID, net.Num, galois::graphs::BALANCED_EDGES_OF_MASTERS);
+    return ptr;
+  }
 
   // TODO @todo bring back graph saving/reading functionality?
 

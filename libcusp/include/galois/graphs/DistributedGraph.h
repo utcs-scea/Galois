@@ -68,9 +68,10 @@ private:
   //! Graph name used for printing things
   constexpr static const char* const GRNAME = "dGraph";
 
-  //using GraphTy =
-  //    galois::graphs::LS_LC_CSR_64_Graph<NodeTy, EdgeTy, false, true, false,
-  //                                     false, EdgeTy, NodeIndexTy, EdgeIndexTy>;
+  // using GraphTy =
+  //     galois::graphs::LS_LC_CSR_64_Graph<NodeTy, EdgeTy, false, true, false,
+  //                                      false, EdgeTy, NodeIndexTy,
+  //                                      EdgeIndexTy>;
   using GraphTy = galois::graphs::LS_LC_CSR_64_Graph<NodeTy, EdgeTy, true>;
 
   // vector for determining range objects for master nodes + nodes
@@ -1180,7 +1181,7 @@ public:
   //! Used by substrate to determine if some stats are to be reported
   bool is_a_graph() const { return true; }
 
-/** size stuff **/
+  /** size stuff **/
   inline size_t size() { return graph.size(); }
 
   inline size_t size() const noexcept { return graph.size(); }
@@ -1193,13 +1194,12 @@ public:
     return graph.getDegree(getTokenID(vertex));
   }
 
-  inline typename GraphTy::node_data_reference
-   getTopologyID(uint64_t nodeID) {
+  inline typename GraphTy::node_data_reference getTopologyID(uint64_t nodeID) {
     return graph.getData(getLID(nodeID));
   }
 
   inline typename GraphTy::node_data_reference
-   getTopologyIDFromIndex(uint64_t index) {
+  getTopologyIDFromIndex(uint64_t index) {
     return graph.getData(index);
   }
 
@@ -1217,35 +1217,37 @@ public:
   }
 
   /** Edge Manipulation **/
-  edge_iterator mintEdgeHandle(typename GraphTy::node_data_reference src, std::uint64_t off) {
+  edge_iterator mintEdgeHandle(typename GraphTy::node_data_reference src,
+                               std::uint64_t off) {
     return edge_begin(src) + off;
   }
 
-  template<typename T = NodeTy>
+  template <typename T = NodeTy>
   typename std::enable_if<!std::is_void<T>::value>::type
   setData(typename GraphTy::node_data_reference vertex, T data) {
-      graph.setData(vertex, data);
+    graph.setData(vertex, data);
   }
 
   /** Data Manipulations **/
 
-  typename GraphTy::node_data_reference getData(typename GraphTy::node_data_reference vertex) {
+  typename GraphTy::node_data_reference
+  getData(typename GraphTy::node_data_reference vertex) {
     return graph.getData(getTokenID(vertex));
   }
 
-  template<typename T = NodeTy>
+  template <typename T = NodeTy>
   typename std::enable_if<!std::is_void<T>::value>::type
-   setEdgeData(edge_iterator eh, T data) {
+  setEdgeData(edge_iterator eh, T data) {
     graph.setEdgeData(eh, data);
   }
 
-  template<typename T = NodeTy>
-  typename std::enable_if<!std::is_void<T>::value, typename GraphTy::edge_data_reference>::type
-   getEdgeData(edge_iterator eh) {
+  template <typename T = NodeTy>
+  typename std::enable_if<!std::is_void<T>::value,
+                          typename GraphTy::edge_data_reference>::type
+  getEdgeData(edge_iterator eh) {
     return graph.getEdgeData(eh);
   }
 
-  
   enum Task {
     ADD_VERTEX,
     ADD_VERTEX_TOPOLOGY_ONLY,
@@ -1253,24 +1255,27 @@ public:
     ADD_EDGES_TOPOLOGY_ONLY,
     DELETE_VERTEX,
     DELETE_EDGES
-  }; 
+  };
 
-  template<typename T, typename D>
-  void sendModifyRequest(uint32_t host, uint64_t token, Task task, std::optional<T>& data = std::nullopt, std::optional<D>& dsts = std::nullopt) {
+  template <typename T, typename D>
+  void sendModifyRequest(uint32_t host, uint64_t token, Task task,
+                         std::optional<T>& data = std::nullopt,
+                         std::optional<D>& dsts = std::nullopt) {
     galois::runtime::SendBuffer b;
     galois::runtime::gSerialize(b, task);
     galois::runtime::gSerialize(b, token);
-    if(data.has_value()) {
+    if (data.has_value()) {
       galois::runtime::gSerialize(b, data.value());
     }
-    if(dsts.has_value()) {
+    if (dsts.has_value()) {
       galois::runtime::gSerialize(b, dsts.value());
     }
-    galois::runtime::getSystemNetworkInterface().sendTagged(host, galois::runtime::evilPhase, std::move(b));
+    galois::runtime::getSystemNetworkInterface().sendTagged(
+        host, galois::runtime::evilPhase, std::move(b));
   }
 
   void addToLocalMap(uint64_t token) {
-    if(globalToLocalMap.find(token) == globalToLocalMap.end()) {
+    if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
       localToGlobalVector.push_back(token);
       globalToLocalMap[token] = localToGlobalVector.size() - 1;
     }
@@ -1279,7 +1284,7 @@ public:
   /** Topology Modifications **/
   void addVertexTopologyOnly(uint32_t token) {
     uint64_t belongsTo = getHostID(token);
-    if(belongsTo == id) {
+    if (belongsTo == id) {
       addToLocalMap(token);
       graph.addVertexTopologyOnly(getLID(token));
     } else {
@@ -1287,10 +1292,10 @@ public:
     }
   }
 
-  template<typename T>
+  template <typename T>
   void addVertex(uint64_t token, T data) {
     uint64_t belongsTo = getHostID(token);
-    if(belongsTo == id) {
+    if (belongsTo == id) {
       addToLocalMap(token);
       graph.addVertex(getLID(token), data);
     } else {
@@ -1300,8 +1305,8 @@ public:
 
   void addEdgesTopologyOnly(uint64_t src, std::vector<uint32_t> dsts) {
     uint64_t belongsTo = getHostID(src);
-    if(belongsTo == id) {
-      for(auto dst : dsts) {
+    if (belongsTo == id) {
+      for (auto dst : dsts) {
         addToLocalMap(dst);
       }
       graph.addEdgesTopologyOnly(getLID(src), dsts);
@@ -1311,10 +1316,10 @@ public:
   }
 
   void addEdges(uint64_t src, std::vector<uint32_t> dsts,
-                         std::vector<EdgeTy> data) {
+                std::vector<EdgeTy> data) {
     uint64_t belongsTo = getHostID(src);
-    if(belongsTo == id) {
-      for(auto dst : dsts) {
+    if (belongsTo == id) {
+      for (auto dst : dsts) {
         addToLocalMap(dst);
       }
       graph.addEdges(getLID(src), dsts, data);
@@ -1324,9 +1329,9 @@ public:
   }
 
   void deleteEdges(uint64_t src, std::vector<edge_iterator> edges) {
-    //TODO:Remove dst tokens from local map?
+    // TODO:Remove dst tokens from local map?
     uint64_t belongsTo = getHostID(src);
-    if(belongsTo == id) {
+    if (belongsTo == id) {
       return graph.deleteEdges(getLID(src), edges);
     } else {
       sendModifyRequest(belongsTo, src, DELETE_EDGES, edges);

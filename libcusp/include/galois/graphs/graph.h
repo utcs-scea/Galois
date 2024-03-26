@@ -65,9 +65,7 @@ public:
   uint32_t dist_current;
   uint32_t dist_old;
 
-  Vertex() {
-    edges = 0;
-  }
+  Vertex() { edges = 0; }
 
   Vertex(uint64_t glbid_, uint64_t id_) {
     id    = id_;
@@ -93,16 +91,16 @@ public:
     dst = 0;
   }
 
-//private:
-//  friend class boost::serialization::access;
-//
-//  template <class Archive>
-//  void serialize(Archive& ar, const unsigned int version) {
-//    ar& src;
-//    ar& dst;
-//    ar& src_glbid;
-//    ar& dst_glbid;
-//  }
+  // private:
+  //   friend class boost::serialization::access;
+  //
+  //   template <class Archive>
+  //   void serialize(Archive& ar, const unsigned int version) {
+  //     ar& src;
+  //     ar& dst;
+  //     ar& src_glbid;
+  //     ar& dst_glbid;
+  //   }
 };
 
 } // namespace galois

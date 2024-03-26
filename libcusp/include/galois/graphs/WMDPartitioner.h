@@ -127,7 +127,8 @@ public:
     galois::StatTimer graphReadTimer("GraphReading", GRNAME);
     graphReadTimer.start();
     galois::gInfo("[", base_DistGraph::id, "] EdgeListOfflineGraph End!");
-    galois::graphs::EdgeListOfflineGraph<galois::Vertex, galois::Edge> g(parsers, md, 4);
+    galois::graphs::EdgeListOfflineGraph<galois::Vertex, galois::Edge> g(
+        parsers, md, 4);
     galois::gInfo("[", base_DistGraph::id, "] EdgeListOfflineGraph End!");
     std::vector<uint64_t> ndegrees;
     graphPartitioner = std::make_unique<Partitioner>(
@@ -140,7 +141,8 @@ public:
     galois::gInfo("[", base_DistGraph::id, "] Start exchanging edges.");
     galois::StatTimer edgesExchangeTimer("EdgesExchange", GRNAME);
     edgesExchangeTimer.start();
-    galois::graphs::EdgeListBufferedGraph<galois::Vertex, galois::Edge> bufGraph;
+    galois::graphs::EdgeListBufferedGraph<galois::Vertex, galois::Edge>
+        bufGraph;
     bufGraph.loadPartialGraph(g, base_DistGraph::numGlobalEdges);
     edgesExchangeTimer.stop();
     galois::gInfo("[", base_DistGraph::id, "] Exchanging edges complete in ",
@@ -186,7 +188,8 @@ public:
             dstData.push(base_DistGraph::globalToLocalMap[dst]);
           }
           base_DistGraph::graph.addEdges(
-              (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]), dstData);
+              (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
+              dstData);
         },
         galois::steal());
     // move node data (include mirror nodes) from other hosts to graph in this
@@ -207,18 +210,17 @@ public:
                   buildingTimer.get_usec() / 1000000.0, " sec.");
 
     ////////////////////////////////////////////////////////////////////////////
-    //if (setupGluon) {
-      galois::CondStatTimer<MORE_DIST_STATS> TfillMirrors("FillMirrors",
-                                                          GRNAME);
-      TfillMirrors.start();
-      fillMirrors();
-      TfillMirrors.stop();
+    // if (setupGluon) {
+    galois::CondStatTimer<MORE_DIST_STATS> TfillMirrors("FillMirrors", GRNAME);
+    TfillMirrors.start();
+    fillMirrors();
+    TfillMirrors.stop();
     //}
     ////////////////////////////////////////////////////////////////////////////
     ndegrees.clear();
     ndegrees.shrink_to_fit();
     // SORT EDGES
-    //if (doSort) {
+    // if (doSort) {
     //  base_DistGraph::sortEdgesByDestination();
     //}
     ////////////////////////////////////////////////////////////////////////////
@@ -268,67 +270,79 @@ private:
       : base_DistGraph(host, _numHosts) {}
 
   void edgeInspectionRound(
-      galois::graphs::EdgeListBufferedGraph<galois::Vertex, galois::Edge>& bufGraph) {
-    std::vector<std::vector<uint64_t>> incomingMirrors(base_DistGraph::numHosts);
-    uint32_t myID         = base_DistGraph::id;
+      galois::graphs::EdgeListBufferedGraph<galois::Vertex, galois::Edge>&
+          bufGraph) {
+    std::vector<std::vector<uint64_t>> incomingMirrors(
+        base_DistGraph::numHosts);
+    uint32_t myID = base_DistGraph::id;
     base_DistGraph::localToGlobalVector.resize(base_DistGraph::numOwned);
     uint32_t activeThreads = galois::getActiveThreads();
-    std::vector<std::vector<std::set<uint64_t>>> incomingMirrorsPerThread(base_DistGraph::numHosts);
-    for(uint32_t h=0; h<base_DistGraph::numHosts; h++) {
-        incomingMirrorsPerThread[h].resize(activeThreads);
+    std::vector<std::vector<std::set<uint64_t>>> incomingMirrorsPerThread(
+        base_DistGraph::numHosts);
+    for (uint32_t h = 0; h < base_DistGraph::numHosts; h++) {
+      incomingMirrorsPerThread[h].resize(activeThreads);
     }
     size_t start = bufGraph.globalNodeOffset[base_DistGraph::id];
     size_t end;
-    if(base_DistGraph::id != base_DistGraph::numHosts - 1)
-        end = bufGraph.globalNodeOffset[base_DistGraph::id + 1];
+    if (base_DistGraph::id != base_DistGraph::numHosts - 1)
+      end = bufGraph.globalNodeOffset[base_DistGraph::id + 1];
     else
-	      end = bufGraph.localNodeSize[base_DistGraph::numHosts - 1] + bufGraph.globalNodeOffset[base_DistGraph::id];
+      end = bufGraph.localNodeSize[base_DistGraph::numHosts - 1] +
+            bufGraph.globalNodeOffset[base_DistGraph::id];
     galois::on_each([&](unsigned tid, unsigned nthreads) {
       uint64_t beginNode;
       uint64_t endNode;
-      std::tie(beginNode, endNode) = galois::block_range(start, end, tid, nthreads);
-      for(uint64_t i = beginNode; i < endNode; ++i) {
-        auto ii            = bufGraph.edgeBegin(i);
-        auto ee            = bufGraph.edgeEnd(i);
+      std::tie(beginNode, endNode) =
+          galois::block_range(start, end, tid, nthreads);
+      for (uint64_t i = beginNode; i < endNode; ++i) {
+        auto ii = bufGraph.edgeBegin(i);
+        auto ee = bufGraph.edgeEnd(i);
         for (; ii < ee; ++ii) {
           uint64_t dst = bufGraph.edgeDestination(*ii);
-          uint64_t master_dst = bufGraph.virtualToPhyMapping[dst%(bufGraph.scaleFactor*base_DistGraph::numHosts)];
-            if (master_dst != myID) {
-                  assert(master_dst < base_DistGraph::numHosts);
-                  incomingMirrorsPerThread[master_dst][tid].insert(dst);
-            }
+          uint64_t master_dst =
+              bufGraph.virtualToPhyMapping[dst % (bufGraph.scaleFactor *
+                                                  base_DistGraph::numHosts)];
+          if (master_dst != myID) {
+            assert(master_dst < base_DistGraph::numHosts);
+            incomingMirrorsPerThread[master_dst][tid].insert(dst);
+          }
         }
-        base_DistGraph::localToGlobalVector[i - bufGraph.globalNodeOffset[base_DistGraph::id]] = bufGraph.LIDtoGID[i - bufGraph.globalNodeOffset[base_DistGraph::id]];
+        base_DistGraph::localToGlobalVector[i - bufGraph.globalNodeOffset
+                                                    [base_DistGraph::id]] =
+            bufGraph
+                .LIDtoGID[i - bufGraph.globalNodeOffset[base_DistGraph::id]];
       }
-      });
+    });
     std::vector<std::set<uint64_t>> dest(base_DistGraph::numHosts);
-    for(uint32_t h=0; h<base_DistGraph::numHosts; h++) {
-      for(uint32_t t=0; t<activeThreads; t++) {
+    for (uint32_t h = 0; h < base_DistGraph::numHosts; h++) {
+      for (uint32_t t = 0; t < activeThreads; t++) {
         std::set<uint64_t> tempUnion;
         std::set_union(dest[h].begin(), dest[h].end(),
-                   incomingMirrorsPerThread[h][t].begin(), incomingMirrorsPerThread[h][t].end(),
-                   std::inserter(tempUnion, tempUnion.begin()));
+                       incomingMirrorsPerThread[h][t].begin(),
+                       incomingMirrorsPerThread[h][t].end(),
+                       std::inserter(tempUnion, tempUnion.begin()));
         dest[h] = tempUnion;
       }
-        std::copy(dest[h].begin(), dest[h].end(), std::back_inserter(incomingMirrors[h]));
+      std::copy(dest[h].begin(), dest[h].end(),
+                std::back_inserter(incomingMirrors[h]));
     }
     incomingMirrorsPerThread.clear();
     uint64_t offset = base_DistGraph::localToGlobalVector.size();
-    uint64_t count = 0;
-    for(uint64_t i=0; i<incomingMirrors.size(); i++) {
-        count += incomingMirrors[i].size();
+    uint64_t count  = 0;
+    for (uint64_t i = 0; i < incomingMirrors.size(); i++) {
+      count += incomingMirrors[i].size();
     }
     uint32_t additionalMirrorCount = count;
     base_DistGraph::localToGlobalVector.resize(
         base_DistGraph::localToGlobalVector.size() + additionalMirrorCount);
-    for (uint64_t i=0;i<incomingMirrors.size();i++) {
-            for(uint64_t j=0; j <incomingMirrors[i].size(); j++) {
-               base_DistGraph::localToGlobalVector[offset] = incomingMirrors[i][j];
-               offset++;
-            }
-        }
+    for (uint64_t i = 0; i < incomingMirrors.size(); i++) {
+      for (uint64_t j = 0; j < incomingMirrors[i].size(); j++) {
+        base_DistGraph::localToGlobalVector[offset] = incomingMirrors[i][j];
+        offset++;
+      }
+    }
     base_DistGraph::numNodes = base_DistGraph::numOwned + additionalMirrorCount;
-    //Creating Global to Local ID map
+    // Creating Global to Local ID map
     base_DistGraph::globalToLocalMap.reserve(base_DistGraph::numNodes);
     for (unsigned i = 0; i < base_DistGraph::numNodes; i++) {
       base_DistGraph::globalToLocalMap[base_DistGraph::localToGlobalVector[i]] =
@@ -366,7 +380,8 @@ private:
     for (uint32_t i = base_DistGraph::numOwned; i < base_DistGraph::numNodes;
          i++) {
       uint64_t globalID = base_DistGraph::localToGlobalVector[i];
-      assert(graphPartitioner->retrieveMaster(globalID) < base_DistGraph::numHosts);
+      assert(graphPartitioner->retrieveMaster(globalID) <
+             base_DistGraph::numHosts);
 
       base_DistGraph::mirrorNodes[graphPartitioner->retrieveMaster(globalID)]
           .push_back(globalID);

@@ -54,8 +54,7 @@ using ParsedUID = uint64_t;
 
 template <typename E>
 struct ParsedGraphStructure {
-  ParsedGraphStructure(std::vector<E> edges_)
-      : edges(edges_) {}
+  ParsedGraphStructure(std::vector<E> edges_) : edges(edges_) {}
 
   std::vector<E> edges;
 };
@@ -71,19 +70,18 @@ public:
     std::vector<std::string> tokens =
         this->SplitLine(line, lineLength, ' ', csvFields_);
 
-      std::vector<E> edges;
-      E edge(tokens);
-      E inverseEdge    = edge;
-      inverseEdge.src = edge.dst;
-      inverseEdge.dst = edge.src;
-      edges.emplace_back(edge);
-      edges.emplace_back(inverseEdge);
+    std::vector<E> edges;
+    E edge(tokens);
+    E inverseEdge   = edge;
+    inverseEdge.src = edge.dst;
+    inverseEdge.dst = edge.src;
+    edges.emplace_back(edge);
+    edges.emplace_back(inverseEdge);
 
-      return ParsedGraphStructure<E>(edges);
+    return ParsedGraphStructure<E>(edges);
   }
-  std::vector<std::string> SplitLine(const char* line,
-                                            uint64_t lineLength, char delim,
-                                            uint64_t numTokens) {
+  std::vector<std::string> SplitLine(const char* line, uint64_t lineLength,
+                                     char delim, uint64_t numTokens) {
     uint64_t ndx = 0, start = 0, end = 0;
     std::vector<std::string> tokens(numTokens);
 
@@ -99,12 +97,11 @@ public:
         std::string(line + start, end - start); // flush last token
     return tokens;
   }
+
 private:
   uint64_t csvFields_;
   std::string files_;
 };
 
-
 } // namespace graphs
 } // namespace galois
-
