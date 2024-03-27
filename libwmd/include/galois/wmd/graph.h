@@ -53,9 +53,9 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 
-#include "data_types.h"
 #include "graphTypes.h"
 #include "galois/graphs/LS_LC_CSR_64_Graph.h"
+#include "galois/shad/DataTypes.h"
 
 #define UINT shad::data_types::UINT
 // #define DOUBLE shad::data_types::DOUBLE
@@ -175,13 +175,13 @@ private:
 
   template <class Archive>
   void serialize(Archive& ar, const unsigned int version) {
-    ar& src;
-    ar& dst;
-    ar& type;
-    ar& src_type;
-    ar& dst_type;
-    ar& src_glbid;
-    ar& dst_glbid;
+    ar & src;
+    ar & dst;
+    ar & type;
+    ar & src_type;
+    ar & dst_type;
+    ar & src_glbid;
+    ar & dst_glbid;
   }
 };
 

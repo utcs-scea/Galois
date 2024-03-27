@@ -71,17 +71,14 @@ class WMDGraph : public DistLocalGraph<NodeTy, EdgeTy> {
   friend class WMDGraph;
 
   virtual unsigned getHostIDImpl(uint64_t gid) const {
-    assert(gid < base_DistGraph::numGlobalNodes);
     return graphPartitioner->retrieveMaster(gid);
   }
 
   virtual bool isOwnedImpl(uint64_t gid) const {
-    assert(gid < base_DistGraph::numGlobalNodes);
     return (graphPartitioner->retrieveMaster(gid) == base_DistGraph::id);
   }
 
   virtual bool isLocalImpl(uint64_t gid) const {
-    assert(gid < base_DistGraph::numGlobalNodes);
     return (base_DistGraph::globalToLocalMap.find(gid) !=
             base_DistGraph::globalToLocalMap.end());
   }

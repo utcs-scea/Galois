@@ -28,9 +28,9 @@
 #include "galois/config.h"
 #include "galois/gIO.h"
 #include "galois/Reduction.h"
+#include "galois/shad/DataTypes.h"
 
 #include "graphTypes.h"
-#include "data_types.h"
 #include "graph.h"
 #include "schema.h"
 #include "instrument.h"
@@ -760,7 +760,7 @@ private:
 
       for (uint64_t i = beginNode; i < endNode; ++i) {
         int host =
-            virtualToPhyMapping[srcGraph.localNodes[i].glbid % numVirtualHosts];
+            virtualToPhyMapping[srcGraph.localNodes[i].id % numVirtualHosts];
         threadNodesToSend[tid][host]++;
         I_WR();
         for (int k = 0; k < 2; k++)
@@ -878,8 +878,8 @@ private:
           galois::block_range((uint64_t)0, localNodes.size(), tid, nthreads);
 
       for (size_t i = beginNode; i < (endNode); ++i) {
-        int host = virtualToPhyMapping[(localNodes[i].glbid) %
-                                       (scaleFactor * numHosts)];
+        int host =
+            virtualToPhyMapping[(localNodes[i].id) % (scaleFactor * numHosts)];
         threadNodesToSend[tid][host].push_back((localNodes[i]));
         for (int k = 0; k < 2; k++)
           I_RR();
@@ -938,10 +938,10 @@ private:
         uint64_t delta;
         delta = std::ceil((double)NodeData.size() / activeThreads);
         for (size_t j = beginNode; j < (endNode); ++j) {
-          threadMap[tid][NodeData[j].glbid] =
+          threadMap[tid][NodeData[j].id] =
               offset + (tid * (delta)) + j - beginNode;
           threadLIDMap[tid][offset + (tid * (delta)) + j - beginNode] =
-              NodeData[j].glbid;
+              NodeData[j].id;
           I_WR();
           I_RR();
         }
@@ -969,10 +969,10 @@ private:
       uint64_t delta;
       delta = std::ceil((double)nodesToSend[hostID].size() / activeThreads);
       for (size_t i = beginNode; i < (endNode); ++i) {
-        threadMap[tid][nodesToSend[hostID][i].glbid] =
+        threadMap[tid][nodesToSend[hostID][i].id] =
             offset + (tid * (delta)) + i - beginNode;
         threadLIDMap[tid][offset + (tid * (delta)) + i - beginNode] =
-            nodesToSend[hostID][i].glbid;
+            nodesToSend[hostID][i].id;
         I_WR();
         I_RR();
       }

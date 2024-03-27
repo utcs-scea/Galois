@@ -8,7 +8,7 @@ target_include_directories(galois_wmd INTERFACE
   $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(galois_wmd INTERFACE Galois::dist_async Galois::cusp)
+target_link_libraries(galois_wmd INTERFACE Galois::dist_async Galois::cusp galois_support)
 
 add_subdirectory(test)
 

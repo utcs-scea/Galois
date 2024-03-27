@@ -47,7 +47,7 @@
 #include <limits>
 #include <vector>
 
-#include "DataTypes.h"
+#include "galois/shad/DataTypes.h"
 #include "GraphTypes.h"
 
 #define UINT shad::data_types::UINT

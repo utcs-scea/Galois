@@ -5,8 +5,8 @@
 #include <string>
 
 #include "galois/graphs/BufferedGraph.h"
+#include "galois/shad/DataTypes.h"
 
-#include "shad/DataTypes.h"
 #include "shad/Graph.h"
 #include "shad/GraphTypes.h"
 
