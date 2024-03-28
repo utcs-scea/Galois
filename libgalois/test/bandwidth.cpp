@@ -77,7 +77,7 @@ struct run_interleaved_helper {
 void run_interleaved(size_t seed, size_t mega, bool full) {
   size_t size = mega * 1024 * 1024;
   auto ptr    = galois::substrate::largeMallocInterleaved(
-      size * sizeof(int),
+         size * sizeof(int),
       full ? galois::substrate::getThreadPool().getMaxThreads()
               : galois::runtime::activeThreads);
   int* block = (int*)ptr.get();
