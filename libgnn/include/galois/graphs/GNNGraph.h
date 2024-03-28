@@ -24,7 +24,7 @@ namespace galois {
 // TODO remove the need to hardcode this path
 //! Path to location of all gnn files
 static const std::string default_gnn_dataset_path =
-    "/home/hochan/inputs/Learning/";
+    "/net/ohm/export/iss/inputs/Learning/";
 
 //! Helper struct to maintain start/end/size of any particular range. Mostly
 //! used for mask ranges.
@@ -2053,7 +2053,7 @@ private:
                                      .size  = global_training_count_};
     global_testing_mask_range_    = {.begin = global_training_count_,
                                      .end   = global_training_count_ +
-                                            global_testing_count,
+                                         global_testing_count,
                                      .size = global_testing_count};
     global_validation_mask_range_ = {
         .begin = global_training_count_ + global_testing_count,
@@ -2398,23 +2398,6 @@ private:
     num_correct_.reset();
     total_checked_.reset();
 
-#if 0
-    std::cout << "single accuracy print:\n";
-    for (int i = *begin_owned(); i < *end_owned(); ++i) {
-      if (!IsValidForPhase(i, GNNPhase::kBatch)) {
-        continue;
-      }
-      //std::cout << subgraph_->SIDToLID(i) << ", " << galois::MaxIndex(num_label_classes_, &predictions[i * num_label_classes_]) <<
-      std::cout << "accuracy:" << subgraph_->SIDToLID(i) << ", " <<
-      predictions[i * num_label_classes_] << ", " <<
-      predictions[i * num_label_classes_ + 1] << ", " <<
-      predictions[i * num_label_classes_ + 2] << ", " <<
-      predictions[i * num_label_classes_ + 3] << ", " <<
-      predictions[i * num_label_classes_ + 4] << "-> " <<
-      galois::MaxIndex(num_label_classes_, &predictions[i * num_label_classes_]) <<
-      " vs " << GetSingleClassLabel(i) << "\n";
-    }
-#endif
     galois::do_all(
         // will only loop over sampled nodes if sampling is on
         galois::iterate(begin_owned(), end_owned()),
