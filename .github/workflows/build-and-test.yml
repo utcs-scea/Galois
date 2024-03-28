@@ -107,7 +107,7 @@ jobs:
     - name: Run Tests
       timeout-minutes: 5
       run: |
-        CONTAINER_CMD="make run-tests" \
+        CONTAINER_CMD="bash -lc 'source /opt/intel/oneapi/setvars.sh &&  make run-tests'" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
           VERSION="${{ env.IMAGE_VERSION }}" \
           make docker
