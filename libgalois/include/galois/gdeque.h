@@ -277,7 +277,7 @@ public:
     return *this;
   }
 
-  gdeque(const gdeque&) = delete;
+  gdeque(const gdeque&)            = delete;
   gdeque& operator=(const gdeque&) = delete;
 
   ~gdeque() { clear(); }

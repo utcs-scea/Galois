@@ -55,7 +55,7 @@ class PerBackend {
 public:
   PerBackend();
 
-  PerBackend(const PerBackend&) = delete;
+  PerBackend(const PerBackend&)            = delete;
   PerBackend& operator=(const PerBackend&) = delete;
 
   ~PerBackend() {
@@ -198,7 +198,7 @@ public:
     return *this;
   }
 
-  PerSocketStorage(const PerSocketStorage&) = delete;
+  PerSocketStorage(const PerSocketStorage&)            = delete;
   PerSocketStorage& operator=(const PerSocketStorage&) = delete;
 
   ~PerSocketStorage() { destruct(); }

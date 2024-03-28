@@ -2053,7 +2053,7 @@ private:
                                      .size  = global_training_count_};
     global_testing_mask_range_    = {.begin = global_training_count_,
                                      .end   = global_training_count_ +
-                                         global_testing_count,
+                                            global_testing_count,
                                      .size = global_testing_count};
     global_validation_mask_range_ = {
         .begin = global_training_count_ + global_testing_count,

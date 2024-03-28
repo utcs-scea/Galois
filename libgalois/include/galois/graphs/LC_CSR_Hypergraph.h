@@ -269,8 +269,8 @@ private:
   BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 public:
-  LC_CSR_Hypergraph(LC_CSR_Hypergraph&& rhs) = default;
-  LC_CSR_Hypergraph()                        = default;
+  LC_CSR_Hypergraph(LC_CSR_Hypergraph&& rhs)        = default;
+  LC_CSR_Hypergraph()                               = default;
   LC_CSR_Hypergraph& operator=(LC_CSR_Hypergraph&&) = default;
 
   /**

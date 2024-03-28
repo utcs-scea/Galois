@@ -103,7 +103,7 @@ public:
       p_in_temp_2_ = PointerWithSize<GNNFloat>(gpu_object_.in_temp_2(),
                                                num_input_elements);
       p_out_temp_  = PointerWithSize<GNNFloat>(gpu_object_.out_temp(),
-                                              num_output_elements);
+                                               num_output_elements);
     } else {
 #endif
       p_in_temp_1_ = PointerWithSize<GNNFloat>(in_temp_1_);
