@@ -74,6 +74,8 @@ include(CTest)
 ###### Configure compiler ######
 
 if(PROJECT_IS_TOP_LEVEL)
+  include_directories(${Galois_SOURCE_DIR}/external/parallel-hashmap)
+  
   if(CMAKE_CXX_FLAGS)
     message(STATUS "Provided CXX Flags: " ${CMAKE_CXX_FLAGS})
   endif()

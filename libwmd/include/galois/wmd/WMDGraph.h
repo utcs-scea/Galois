@@ -29,6 +29,7 @@
 #include "galois/gIO.h"
 #include "galois/Reduction.h"
 #include "galois/shad/DataTypes.h"
+#include "parallel_hashmap/phmap.h"
 
 #include "graphTypes.h"
 #include "graph.h"
@@ -824,6 +825,31 @@ private:
     increment_evilPhase();
   }
 
+  void addGatheredNodes(std::vector<NodeDataType>&& NodeData) {
+    uint64_t offset = GIDtoLID.size();
+
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+      size_t beginNode;
+      size_t endNode;
+      std::tie(beginNode, endNode) =
+          galois::block_range((uint64_t)0, NodeData.size(), tid, nthreads);
+      using map = phmap::parallel_flat_hash_map_m<uint64_t, uint64_t>;
+      for (size_t j = beginNode; j < (endNode); ++j) {
+        GIDtoLID.lazy_emplace_l(
+            NodeData[j].id, [&](map::value_type&) {},
+            [&](const map::constructor& ctor) {
+              ctor(std::pair(NodeData[j].id, offset + j));
+            });
+        LIDtoGID.lazy_emplace_l(
+            offset + j, [&](map::value_type&) {},
+            [&](const map::constructor& ctor) {
+              ctor(std::pair(offset + j, NodeData[j].id));
+            });
+      }
+    });
+    NodeData.clear();
+  }
+
   /**
    * Exchanges vertex ids to form a global id to local id map before exchanging
    * edges so that using the map edges can be inserted into the edgelist
@@ -841,34 +867,29 @@ private:
         numHosts, std::vector<NodeDataType>());
 
     // PerThread DS
-    std::vector<std::vector<std::vector<std::vector<EdgeDataType>>>>
-        threadEdgesToSend(
-            activeThreads,
-            std::vector<std::vector<std::vector<EdgeDataType>>>());
-    std::vector<std::vector<std::vector<NodeDataType>>> threadNodesToSend(
-        activeThreads, std::vector<std::vector<NodeDataType>>());
+    galois::PerThreadVector<std::vector<std::vector<EdgeDataType>>>
+        threadEdgesToSend;
+    galois::PerThreadVector<std::vector<NodeDataType>> threadNodesToSend;
     for (uint32_t i = 0; i < activeThreads; i++) {
       threadEdgesToSend[i].resize(numHosts);
       threadNodesToSend[i].resize(numHosts);
     }
 
     // Prepare edgeList and Vertex ID list to send to other hosts
-    uint64_t sz = localEdges.size();
     galois::on_each([&](unsigned tid, unsigned nthreads) {
       uint64_t beginNode;
       uint64_t endNode;
       std::tie(beginNode, endNode) =
-          galois::block_range((uint64_t)0, sz, tid, nthreads);
+          galois::block_range((uint64_t)0, localEdges.size(), tid, nthreads);
 
       for (uint64_t i = beginNode; i < endNode; ++i) {
         uint64_t src = localEdges[i][0].src;
         int host     = virtualToPhyMapping[src % numVirtualHosts];
-        threadEdgesToSend[tid][host].push_back((localEdges[i]));
-        for (int k = 0; k < 3; k++)
-          I_RR();
-        I_WM(2);
+        threadEdgesToSend.get()[host].emplace_back(std::move(localEdges[i]));
       }
     });
+
+    localEdges.clear();
 
     // Prepare Nodedata to send to other hosts
     galois::on_each([&](unsigned tid, unsigned nthreads) {
@@ -878,12 +899,8 @@ private:
           galois::block_range((uint64_t)0, localNodes.size(), tid, nthreads);
 
       for (size_t i = beginNode; i < (endNode); ++i) {
-        int host =
-            virtualToPhyMapping[(localNodes[i].id) % (scaleFactor * numHosts)];
-        threadNodesToSend[tid][host].push_back((localNodes[i]));
-        for (int k = 0; k < 2; k++)
-          I_RR();
-        I_WR();
+        int host = virtualToPhyMapping[localNodes[i].id % numVirtualHosts];
+        threadNodesToSend.get()[host].emplace_back(std::move(localNodes[i]));
       }
     });
 
@@ -895,16 +912,11 @@ private:
         edgesToSend[h].insert(edgesToSend[h].end(),
                               threadEdgesToSend[tid][h].begin(),
                               threadEdgesToSend[tid][h].end());
-        for (int i = 0; i < 6; i++)
-          I_RR();
-        I_WM(3);
       }
     }
 
-    threadNodesToSend.clear();
-    threadEdgesToSend.clear();
-
-    localEdges.clear();
+    threadNodesToSend.clear_all_parallel();
+    threadEdgesToSend.clear_all_parallel();
 
     // Send Nodelist
     for (uint32_t h = 0; h < numHosts; h++) {
@@ -913,7 +925,6 @@ private:
       galois::runtime::SendBuffer sendBuffer;
       galois::runtime::gSerialize(sendBuffer, nodesToSend[h]);
       net.sendTagged(h, galois::runtime::evilPhase, std::move(sendBuffer));
-      I_WM(nodesToSend[h].size());
     }
 
     // Collect node data received from other hosts
@@ -924,67 +935,11 @@ private:
       } while (!p);
       std::vector<NodeDataType> NodeData;
       galois::runtime::gDeserialize(p->second, NodeData);
-      I_LC(p->first, NodeData.size() * sizeof(NodeDataType));
-      std::vector<std::map<uint64_t, uint32_t>> threadMap(activeThreads);
-      std::vector<std::map<uint32_t, uint64_t>> threadLIDMap(activeThreads);
-
-      uint64_t offset = GIDtoLID.size();
-
-      galois::on_each([&](unsigned tid, unsigned nthreads) {
-        size_t beginNode;
-        size_t endNode;
-        std::tie(beginNode, endNode) =
-            galois::block_range((uint64_t)0, NodeData.size(), tid, nthreads);
-        uint64_t delta;
-        delta = std::ceil((double)NodeData.size() / activeThreads);
-        for (size_t j = beginNode; j < (endNode); ++j) {
-          threadMap[tid][NodeData[j].id] =
-              offset + (tid * (delta)) + j - beginNode;
-          threadLIDMap[tid][offset + (tid * (delta)) + j - beginNode] =
-              NodeData[j].id;
-          I_WR();
-          I_RR();
-        }
-      });
-      for (uint32_t t = 0; t < activeThreads; t++) {
-        GIDtoLID.insert(threadMap[t].begin(), threadMap[t].end());
-        LIDtoGID.insert(threadLIDMap[t].begin(), threadLIDMap[t].end());
-        I_WR();
-        I_RR();
-      }
-      threadMap.clear();
-      NodeData.clear();
-      threadLIDMap.clear();
+      addGatheredNodes(std::move(NodeData));
     }
 
     // Collect node data present in this host
-    std::vector<std::map<uint64_t, size_t>> threadMap(activeThreads);
-    std::vector<std::map<size_t, uint64_t>> threadLIDMap(activeThreads);
-    uint64_t offset = GIDtoLID.size();
-    galois::on_each([&](unsigned tid, unsigned nthreads) {
-      size_t beginNode;
-      size_t endNode;
-      std::tie(beginNode, endNode) = galois::block_range(
-          (uint64_t)0, nodesToSend[hostID].size(), tid, nthreads);
-      uint64_t delta;
-      delta = std::ceil((double)nodesToSend[hostID].size() / activeThreads);
-      for (size_t i = beginNode; i < (endNode); ++i) {
-        threadMap[tid][nodesToSend[hostID][i].id] =
-            offset + (tid * (delta)) + i - beginNode;
-        threadLIDMap[tid][offset + (tid * (delta)) + i - beginNode] =
-            nodesToSend[hostID][i].id;
-        I_WR();
-        I_RR();
-      }
-    });
-    for (uint32_t t = 0; t < activeThreads; t++) {
-      GIDtoLID.insert(threadMap[t].begin(), threadMap[t].end());
-      LIDtoGID.insert(threadLIDMap[t].begin(), threadLIDMap[t].end());
-      I_WR();
-      I_RR();
-    }
-    threadMap.clear();
-    threadLIDMap.clear();
+    addGatheredNodes(std::move(nodesToSend[hostID]));
 
     numLocalNodes = GIDtoLID.size();
     localEdges.clear();
@@ -1094,8 +1049,8 @@ private:
 
 public:
   WMDBufferedGraph() : BufferedGraph<EdgeDataType>() {}
-  std::unordered_map<uint64_t, uint32_t> GIDtoLID;
-  std::unordered_map<uint32_t, uint64_t> LIDtoGID;
+  phmap::parallel_flat_hash_map_m<uint64_t, uint64_t> GIDtoLID;
+  phmap::parallel_flat_hash_map_m<uint64_t, uint64_t> LIDtoGID;
 
   // copy not allowed
   //! disabled copy constructor
@@ -1239,10 +1194,7 @@ public:
       for (size_t i = beginNode; i < endNode; ++i) {
         int host =
             virtualToPhyMapping[srcGraph.localNodes[i].id % numVirtualHosts];
-        threadNodesToSend[tid][host].push_back((srcGraph.localNodes[i]));
-        for (int k = 0; k < 2; k++)
-          I_RR();
-        I_WR();
+        threadNodesToSend[tid][host].emplace_back((srcGraph.localNodes[i]));
       }
     });
 
@@ -1251,9 +1203,6 @@ public:
         nodesToSend[h].insert(nodesToSend[h].end(),
                               threadNodesToSend[tid][h].begin(),
                               threadNodesToSend[tid][h].end());
-        for (int k = 0; k < 2; k++)
-          I_RR();
-        I_WR();
       }
     }
     srcGraph.localNodes.clear();
