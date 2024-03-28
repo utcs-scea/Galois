@@ -117,6 +117,7 @@ run-tests:
 	@ctest --test-dir build -R wmd --verbose
 	@ctest --test-dir build -R large-vec --verbose
 	@ctest --test-dir build -R compile-lscsr --verbose
+	@ctest --test-dir build/libgnn/test --verbose
 
 # this command is slow since hooks are not stored in the container image
 # this is mostly for CI use
