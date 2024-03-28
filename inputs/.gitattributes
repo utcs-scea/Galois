@@ -1,5 +1,0 @@
-cholesky filter=lfs diff=lfs merge=lfs -text
-CMakeLists.txt filter=lfs diff=lfs merge=lfs -text
-cora filter=lfs diff=lfs merge=lfs -text
-tester filter=lfs diff=lfs merge=lfs -text
-wmd filter=lfs diff=lfs merge=lfs -text
