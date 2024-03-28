@@ -1,17 +1,3 @@
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/download.cmake "file(DOWNLOAD http://iss.oden.utexas.edu/projects/galois/downloads/small_inputs_for_lonestar_test.tar.gz ${CMAKE_CURRENT_BINARY_DIR}/lonestar-cpu-inputs.tar.gz SHOW_PROGRESS)")
-
-add_custom_command(
-OUTPUT lonestar-cpu-inputs.tar.gz
-COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/download.cmake
-)
-
-add_custom_command(
-OUTPUT small_inputs
-COMMAND ${CMAKE_COMMAND} -E tar xJf lonestar-cpu-inputs.tar.gz
-DEPENDS lonestar-cpu-inputs.tar.gz
-WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/inputs
-COMMENT "Unpacking lonestar-cpu-inputs.tar.gz"
-VERBATIM
-)
-
-add_custom_target(input DEPENDS small_inputs)
+version https://git-lfs.github.com/spec/v1
+oid sha256:464267952a72be3433c3ad8345a47b3c051586dc0383cdbfb4c04707a71c2a39
+size 651
