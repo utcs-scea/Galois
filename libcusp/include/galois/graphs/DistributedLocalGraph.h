@@ -883,6 +883,9 @@ public:
         [&](GN n) { graph.sortEdges(n, IdLess<GN, EdgeTy>()); },
         galois::no_stats(), galois::loopname("CSREdgeSort"), galois::steal());
   }
+
+  //! Used by substrate to determine if some stats are to be reported
+  bool is_a_graph() const { return true; }
 };
 
 template <typename NodeTy, typename EdgeTy>

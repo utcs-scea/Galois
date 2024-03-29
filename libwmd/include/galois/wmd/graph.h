@@ -53,9 +53,9 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 
-#include "data_types.h"
 #include "graphTypes.h"
 #include "galois/graphs/LS_LC_CSR_64_Graph.h"
+#include "galois/shad/DataTypes.h"
 
 #define UINT shad::data_types::UINT
 // #define DOUBLE shad::data_types::DOUBLE
@@ -78,8 +78,8 @@ public:
     type  = TYPES::NONE;
   }
 
-  Vertex(uint64_t glbid_, uint64_t id_, TYPES type_) {
-    id    = id_;
+  Vertex(uint64_t glbid_, uint64_t, TYPES type_) {
+    id    = glbid_;
     glbid = glbid_;
     edges = 0;
     type  = type_;

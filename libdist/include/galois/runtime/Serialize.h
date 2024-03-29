@@ -459,9 +459,8 @@ inline void gSerializeObj(
 template <typename T1, typename T2>
 inline void gSerializeObj(SerializeBuffer& buf,
                           const std::unordered_map<T1, T2>& data) {
-  uint64_t cnt = 0;
+  gSerialize(buf, data.size());
   for (auto i : data) {
-    cnt++;
     gSerialize(buf, i.first, i.second);
   }
 }
@@ -815,13 +814,15 @@ void gDeserializeObj(
 
 template <typename T1, typename T2>
 void gDeserializeObj(DeSerializeBuffer& buf, std::unordered_map<T1, T2>& data) {
-  while (buf.size() > 0) {
-    std::pair<T1, T2> i;
-    gDeserialize(buf, i.first, i.second);
+  uint64_t elts;
+  gDeserializeObj(buf, elts);
+  for (uint64_t i = 0; i < elts; i++) {
+    std::pair<T1, T2> elt;
+    gDeserialize(buf, elt.first, elt.second);
     if (buf.size() <= 0) {
       break;
     }
-    data[i.first] = i.second;
+    data[elt.first] = elt.second;
   }
 }
 /**
