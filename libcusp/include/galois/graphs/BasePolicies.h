@@ -109,6 +109,7 @@ public:
       assert(false);
       return _numHosts;
     } else {
+      // double check this makes sense given that gids are user ids
       return _virtualToPhyMapping[gid % (_virtualToPhyMapping.size())];
     }
   }
