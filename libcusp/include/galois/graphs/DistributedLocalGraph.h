@@ -886,6 +886,162 @@ public:
 
   //! Used by substrate to determine if some stats are to be reported
   bool is_a_graph() const { return true; }
+
+  inline typename GraphTy::node_data_reference getTopologyID(uint64_t nodeID) {
+    return graph.getData(getLID(nodeID));
+  }
+
+  inline typename GraphTy::node_data_reference
+  getTopologyIDFromIndex(uint64_t index) {
+    return graph.getData(index);
+  }
+
+  uint64_t getTokenID(typename GraphTy::node_data_reference vertex) {
+    return getGID(&vertex - &graph.getData(0));
+  }
+
+  uint32_t getVertexIndex(typename GraphTy::node_data_reference vertex) {
+    return (&vertex - &graph.getData(0));
+  }
+
+  uint64_t getLocalityVertex(typename GraphTy::node_data_reference vertex) {
+    uint64_t gid = getTopologyID(vertex);
+    return getHostIDImpl(gid);
+  }
+
+  /** Edge Manipulation **/
+  edge_iterator mintEdgeHandle(typename GraphTy::node_data_reference src,
+                               std::uint64_t off) {
+    return edge_begin(src) + off;
+  }
+
+  template <typename T = NodeTy>
+  typename std::enable_if<!std::is_void<T>::value>::type
+  setData(typename GraphTy::node_data_reference vertex, T data) {
+    graph.setData(vertex, data);
+  }
+
+  /** Data Manipulations **/
+
+  typename GraphTy::node_data_reference
+  getData(typename GraphTy::node_data_reference vertex) {
+    return graph.getData(getTokenID(vertex));
+  }
+
+  template <typename T = NodeTy>
+  typename std::enable_if<!std::is_void<T>::value>::type
+  setEdgeData(edge_iterator eh, T data) {
+    graph.setEdgeData(eh, data);
+  }
+
+  template <typename T = NodeTy>
+  typename std::enable_if<!std::is_void<T>::value,
+                          typename GraphTy::edge_data_reference>::type
+  getEdgeData(edge_iterator eh) {
+    return graph.getEdgeData(eh);
+  }
+
+  enum Task {
+    ADD_VERTEX,
+    ADD_VERTEX_TOPOLOGY_ONLY,
+    ADD_EDGES,
+    ADD_EDGES_TOPOLOGY_ONLY,
+    DELETE_VERTEX,
+    DELETE_EDGES
+  };
+
+  template <typename T, typename D>
+  void sendModifyRequest(uint32_t host, uint64_t token, Task task,
+                         std::optional<T>& data = std::nullopt,
+                         std::optional<D>& dsts = std::nullopt) {
+    galois::runtime::SendBuffer b;
+    galois::runtime::gSerialize(b, task);
+    galois::runtime::gSerialize(b, token);
+    if (data.has_value()) {
+      galois::runtime::gSerialize(b, data.value());
+    }
+    if (dsts.has_value()) {
+      galois::runtime::gSerialize(b, dsts.value());
+    }
+    galois::runtime::getSystemNetworkInterface().sendTagged(
+        host, galois::runtime::evilPhase, std::move(b));
+  }
+
+  void addToLocalMap(uint64_t token) {
+    if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
+      localToGlobalVector.push_back(token);
+      globalToLocalMap[token] = localToGlobalVector.size() - 1;
+    }
+  }
+
+  /** Topology Modifications **/
+  void addVertexTopologyOnly(uint32_t token) {
+    uint64_t belongsTo = getHostID(token);
+    if (belongsTo == id) {
+      addToLocalMap(token);
+      // TODO(Divija): Uncomment when we have the graph API
+      // graph.addVertexTopologyOnly(getLID(token));
+    } else {
+      sendModifyRequest(belongsTo, token, ADD_VERTEX_TOPOLOGY_ONLY);
+    }
+  }
+
+  template <typename T>
+  void addVertex(uint64_t token, T data) {
+    uint64_t belongsTo = getHostID(token);
+    if (belongsTo == id) {
+      addToLocalMap(token);
+      graph.setData(getLID(token), data);
+    } else {
+      sendModifyRequest(belongsTo, token, ADD_VERTEX, data);
+    }
+  }
+
+  void addEdgesTopologyOnly(uint64_t src, std::vector<uint32_t> dsts) {
+    uint64_t belongsTo = getHostID(src);
+    if (belongsTo == id) {
+      for (auto dst : dsts) {
+        addToLocalMap(dst);
+      }
+      graph.addEdges(getLID(src), dsts.data());
+    } else {
+      sendModifyRequest(belongsTo, src, ADD_EDGES_TOPOLOGY_ONLY, dsts);
+    }
+  }
+
+  void addEdges(uint64_t src, std::vector<uint32_t> dsts,
+                std::vector<EdgeTy> data) {
+    uint64_t belongsTo = getHostID(src);
+    if (belongsTo == id) {
+      for (auto dst : dsts) {
+        addToLocalMap(dst);
+      }
+      graph.addEdgesUnSort(true, getLID(src), dsts, data, data.size());
+    } else {
+      sendModifyRequest(belongsTo, src, ADD_EDGES, data, dsts);
+    }
+  }
+
+  void deleteVertex(uint64_t src) {
+    uint64_t belongsTo = getHostID(src);
+    if (belongsTo == id) {
+      // TODO(Divija): Uncomment when we have the graph API
+      // graph.deleteVertex(getLID(src));
+    } else {
+      sendModifyRequest(belongsTo, src, DELETE_VERTEX);
+    }
+  }
+
+  void deleteEdges(uint64_t src, std::vector<edge_iterator> edges) {
+    // TODO:Remove dst tokens from local map?
+    uint64_t belongsTo = getHostID(src);
+    if (belongsTo == id) {
+      // TODO(Divija): Uncomment when we have the graph API
+      // return graph.deleteEdges(getLID(src), edges);
+    } else {
+      sendModifyRequest(belongsTo, src, DELETE_EDGES, edges);
+    }
+  }
 };
 
 template <typename NodeTy, typename EdgeTy>
