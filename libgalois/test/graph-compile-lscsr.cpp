@@ -74,6 +74,15 @@ int main() {
   g.setData(3, 3);
   GALOIS_ASSERT(g.getData(3) == 3);
 
+  size_t four = g.addVertices({4, 5, 6, 7});
+
+  for (size_t ii = 0; ii < 4; ++ii) {
+    // make sure previous data survived the resize
+    GALOIS_ASSERT(g.getData(ii) == ii);
+    // check the new vertex data
+    GALOIS_ASSERT(g.getData(four + ii) == 4 + ii);
+  }
+
   g.addEdges(0, {1, 2, 3}, {1, 2, 3});
   for (auto const& handle : g.edges(0)) {
     GALOIS_ASSERT(g.getEdgeDst(handle) == g.getEdgeData(handle));

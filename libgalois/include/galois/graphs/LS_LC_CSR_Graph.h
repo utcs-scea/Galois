@@ -79,7 +79,7 @@ private:
   static constexpr bool HasEdgeData   = !std::is_same_v<EdgeData, void>;
 
   using VertexDataStore =
-      std::conditional_t<HasVertexData, typename galois::LargeArray<VertexData>,
+      std::conditional_t<HasVertexData, typename std::vector<VertexData>,
                          typename std::tuple<>>;
   using EdgeDataStore = std::conditional_t<
       HasEdgeData,
@@ -123,7 +123,7 @@ public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
       : m_vertices(num_vertices, VertexMetadata()) {
     if constexpr (HasVertexData) {
-      m_vertex_data.allocateBlocked(num_vertices);
+      m_vertex_data.resize(num_vertices);
     }
   }
 
@@ -157,6 +157,30 @@ public:
   }
 
   VertexRange vertices() { return VertexRange(begin(), end()); }
+
+  VertexTopologyID addVertexTopologyOnly() {
+    m_vertices.emplace_back();
+    if constexpr (HasVertexData) {
+      m_vertex_data.resize(m_vertices.size());
+    }
+    return m_vertices.size() - 1;
+  }
+
+  // Adds multiple vertices to the graph. The new vertices will be assigned
+  // consecutive topology IDs, and the lowest new ID is returned.
+  template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
+  VertexTopologyID addVertices(std::vector<V> data) {
+    VertexTopologyID const start = m_vertices.size();
+    m_vertices.resize(m_vertices.size() + data.size());
+    m_vertex_data.resize(m_vertices.size());
+
+    galois::do_all(
+        galois::iterate(0ul, data.size()),
+        [&](VertexTopologyID const& off) { setData(start + off, data[off]); });
+    return start;
+  }
+
+  size_t getDegree(VertexTopologyID id) { return m_vertices[id].degree; }
 
   VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
 
