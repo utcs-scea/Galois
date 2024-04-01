@@ -249,13 +249,11 @@ struct SGD_LC_LinearArray_Undirected_Graph {
   /////////////////////////////////////////////////////////////////////////////////////////////
   void print_node(unsigned int idx, const char* post = "") {
     if (idx < _num_nodes) {
-      std::cout << "N-" << idx << "(" << (node_data())[idx] << ")"
-                << " :: [";
+      std::cout << "N-" << idx << "(" << (node_data())[idx] << ")" << " :: [";
       for (size_t i = (outgoing_index())[idx]; i < (outgoing_index())[idx + 1];
            ++i) {
         std::cout << " " << (out_neighbors())[i] << "(" << (out_edge_data())[i]
-                  << "<" << node_data()[out_neighbors()[i]] << ">"
-                  << "), ";
+                  << "<" << node_data()[out_neighbors()[i]] << ">" << "), ";
       }
       std::cout << "]" << post;
     }

@@ -878,8 +878,8 @@ private:
           [&](GNode src, GNode dst, edge_iterator edge) {
             const LatentValue stepSize = steps[0];
             LatentValue error          = doGradientUpdate(
-                         g.getData(src).latentVector, g.getData(dst).latentVector,
-                         lambda, g.getEdgeData(edge), stepSize);
+                g.getData(src).latentVector, g.getData(dst).latentVector,
+                lambda, g.getEdgeData(edge), stepSize);
             edgesVisited += 1;
             if (useExactError)
               *errorAccum += error;

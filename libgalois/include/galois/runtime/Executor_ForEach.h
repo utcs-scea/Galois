@@ -298,8 +298,8 @@ protected:
   bool checkEmpty(WorkListTy&, ThreadLocalData&, ...) { return true; }
 
   template <typename WL>
-  auto checkEmpty(WL& wl, ThreadLocalData&, int)
-      -> decltype(wl.empty(), bool()) {
+  auto checkEmpty(WL& wl, ThreadLocalData&, int) -> decltype(wl.empty(),
+                                                             bool()) {
     return wl.empty();
   }
 

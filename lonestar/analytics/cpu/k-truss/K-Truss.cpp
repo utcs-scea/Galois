@@ -454,7 +454,7 @@ struct BSPTrussJacobiAlgo {
       std::swap(cur, next);
     }
   } ///< End operator()
-};  ///< End struct BSPTrussJacobiAlgo
+}; ///< End struct BSPTrussJacobiAlgo
 
 /**
  * BSPTrussAlgo:
@@ -523,7 +523,7 @@ struct BSPTrussAlgo {
       std::swap(cur, next);
     }
   } ///< End operator()
-};  ///< End struct BSPTrussAlgo
+}; ///< End struct BSPTrussAlgo
 
 /**
  * BSPCoreAlgo:
@@ -604,7 +604,7 @@ struct BSPCoreThenTrussAlgo {
 
     TTruss.stop();
   } ///< End operator().
-};  ///< End struct BSPCoreThenTrussAlgo.
+}; ///< End struct BSPCoreThenTrussAlgo.
 
 template <typename Algo>
 void run() {

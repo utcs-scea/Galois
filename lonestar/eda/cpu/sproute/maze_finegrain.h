@@ -759,7 +759,7 @@ void mazeRouteMSMD_finegrain(int iter, int expand, float costHeight,
               // update position for n1
               treenodes[n1].x = E1x;
               treenodes[n1].y = E1y;
-            }    // if E1 is on (n1, A1) or (n1, A2)
+            } // if E1 is on (n1, A1) or (n1, A2)
             else // E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
             {
               C1        = endpt1;
@@ -825,7 +825,7 @@ void mazeRouteMSMD_finegrain(int iter, int expand, float costHeight,
               }
 
             } // else E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
-          }   // n1 is not a pin and E1!=n1
+          } // n1 is not a pin and E1!=n1
 
           // (2) consider subtree2
 
@@ -875,7 +875,7 @@ void mazeRouteMSMD_finegrain(int iter, int expand, float costHeight,
               // update position for n2
               treenodes[n2].x = E2x;
               treenodes[n2].y = E2y;
-            }    // if E2 is on (n2, B1) or (n2, B2)
+            } // if E2 is on (n2, B1) or (n2, B2)
             else // E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
             {
               D1        = endpt1;
@@ -940,7 +940,7 @@ void mazeRouteMSMD_finegrain(int iter, int expand, float costHeight,
                 }
               }
             } // else E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
-          }   // n2 is not a pin and E2!=n2
+          } // n2 is not a pin and E2!=n2
 
           // update route for edge (n1, n2) and edge usage
 
@@ -1000,7 +1000,7 @@ void mazeRouteMSMD_finegrain(int iter, int expand, float costHeight,
         } // congested route, if(enter)
         timer_finegrain.stop();
       } // only route the non-degraded edges (len>0)
-    }   // iterate on edges of a net
+    } // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),
@@ -1715,7 +1715,7 @@ void mazeRouteMSMD_finegrain_spinlock(int iter, int expand, float costHeight,
               // update position for n1
               treenodes[n1].x = E1x;
               treenodes[n1].y = E1y;
-            }    // if E1 is on (n1, A1) or (n1, A2)
+            } // if E1 is on (n1, A1) or (n1, A2)
             else // E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
             {
               C1        = endpt1;
@@ -1781,7 +1781,7 @@ void mazeRouteMSMD_finegrain_spinlock(int iter, int expand, float costHeight,
               }
 
             } // else E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
-          }   // n1 is not a pin and E1!=n1
+          } // n1 is not a pin and E1!=n1
 
           // (2) consider subtree2
 
@@ -1831,7 +1831,7 @@ void mazeRouteMSMD_finegrain_spinlock(int iter, int expand, float costHeight,
               // update position for n2
               treenodes[n2].x = E2x;
               treenodes[n2].y = E2y;
-            }    // if E2 is on (n2, B1) or (n2, B2)
+            } // if E2 is on (n2, B1) or (n2, B2)
             else // E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
             {
               D1        = endpt1;
@@ -1896,7 +1896,7 @@ void mazeRouteMSMD_finegrain_spinlock(int iter, int expand, float costHeight,
                 }
               }
             } // else E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
-          }   // n2 is not a pin and E2!=n2
+          } // n2 is not a pin and E2!=n2
 
           // update route for edge (n1, n2) and edge usage
 
@@ -1958,7 +1958,7 @@ void mazeRouteMSMD_finegrain_spinlock(int iter, int expand, float costHeight,
         } // congested route, if(enter)
         timer_finegrain.stop();
       } // only route the non-degraded edges (len>0)
-    }   // iterate on edges of a net
+    } // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),
@@ -2735,7 +2735,7 @@ void mazeRouteMSMD_finegrain_doall(int iter, int expand, float costHeight,
               // update position for n1
               treenodes[n1].x = E1x;
               treenodes[n1].y = E1y;
-            }    // if E1 is on (n1, A1) or (n1, A2)
+            } // if E1 is on (n1, A1) or (n1, A2)
             else // E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
             {
               C1        = endpt1;
@@ -2801,7 +2801,7 @@ void mazeRouteMSMD_finegrain_doall(int iter, int expand, float costHeight,
               }
 
             } // else E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
-          }   // n1 is not a pin and E1!=n1
+          } // n1 is not a pin and E1!=n1
 
           // (2) consider subtree2
 
@@ -2851,7 +2851,7 @@ void mazeRouteMSMD_finegrain_doall(int iter, int expand, float costHeight,
               // update position for n2
               treenodes[n2].x = E2x;
               treenodes[n2].y = E2y;
-            }    // if E2 is on (n2, B1) or (n2, B2)
+            } // if E2 is on (n2, B1) or (n2, B2)
             else // E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
             {
               D1        = endpt1;
@@ -2916,7 +2916,7 @@ void mazeRouteMSMD_finegrain_doall(int iter, int expand, float costHeight,
                 }
               }
             } // else E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
-          }   // n2 is not a pin and E2!=n2
+          } // n2 is not a pin and E2!=n2
 
           // update route for edge (n1, n2) and edge usage
 
@@ -3026,7 +3026,7 @@ void mazeRouteMSMD_finegrain_doall(int iter, int expand, float costHeight,
         } // congested route, if(enter)
         timer_finegrain.stop();
       } // only route the non-degraded edges (len>0)
-    }   // iterate on edges of a net
+    } // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),

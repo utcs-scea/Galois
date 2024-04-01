@@ -70,6 +70,9 @@ public:
         std::string("[") +
         std::to_string(galois::runtime::getSystemNetworkInterface().ID) +
         std::string("] ");
+
+    std::cout << "input directory:" << input_directory_ << ", "
+              << " data set name:" << dataset_name << "\n";
     // load partition
     partitioned_graph_ =
         LoadPartition(input_directory_, dataset_name, partition_scheme);

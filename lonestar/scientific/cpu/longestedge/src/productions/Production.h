@@ -160,8 +160,8 @@ private:
     NodeData hNodeData = hangingNode->getData();
     double length      = 0;
     length             = hNodeData.getCoords().dist(
-                    pState.getVerticesData()[neutralVertex].getCoords(),
-                    pState.isVersion2D());
+        pState.getVerticesData()[neutralVertex].getCoords(),
+        pState.isVersion2D());
     // add edge between hanging node and node that it doesn't connect in
     // triangle
     // TODO might this already done in create node on edge?

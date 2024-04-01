@@ -483,7 +483,7 @@ int main(int argc, char** argv) {
 
         delete mcg;
       } // end if
-    }   // end for
+    } // end for
 
     toProcess = toProcessNew;
     toProcessNew.clear();

@@ -730,7 +730,7 @@ void mazeRouteMSMD_lock(int iter, int expand, float costHeight,
                   // update position for n1
                   treenodes[n1].x = E1x;
                   treenodes[n1].y = E1y;
-                }    // if E1 is on (n1, A1) or (n1, A2)
+                } // if E1 is on (n1, A1) or (n1, A2)
                 else // E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
                 {
                   C1        = endpt1;
@@ -796,7 +796,7 @@ void mazeRouteMSMD_lock(int iter, int expand, float costHeight,
                   }
 
                 } // else E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
-              }   // n1 is not a pin and E1!=n1
+              } // n1 is not a pin and E1!=n1
 
               // (2) consider subtree2
 
@@ -847,7 +847,7 @@ void mazeRouteMSMD_lock(int iter, int expand, float costHeight,
                   // update position for n2
                   treenodes[n2].x = E2x;
                   treenodes[n2].y = E2y;
-                }    // if E2 is on (n2, B1) or (n2, B2)
+                } // if E2 is on (n2, B1) or (n2, B2)
                 else // E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
                 {
                   D1        = endpt1;
@@ -912,7 +912,7 @@ void mazeRouteMSMD_lock(int iter, int expand, float costHeight,
                     }
                   }
                 } // else E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
-              }   // n2 is not a pin and E2!=n2
+              } // n2 is not a pin and E2!=n2
 
               // update route for edge (n1, n2) and edge usage
 
@@ -979,8 +979,8 @@ void mazeRouteMSMD_lock(int iter, int expand, float costHeight,
                 return;
               }
             } // congested route
-          }   // maze routing
-        }     // loop edgeID
+          } // maze routing
+        } // loop edgeID
       },
       // galois::wl<galois::worklists::ParaMeter<>>(),
       galois::steal(),
@@ -1612,7 +1612,7 @@ void mazeRouteMSMD_M1M2(int iter, int expand, float costHeight,
                   // update position for n1
                   treenodes[n1].x = E1x;
                   treenodes[n1].y = E1y;
-                }    // if E1 is on (n1, A1) or (n1, A2)
+                } // if E1 is on (n1, A1) or (n1, A2)
                 else // E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
                 {
                   C1        = endpt1;
@@ -1678,7 +1678,7 @@ void mazeRouteMSMD_M1M2(int iter, int expand, float costHeight,
                   }
 
                 } // else E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
-              }   // n1 is not a pin and E1!=n1
+              } // n1 is not a pin and E1!=n1
 
               // (2) consider subtree2
 
@@ -1729,7 +1729,7 @@ void mazeRouteMSMD_M1M2(int iter, int expand, float costHeight,
                   // update position for n2
                   treenodes[n2].x = E2x;
                   treenodes[n2].y = E2y;
-                }    // if E2 is on (n2, B1) or (n2, B2)
+                } // if E2 is on (n2, B1) or (n2, B2)
                 else // E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
                 {
                   D1        = endpt1;
@@ -1794,7 +1794,7 @@ void mazeRouteMSMD_M1M2(int iter, int expand, float costHeight,
                     }
                   }
                 } // else E2 is not on (n2, B1) or (n2, B2), but on (D1, D2)
-              }   // n2 is not a pin and E2!=n2
+              } // n2 is not a pin and E2!=n2
 
               // update route for edge (n1, n2) and edge usage
 
@@ -1901,8 +1901,8 @@ void mazeRouteMSMD_M1M2(int iter, int expand, float costHeight,
                 return;
               }
             } // congested route
-          }   // maze routing
-        }     // loop edgeID
+          } // maze routing
+        } // loop edgeID
       },
       // galois::wl<galois::worklists::ParaMeter<>>(),
       galois::steal(),

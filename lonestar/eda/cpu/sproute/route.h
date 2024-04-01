@@ -419,7 +419,7 @@ void newrouteL(int netID, RouteType ripuptype, Bool viaGuided) {
         }
 
       } // else L-routing
-    }   // if non-degraded edge
+    } // if non-degraded edge
     else
       sttrees[netID].edges[i].route.type = NOROUTE;
   } // loop i
@@ -912,7 +912,7 @@ void newrouteZ(int netID, int threshold) {
     } // if non-degraded edge
       //        else
       //            sttrees[netID].edges[ind].route.type = NOROUTE;
-  }   // loop ind
+  } // loop ind
 }
 
 // ripup a tree edge according to its ripup type and Z-route it
@@ -1146,7 +1146,7 @@ void routeMonotonic(int netID, int edgeID, int threshold) {
       free(parent);
 
     } // if(x1!=x2 || y1!=y2)
-  }   // non-degraded edge
+  } // non-degraded edge
 }
 
 void routeMonotonicAll(int threshold) {
@@ -1343,7 +1343,7 @@ void spiralRoute(int netID, int edgeID) {
       }
 
     } // else L-routing
-  }   // if non-degraded edge
+  } // if non-degraded edge
   else
     sttrees[netID].edges[edgeID].route.type = NOROUTE;
 }
@@ -1799,7 +1799,7 @@ void routeLVEnew(int netID, int edgeID, int threshold, int enlarge) {
       }
 
     } // if(x1!=x2 || y1!=y2)
-  }   // non-degraded edge
+  } // non-degraded edge
 }
 
 void routeLVAll(int threshold, int expand) {
@@ -1931,7 +1931,7 @@ void newrouteLInMaze(int netID) {
         }
 
       } // else L-routing
-    }   // if non-degraded edge
+    } // if non-degraded edge
     else
       sttrees[netID].edges[i].route.type = NOROUTE;
   } // loop i

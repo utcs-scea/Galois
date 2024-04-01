@@ -38,7 +38,7 @@
 #define _P_DATA1_(_t25) _P_DATA1[_t25]
 #define _P_DATA1__(_t25) _P_DATA1[_t25 + 1]
 #define new_ratings(_t49, _t50, _t51, _t52)                                    \
-  new_ratings[(_t50)*R * C + (_t51)*C + (_t52)]
+  new_ratings[(_t50) * R * C + (_t51) * C + (_t52)]
 struct a_list {
   int col_[1];
   float ratings[R * C];

@@ -288,9 +288,9 @@ struct ParallelAlgo {
     unsigned numEdges = std::distance(mst.begin(), mst.end());
 
     if (graph.size() - numRoots != numEdges) {
-      std::cerr << "Generated graph is not a forest. "
-                << "Expected " << graph.size() - numRoots << " edges but "
-                << "found " << numEdges << "\n";
+      std::cerr << "Generated graph is not a forest. " << "Expected "
+                << graph.size() - numRoots << " edges but " << "found "
+                << numEdges << "\n";
       return false;
     }
 
