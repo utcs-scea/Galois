@@ -91,6 +91,7 @@ int main() {
 
   layer_1->InitAllWeightsTo1();
   layer_1->EnableSampling();
+  layer_1->SetGraphUserLayerNumber(0);
   galois::PointerWithSize<galois::GNNFloat> features =
       test_graph.GetLocalFeatures();
 
