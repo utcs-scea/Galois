@@ -65,12 +65,6 @@ int main() {
   // check that we can access data on nodes/edges
   galois::graphs::LS_LC_CSR_Graph<uint32_t, uint32_t> g(4);
 
-  size_t four = g.addVertices({4, 5, 6, 7});
-  GALOIS_ASSERT(g.getData(four) == 4);
-  GALOIS_ASSERT(g.getData(four + 1) == 5);
-  GALOIS_ASSERT(g.getData(four + 2) == 6);
-  GALOIS_ASSERT(g.getData(four + 3) == 7);
-
   g.setData(0, 0);
   GALOIS_ASSERT(g.getData(0) == 0);
   g.setData(1, 1);
@@ -79,6 +73,15 @@ int main() {
   GALOIS_ASSERT(g.getData(2) == 2);
   g.setData(3, 3);
   GALOIS_ASSERT(g.getData(3) == 3);
+
+  size_t four = g.addVertices({4, 5, 6, 7});
+
+  for (size_t ii = 0; ii < 4; ++ii) {
+    // make sure previous data survived the resize
+    GALOIS_ASSERT(g.getData(ii) == ii);
+    // check the new vertex data
+    GALOIS_ASSERT(g.getData(four + ii) == 4 + ii);
+  }
 
   g.addEdges(0, {1, 2, 3}, {1, 2, 3});
   for (auto const& handle : g.edges(0)) {
