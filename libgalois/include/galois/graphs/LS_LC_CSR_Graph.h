@@ -122,10 +122,10 @@ private:
 public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
       : m_vertices(num_vertices, VertexMetadata()) {
-    if constexpr (HasVertexData) {
-      m_vertex_data.allocateBlocked(num_vertices);
-    }
-  }
+        if constexpr (HasVertexData) {
+          m_vertex_data.resize(num_vertices);
+        }
+      }
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
 
