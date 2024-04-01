@@ -175,7 +175,7 @@ public:
     m_vertex_data.resize(m_vertices.size());
 
     galois::do_all(galois::iterate(start, start + data.size()),
-                   [&](VertexTopologyID const& id) { getData(id) = data[id]; });
+                   [&](VertexTopologyID const& id) { setData(id, data[id]); });
     return start;
   }
 
