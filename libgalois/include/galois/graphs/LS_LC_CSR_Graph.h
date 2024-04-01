@@ -79,7 +79,7 @@ private:
   static constexpr bool HasEdgeData   = !std::is_same_v<EdgeData, void>;
 
   using VertexDataStore =
-      std::conditional_t<HasVertexData, typename galois::LargeArray<VertexData>,
+      std::conditional_t<HasVertexData, typename std::vector<VertexData>,
                          typename std::tuple<>>;
   using EdgeDataStore = std::conditional_t<
       HasEdgeData,
@@ -157,6 +157,26 @@ public:
   }
 
   VertexRange vertices() { return VertexRange(begin(), end()); }
+
+  VertexTopologyID addVertexTopologyOnly() {
+    m_vertices.emplace_back();
+    if constexpr (HasVertexData) {
+      m_vertex_data.resize(m_vertices.size());
+    }
+    return m_vertices.size() - 1;
+  }  
+
+  template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
+  VertexTopologyID addVertices(std::vector<V> data) {
+    VertexTopologyID start = m_vertices.size();
+    m_vertices.resize(m_vertices.size() + data.size());
+    m_vertex_data.resize(m_vertices.size());
+
+    galois::do_all(galois::iterate(start, start + data.size()), [&](VertexTopologyID const& id) {
+      getData(id) = data[id];
+    });
+    return start;
+  }
 
   VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
 
