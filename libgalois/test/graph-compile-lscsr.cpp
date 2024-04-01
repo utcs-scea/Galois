@@ -65,6 +65,12 @@ int main() {
   // check that we can access data on nodes/edges
   galois::graphs::LS_LC_CSR_Graph<uint32_t, uint32_t> g(4);
 
+  size_t four = g.addVertices({4, 5, 6, 7});
+  GALOIS_ASSERT(g.getData(four) == 4);
+  GALOIS_ASSERT(g.getData(four + 1) == 5);
+  GALOIS_ASSERT(g.getData(four + 2) == 6);
+  GALOIS_ASSERT(g.getData(four + 3) == 7);
+
   g.setData(0, 0);
   GALOIS_ASSERT(g.getData(0) == 0);
   g.setData(1, 1);

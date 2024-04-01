@@ -166,6 +166,8 @@ public:
     return m_vertices.size() - 1;
   }
 
+  // Adds multiple vertices to the graph. The new vertices will be assigned
+  // consecutive topology IDs, and the lowest new ID is returned.
   template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   VertexTopologyID addVertices(std::vector<V> data) {
     VertexTopologyID start = m_vertices.size();
