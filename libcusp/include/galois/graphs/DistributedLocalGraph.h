@@ -950,27 +950,45 @@ public:
     DELETE_EDGES
   };
 
-  template <typename T, typename D>
-  void sendModifyRequest(uint32_t host, uint64_t token, Task task,
-                         std::optional<T>& data = std::nullopt,
-                         std::optional<D>& dsts = std::nullopt) {
+  template <typename... Args>
+  void sendModifyRequest(uint32_t host, Args... args) {
     galois::runtime::SendBuffer b;
-    galois::runtime::gSerialize(b, task);
-    galois::runtime::gSerialize(b, token);
-    if (data.has_value()) {
-      galois::runtime::gSerialize(b, data.value());
-    }
-    if (dsts.has_value()) {
-      galois::runtime::gSerialize(b, dsts.value());
-    }
+    galois::runtime::gSerialize(b, args...);
     galois::runtime::getSystemNetworkInterface().sendTagged(
         host, galois::runtime::evilPhase, std::move(b));
   }
 
-  void addToLocalMap(uint64_t token) {
-    if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
-      localToGlobalVector.push_back(token);
-      globalToLocalMap[token] = localToGlobalVector.size() - 1;
+  // Assumptions:
+  //  1. A vertex is added before any edges are added to it
+  //  2. No support for deleting edges/vertices yet
+  //  3. Only works for OEC
+  void
+  updateVariables(bool isVertex, uint64_t src,
+                  std::optional<std::vector<uint64_t>> dsts = std::nullopt) {
+
+    if (isVertex) {
+      if (globalToLocalMap.find(src) == globalToLocalMap.end()) {
+        localToGlobalVector.push_back(src);
+        globalToLocalMap[src] = localToGlobalVector.size() - 1;
+        numNodes++;
+      }
+      numOwned++;
+    } else {
+      uint64_t srcLID = globalToLocalMap[src];
+      if (edge_begin(srcLID) == edge_end(srcLID)) {
+        numNodesWithEdges++;
+      }
+      for (auto token : dsts.value()) {
+        if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
+          localToGlobalVector.push_back(token);
+          globalToLocalMap[token] = localToGlobalVector.size() - 1;
+          numNodes++;
+        }
+        if (!isOwned(token)) {
+          mirrorNodes[getHostID(token)].push_back(token);
+        }
+      }
+      numEdges += dsts.value().size();
     }
   }
 
@@ -978,11 +996,11 @@ public:
   void addVertexTopologyOnly(uint32_t token) {
     uint64_t belongsTo = getHostID(token);
     if (belongsTo == id) {
-      addToLocalMap(token);
+      updateVariables(true, token);
       // TODO(Divija): Uncomment when we have the graph API
       // graph.addVertexTopologyOnly(getLID(token));
     } else {
-      sendModifyRequest(belongsTo, token, ADD_VERTEX_TOPOLOGY_ONLY);
+      sendModifyRequest(belongsTo, ADD_VERTEX_TOPOLOGY_ONLY, token);
     }
   }
 
@@ -990,35 +1008,31 @@ public:
   void addVertex(uint64_t token, T data) {
     uint64_t belongsTo = getHostID(token);
     if (belongsTo == id) {
-      addToLocalMap(token);
-      graph.setData(getLID(token), data);
+      updateVariables(true, token);
+      // graph.setData(getLID(token), data);
     } else {
-      sendModifyRequest(belongsTo, token, ADD_VERTEX, data);
+      sendModifyRequest(belongsTo, ADD_VERTEX, token, data);
     }
   }
 
-  void addEdgesTopologyOnly(uint64_t src, std::vector<uint32_t> dsts) {
+  void addEdgesTopologyOnly(uint64_t src, std::vector<uint64_t> dsts) {
     uint64_t belongsTo = getHostID(src);
     if (belongsTo == id) {
-      for (auto dst : dsts) {
-        addToLocalMap(dst);
-      }
-      graph.addEdges(getLID(src), dsts.data());
+      updateVariables(false, src, dsts);
+      // graph.addEdges(getLID(src), dsts);
     } else {
-      sendModifyRequest(belongsTo, src, ADD_EDGES_TOPOLOGY_ONLY, dsts);
+      sendModifyRequest(belongsTo, ADD_EDGES_TOPOLOGY_ONLY, src, dsts);
     }
   }
 
-  void addEdges(uint64_t src, std::vector<uint32_t> dsts,
+  void addEdges(uint64_t src, std::vector<uint64_t> dsts,
                 std::vector<EdgeTy> data) {
     uint64_t belongsTo = getHostID(src);
     if (belongsTo == id) {
-      for (auto dst : dsts) {
-        addToLocalMap(dst);
-      }
-      graph.addEdgesUnSort(true, getLID(src), dsts, data, data.size());
+      updateVariables(false, src, dsts);
+      // graph.addEdgesUnSort(true, getLID(src), dsts, data, data.size());
     } else {
-      sendModifyRequest(belongsTo, src, ADD_EDGES, data, dsts);
+      sendModifyRequest(belongsTo, ADD_EDGES, src, data, dsts);
     }
   }
 
@@ -1028,7 +1042,7 @@ public:
       // TODO(Divija): Uncomment when we have the graph API
       // graph.deleteVertex(getLID(src));
     } else {
-      sendModifyRequest(belongsTo, src, DELETE_VERTEX);
+      sendModifyRequest(belongsTo, DELETE_VERTEX, src);
     }
   }
 
@@ -1039,7 +1053,7 @@ public:
       // TODO(Divija): Uncomment when we have the graph API
       // return graph.deleteEdges(getLID(src), edges);
     } else {
-      sendModifyRequest(belongsTo, src, DELETE_EDGES, edges);
+      sendModifyRequest(belongsTo, DELETE_EDGES, src, edges);
     }
   }
 };
