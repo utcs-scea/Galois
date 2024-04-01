@@ -129,7 +129,7 @@ void findNeighboringClusters(GraphTy& graph, typename GraphTy::GraphNode& n,
     auto edge_wt =
         graph.getEdgeData(ii, flag_no_lock); // Self loop weights is recorded
     if (dst == n) {
-      self_loop_wt += edge_wt; // Self loop weights is recorded
+      self_loop_wt += edge_wt;               // Self loop weights is recorded
     }
     auto stored_already = cluster_local_map.find(
         graph.getData(dst).curr_comm_ass); // Check if it already exists

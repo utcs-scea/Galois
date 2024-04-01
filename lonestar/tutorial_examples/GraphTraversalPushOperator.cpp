@@ -105,8 +105,8 @@ int main(int argc, char* argv[]) {
   // 2. do_all is named "sum_in_do_all_with_push_atomic" to show stat after this
   // program finishes
   initialize(g);
-  galois::do_all(galois::iterate(g.begin(), g.end()), // range
-                 sumEdgeWeightsAtomically             // operator
+  galois::do_all(galois::iterate(g.begin(), g.end()),               // range
+                 sumEdgeWeightsAtomically                           // operator
                  ,
                  galois::loopname("sum_in_do_all_with_push_atomic") // options
   );

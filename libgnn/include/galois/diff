@@ -1,0 +1,36 @@
+diff --git a/libgnn/include/galois/layers/GraphConvolutionalLayer.h b/libgnn/include/galois/layers/GraphConvolutionalLayer.h
+index 669a4350a..90e8ae1b8 100644
+--- a/libgnn/include/galois/layers/GraphConvolutionalLayer.h
++++ b/libgnn/include/galois/layers/GraphConvolutionalLayer.h
+@@ -148,23 +148,31 @@ public:
+       agg_data = p_in_temp_1_.data();
+     }
+ 
++    std::cout << "Aggregate all\n" << std::flush;
+     // flip aggregate/update if dimensions favor it (do less work)
+     if (this->config_.disable_aggregate_after_update ||
+         this->layer_dimensions_.input_columns <=
+             this->layer_dimensions_.output_columns) {
++      std::cout << "Pre -1 \n" << std::flush;
+       // aggregation and update
+       AggregateAll(this->layer_dimensions_.input_columns, input_data, agg_data,
+                    &input_column_intermediates_);
++      std::cout << "Aggregate all - 1\n" << std::flush;
+       UpdateEmbeddings(agg_data, this->p_forward_output_matrix_.data());
++      std::cout << "Update embedding - 1\n" << std::flush;
+     } else {
++      std::cout << "Pre -2 \n" << std::flush;
+       // update to aggregate
+       // FW
+       UpdateEmbeddings(input_data, p_out_temp_.data());
++      std::cout << "Update embedding - 2\n" << std::flush;
+       // A(FW)
+       AggregateAll(this->layer_dimensions_.output_columns, p_out_temp_.data(),
+                    this->p_forward_output_matrix_.data(),
+                    &output_column_intermediates_);
++      std::cout << "Aggregate all - 2\n" << std::flush;
+     }
++    std::cout << "Aggregate all [done]\n" << std::flush;
+ 
+     if (!this->config_.disable_activation) {
+       GALOIS_LOG_VERBOSE("Doing activation");

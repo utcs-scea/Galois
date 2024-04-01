@@ -999,7 +999,7 @@ struct Bipartitegr2Petsc : public HasNoVoidSpecialization {
 
     std::ofstream file(outfilename.c_str());
     writeEndian<LittleEndian, int32_t>(file, 1211216);
-    writeEndian<LittleEndian, int32_t>(file, partition); // rows
+    writeEndian<LittleEndian, int32_t>(file, partition);          // rows
     writeEndian<LittleEndian, int32_t>(file,
                                        graph.size() - partition); // columns
     writeEndian<LittleEndian, int32_t>(file, graph.sizeEdges());

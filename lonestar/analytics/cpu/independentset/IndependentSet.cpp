@@ -537,7 +537,7 @@ struct EdgeTiledPrioAlgo {
                 graph.getData(src, galois::MethodFlag::UNPROTECTED);
 
             if ((nodedata.flag & (unsigned char){1}) &&
-                tile.flag == false) { // undecided and temporary no
+                tile.flag == false) {    // undecided and temporary no
               nodedata.flag &=
                   (unsigned char){0xfd}; // 0x1111 1101, not temporary yes
             }
@@ -551,7 +551,7 @@ struct EdgeTiledPrioAlgo {
                 graph.getData(src, galois::MethodFlag::UNPROTECTED);
             if ((nodedata.flag & (unsigned char){0x01}) != 0) { // undecided
               if ((nodedata.flag & (unsigned char){0x02}) !=
-                  0) { // temporary yes
+                  0) {                                          // temporary yes
                 nodedata.flag =
                     (unsigned char){0xfe}; // 0x1111 1110, permanent yes
                 for (auto edge :

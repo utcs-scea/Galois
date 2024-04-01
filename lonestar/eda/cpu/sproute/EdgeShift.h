@@ -338,7 +338,7 @@ int edgeShift(Tree* t) {
 
       } // else (a vertical edge)
 
-    } // loop i
+    }   // loop i
 
     if (bestBenefit > 0) {
       n1 = pairN1[bestPair];
@@ -470,7 +470,7 @@ int edgeShiftNew(Tree* t) {
         // if(net==3){printtree(*t);getchar();}
       } // if(isPair)
 
-    } // if(pairCnt>0)
+    }   // if(pairCnt>0)
     else
       iter = 3;
 

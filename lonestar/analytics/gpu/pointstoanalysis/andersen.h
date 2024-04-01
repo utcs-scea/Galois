@@ -113,7 +113,7 @@ typedef unsigned long int ulongint;
 #define HCD_TABLE_SIZE (256)
 #define HCD_DECODE_VECTOR_SIZE (8192) // maxed out for 'pine' input
 
-#define PRINT_BUFFER_SIZE (16384) // up to this many neighbors
+#define PRINT_BUFFER_SIZE (16384)     // up to this many neighbors
 #define ERROR_MESSAGE_BUFFER_SIZE (512)
 
 #define WARP_SIZE 32
@@ -123,12 +123,12 @@ typedef unsigned long int ulongint;
 
 // number of threads per block for each rule. The thread count is based on the
 // amount of shared memory available and empirical measures.
-//#define DEF_THREADS_PER_BLOCK (1024)
-//#define UPDATE_THREADS_PER_BLOCK (1024)
-//#define HCD_THREADS_PER_BLOCK (512)
-//#define COPY_INV_THREADS_PER_BLOCK (864)
-//#define STORE_INV_THREADS_PER_BLOCK (864)
-//#define GEP_INV_THREADS_PER_BLOCK (1024)
+// #define DEF_THREADS_PER_BLOCK (1024)
+// #define UPDATE_THREADS_PER_BLOCK (1024)
+// #define HCD_THREADS_PER_BLOCK (512)
+// #define COPY_INV_THREADS_PER_BLOCK (864)
+// #define STORE_INV_THREADS_PER_BLOCK (864)
+// #define GEP_INV_THREADS_PER_BLOCK (1024)
 
 #include "pta_tuning.h"
 

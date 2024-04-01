@@ -10,8 +10,8 @@ std::ostream& operator<<(std::ostream& strm,
 
 template <typename ElementTy>
 class EdgeInducedEmbedding : public Embedding<ElementTy> {
-  friend std::ostream& operator<<<>(std::ostream& strm,
-                                    const EdgeInducedEmbedding<ElementTy>& emb);
+  friend std::ostream&
+  operator<< <>(std::ostream& strm, const EdgeInducedEmbedding<ElementTy>& emb);
 
 public:
   EdgeInducedEmbedding() { qp_id = 0xFFFFFFFF; }
@@ -20,7 +20,7 @@ public:
   void set_qpid(unsigned i) { qp_id = i; }    // set the quick pattern id
   unsigned get_qpid() const { return qp_id; } // get the quick pattern id
 private:
-  unsigned qp_id; // quick pattern id
+  unsigned qp_id;                             // quick pattern id
 };
 
 template <typename ElementTy>

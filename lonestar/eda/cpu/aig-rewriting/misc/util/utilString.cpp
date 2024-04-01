@@ -40,7 +40,7 @@ void split(const std::string& str, const std::string& delim,
     }
     end = start;
     while (end < str.size() && (delim.find(str[end]) == std::string::npos)) {
-      end++; // skip to end of word
+      end++;                // skip to end of word
     }
     if (end - start != 0) { // just ignore zero-length strings.
       parts.push_back(std::string(str, start, end - start));

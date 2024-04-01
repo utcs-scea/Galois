@@ -65,10 +65,10 @@ typedef struct DecNode_ {
 class DecGraph {
 
 private:
-  bool fConst; // marks the constant 1 graph
-  int nLeaves; // the number of leaves
-  int nSize;   // the number of nodes (including the leaves)
-  int nCap;    // the number of allocated nodes
+  bool fConst;     // marks the constant 1 graph
+  int nLeaves;     // the number of leaves
+  int nSize;       // the number of nodes (including the leaves)
+  int nCap;        // the number of allocated nodes
   int idCounter;
   DecNode* pNodes; // the array of leaves and internal nodes
   DecEdge eRoot;   // the pointer to the topmost node
@@ -131,9 +131,9 @@ private:
   NPNManager& npnManager;
   ForestNode* forest; // all the nodes
   std::vector<ForestNode*>
-      table; // the hash table of nodes by their canonical form
+      table;          // the hash table of nodes by their canonical form
   std::vector<std::vector<ForestNode*>>
-      classes; // the nodes of the equivalence classes
+      classes;        // the nodes of the equivalence classes
   int forestSize;
   int nTravIds;
 

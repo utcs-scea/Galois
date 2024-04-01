@@ -117,11 +117,11 @@ protected:
       pid = 1;    // 3-chain
       if (idx == 0) {
         if (is_connected(g, emb.get_vertex(1), dst))
-          pid = 0; // triangle
+          pid = 0;          // triangle
         else if (use_wedge)
           pre_pid[pos] = 1; // wedge; used for 4-motif
       }
-    } else if (n == 3) { // count 4-motifs
+    } else if (n == 3) {    // count 4-motifs
       unsigned num_edges = 1;
       pid                = emb.get_pid();
       if (pid == 0) { // extending a triangle
@@ -149,7 +149,7 @@ protected:
             center =
                 is_connected(g, emb.get_vertex(1), emb.get_vertex(2)) ? 1 : 0;
           if (idx == center)
-            pid = 1; // p1: 3-star
+            pid = 1;           // p1: 3-star
         } else if (num_edges == 2) {
           pid             = 2; // p2: 4-cycle
           unsigned center = 1;
@@ -162,7 +162,7 @@ protected:
           if (connected[center])
             pid = 3; // p3: tailed-triangle
         } else {
-          pid = 4; // p4: diamond
+          pid = 4;   // p4: diamond
         }
       }
     } else { // count 5-motif and beyond

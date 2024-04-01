@@ -440,7 +440,7 @@ double algoLouvainWithLockingDelayUpdate(Graph& graph, double lower,
     double e_xx = 0;
     double a2_x = 0;
     curr_mod    = calModularityDelay(graph, c_info, c_update, e_xx, a2_x,
-                                  constant_for_second_term, local_target);
+                                     constant_for_second_term, local_target);
     galois::gPrint(num_iter, "        ", e_xx, "        ", a2_x, "        ",
                    lower, "      ", prev_mod, "       ", curr_mod, "\n");
 
@@ -638,7 +638,7 @@ double algoLouvainWithColoring(Graph& graph, double lower, double threshold,
                   cluster_local_map; // Map each neighbor's cluster to local
                                      // number: Community --> Index
               std::vector<EdgeTy>
-                  counter; // Number of edges to each unique cluster
+                  counter;           // Number of edges to each unique cluster
               EdgeTy self_loop_wt = 0;
 
               if (degree > 0) {

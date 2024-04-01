@@ -23,14 +23,14 @@ class DistContext {
   Graph* lGraph;            // learning graph version
   DGraph* partitionedGraph; // the input graph, |V| = N
   std::vector<Graph*> partitionedSubgraphs;
-  label_t* h_labels; // labels for classification. Single-class: Nx1,
-                     // multi-class: NxE
-  float_t* h_feats;  // input features: N x D
+  label_t* h_labels;        // labels for classification. Single-class: Nx1,
+                            // multi-class: NxE
+  float_t* h_feats;         // input features: N x D
 #ifdef GALOIS_ENABLE_GPU
-  label_t* d_labels;      // labels on device
-  label_t* d_labels_subg; // labels for subgraph on device
-  float_t* d_feats;       // input features on device
-  float_t* d_feats_subg;  // input features for subgraph on device
+  label_t* d_labels;        // labels on device
+  label_t* d_labels_subg;   // labels for subgraph on device
+  float_t* d_feats;         // input features on device
+  float_t* d_feats_subg;    // input features for subgraph on device
   float_t* d_normFactors;
   float_t* d_normFactorsSub;
 #else

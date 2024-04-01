@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
-//#include "flute_mst.h"
+// #include "flute_mst.h"
 
 /*****************************/
 /*  User-Defined Parameters  */
@@ -16,7 +16,7 @@
 #define LOCAL_REFINEMENT 1     // Suggestion: Set to 1 if ACCURACY >= 5
 #define REMOVE_DUPLICATE_PIN 1 // Remove dup. pin for flute_wl() & flute()
 
-#ifndef DTYPE // Data type for distance
+#ifndef DTYPE                  // Data type for distance
 #define DTYPE int
 #endif
 
@@ -35,9 +35,9 @@
 /*************************************/
 /* Internal Parameters and Functions */
 /*************************************/
-#define POWVFILE "/POWV9.dat" // LUT for POWV (Wirelength Vector)
-#define POSTFILE "/POST9.dat" // LUT for POST (Steiner Tree)
-#define D 9                   // LUT is used for d <= D, D <= 9
+#define POWVFILE "/POWV9.dat"          // LUT for POWV (Wirelength Vector)
+#define POSTFILE "/POST9.dat"          // LUT for POST (Steiner Tree)
+#define D 9                            // LUT is used for d <= D, D <= 9
 #define TAU(A) (8 + 1.3 * (A))
 #define D1(A) (25 + 120 / ((A) * (A))) // flute_mr is used for D1 < d <= D2
 #define D2(A) ((A) <= 6 ? 500 : 75 + 5 * (A))
@@ -72,19 +72,19 @@ typedef struct {
 #define flutes_LMD(d, xs, ys, s, acc)                                          \
   (d <= D ? flutes_LD(d, xs, ys, s) : flutes_MD(d, xs, ys, s, acc))
 
-//#define max(x,y) ((x)>(y)?(x):(y))
-//#define min(x,y) ((x)<(y)?(x):(y))
-// to work around max conflict with bitmap
-//#define abs(x) ((x)<0?(-x):(x))
+// #define max(x,y) ((x)>(y)?(x):(y))
+// #define min(x,y) ((x)<(y)?(x):(y))
+//  to work around max conflict with bitmap
+// #define abs(x) ((x)<0?(-x):(x))
 using namespace std;
 #define ADIFF(x, y) ((x) > (y) ? (x - y) : (y - x)) // Absolute difference
 
 #if D <= 7
-#define MGROUP 5040 / 4 // Max. # of groups, 7! = 5040
-#define MPOWV 15        // Max. # of POWVs per group
+#define MGROUP 5040 / 4   // Max. # of groups, 7! = 5040
+#define MPOWV 15          // Max. # of POWVs per group
 #elif D == 8
-#define MGROUP 40320 / 4 // Max. # of groups, 8! = 40320
-#define MPOWV 33         // Max. # of POWVs per group
+#define MGROUP 40320 / 4  // Max. # of groups, 8! = 40320
+#define MPOWV 33          // Max. # of POWVs per group
 #elif D == 9
 #define MGROUP 362880 / 4 // Max. # of groups, 9! = 362880
 #define MPOWV 79          // Max. # of POWVs per group
@@ -574,9 +574,9 @@ DTYPE flutes_wl_MD(int d, DTYPE xs[], DTYPE ys[], int s[], int acc) {
     penalty[r] = pnlty, penalty[d - 1 - r] = pnlty;
   for (r = d / 2 - 1, pnlty = dy; r >= 0; r--, pnlty += dy)
     penalty[s[r]] += pnlty, penalty[s[d - 1 - r]] += pnlty;
-  //#define CCWL 0.16
-  //    for (r=0; r<d; r++)
-  //        penalty[r] = abs(d-1-r-r)*dx + abs(d-1-si[r]-si[r])*dy;
+  // #define CCWL 0.16
+  //     for (r=0; r<d; r++)
+  //         penalty[r] = abs(d-1-r-r)*dx + abs(d-1-si[r]-si[r])*dy;
 
   // Compute distx[], disty[]
   xydiff = (xs[d - 1] - xs[0]) - (ys[d - 1] - ys[0]);
@@ -1135,10 +1135,10 @@ Tree flutes_MD(int d, DTYPE xs[], DTYPE ys[], int s[], int acc) {
     penalty[s[r]] += pnlty, penalty[s[d - 1 - r]] += pnlty;
   penalty[s[1]] += pnlty, penalty[s[d - 2]] += pnlty;
   penalty[s[0]] += pnlty, penalty[s[d - 1]] += pnlty;
-  //#define CC 0.16
-  //#define v(r) ((r==0||r==1||r==d-2||r==d-1) ? d-3 : abs(d-1-r-r))
-  //    for (r=0; r<d; r++)
-  //        penalty[r] = v(r)*dx + v(si[r])*dy;
+  // #define CC 0.16
+  // #define v(r) ((r==0||r==1||r==d-2||r==d-1) ? d-3 : abs(d-1-r-r))
+  //     for (r=0; r<d; r++)
+  //         penalty[r] = v(r)*dx + v(si[r])*dy;
 
   // Compute distx[], disty[]
   xydiff = (xs[d - 1] - xs[0]) - (ys[d - 1] - ys[0]);
@@ -1553,7 +1553,7 @@ void local_refinement(Tree* tp, int p) {
       if (SteinerPin[tp->branch[i].n] == i && tp->branch[i].n != root)
         index[dd++] = tp->branch[i].n; // Steiner node
       else
-        index[dd++] = i; // Pin
+        index[dd++] = i;               // Pin
     }
   }
 

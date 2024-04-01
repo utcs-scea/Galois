@@ -147,7 +147,7 @@ void graph_conv_layer::back_propagation(const float_t* in_data,
   d_aggregate(z, *graph_cpu, out_grad, out_temp);
   if (level_ != 0) {
     math::sgemm_cpu(CblasNoTrans, CblasTrans, x, y, z, 1.0, out_temp, &W[0],
-                    0.0, in_grad); // x*z; z*y -> x*y
+                    0.0, in_grad);                // x*z; z*y -> x*y
     math::sgemm_cpu(CblasTrans, CblasNoTrans, y, z, x, 1.0, in_data, out_temp,
                     0.0, &layer::weight_grad[0]); // y*x; x*z; y*z
   }

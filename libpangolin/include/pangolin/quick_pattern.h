@@ -22,8 +22,8 @@ std::ostream& operator<<(std::ostream& strm,
 
 template <typename EmbTy, typename EleTy>
 class QuickPattern {
-  friend std::ostream& operator<<<>(std::ostream& strm,
-                                    const QuickPattern<EmbTy, EleTy>& qp);
+  friend std::ostream& operator<< <>(std::ostream& strm,
+                                     const QuickPattern<EmbTy, EleTy>& qp);
 
 public:
   QuickPattern() {}

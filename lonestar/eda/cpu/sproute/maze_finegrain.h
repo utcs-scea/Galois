@@ -999,8 +999,8 @@ void mazeRouteMSMD_finegrain(int iter, int expand, float costHeight,
           timer_checkroute2dtree.stop();
         } // congested route, if(enter)
         timer_finegrain.stop();
-      } // only route the non-degraded edges (len>0)
-    }   // iterate on edges of a net
+      }   // only route the non-degraded edges (len>0)
+    }     // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),
@@ -1957,8 +1957,8 @@ void mazeRouteMSMD_finegrain_spinlock(int iter, int expand, float costHeight,
           // timer_checkroute2dtree.stop();
         } // congested route, if(enter)
         timer_finegrain.stop();
-      } // only route the non-degraded edges (len>0)
-    }   // iterate on edges of a net
+      }   // only route the non-degraded edges (len>0)
+    }     // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),
@@ -3025,8 +3025,8 @@ void mazeRouteMSMD_finegrain_doall(int iter, int expand, float costHeight,
           timer_checkroute2dtree.stop();
         } // congested route, if(enter)
         timer_finegrain.stop();
-      } // only route the non-degraded edges (len>0)
-    }   // iterate on edges of a net
+      }   // only route the non-degraded edges (len>0)
+    }     // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),

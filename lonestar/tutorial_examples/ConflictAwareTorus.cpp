@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
   galois::do_all(
       galois::iterate(size_t{0},
                       torus.size()), // range as a pair of unsigned integers
-      [&](TorusNode n) { torus.getData(n) = 0; } // operator
+      [&](TorusNode n) { torus.getData(n) = 0; }  // operator
       ,
       galois::loopname("do_all_torus_reset_self") // options
   );

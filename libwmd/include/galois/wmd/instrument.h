@@ -122,7 +122,7 @@ public:
   void record_read_random(bool mirror = false) {
     if (!mirror) { // master
       *master_read += 1;
-    } else { // mirror
+    } else {       // mirror
       *mirror_read += 1;
     }
   }
@@ -130,7 +130,7 @@ public:
   void record_write_random(bool mirror = false) {
     if (!mirror) { // master
       *master_write += 1;
-    } else { // mirror
+    } else {       // mirror
       *mirror_write += 1;
     }
   }

@@ -410,7 +410,7 @@ constexpr static const char* const name = "SSSP - Distributed Heterogeneous "
                                           "with worklist.";
 constexpr static const char* const desc = "Variant of Chaotic relaxation SSSP "
                                           "on Distributed Galois.";
-constexpr static const char* const url = nullptr;
+constexpr static const char* const url  = nullptr;
 
 int main(int argc, char** argv) {
   galois::DistMemSys G;

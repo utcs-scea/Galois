@@ -868,7 +868,7 @@ void gen_brk_RSMT(Bool congestionDriven, Bool reRoute, Bool genTree,
           i, NOROUTE,
           TRUE); // route the net with no previous route for each tree edge
     }
-  } // loop i
+  }              // loop i
 
   printf("WIRELEN : %d, WIRELEN1 : %d\n", wl, wl1);
   printf("NumSeg  : %d\n", totalNumSeg);

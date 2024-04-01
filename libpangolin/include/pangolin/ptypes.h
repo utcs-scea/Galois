@@ -8,7 +8,7 @@ typedef QuickPattern<EdgeInducedEmbedding<StructuralElement>, StructuralElement>
     StrQPattern; // structural quick pattern
 typedef CanonicalGraph<EdgeInducedEmbedding<StructuralElement>,
                        StructuralElement>
-    StrCPattern; // structural canonical pattern
+    StrCPattern;  // structural canonical pattern
 typedef std::unordered_map<StrQPattern, Frequency>
     StrQpMapFreq; // mapping structural quick pattern to its frequency
 typedef std::unordered_map<StrCPattern, Frequency>

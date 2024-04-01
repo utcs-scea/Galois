@@ -42,8 +42,8 @@ static const int _MAP = _MAP_ANON | MAP_PRIVATE;
 static const int _MAP_POP   = MAP_POPULATE | _MAP;
 static const bool doHandMap = false;
 #else
-static const int _MAP_POP   = _MAP;
-static const bool doHandMap = true;
+static const int _MAP_POP      = _MAP;
+static const bool doHandMap    = true;
 #endif
 #ifdef MAP_HUGETLB
 static const int _MAP_HUGE_POP = MAP_HUGETLB | _MAP_POP;

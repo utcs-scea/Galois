@@ -6,8 +6,12 @@
 const char* name = "Graph Isomorphism Network (GIN)";
 const char* desc = "Graph isomorphism neural networks on an undirected graph";
 const char* url  = 0;
-static cll::opt<unsigned>learn_eps("le", cll::desc("whether to learn the parameter epsilon (default value false)"), cll::init(0));
-static cll::opt<std::string>agg_type("at", cll::desc("Aggregator Type"), cll::init("sum"));
+static cll::opt<unsigned> learn_eps(
+    "le",
+    cll::desc("whether to learn the parameter epsilon (default value false)"),
+    cll::init(0));
+static cll::opt<std::string> agg_type("at", cll::desc("Aggregator Type"),
+                                      cll::init("sum"));
 
 template <>
 class graph_conv_layer<agg_type> {
@@ -30,4 +34,3 @@ int main(int argc, char** argv) {
   graph_conv_layer<agg_type> layer0;
   return 0;
 }
-

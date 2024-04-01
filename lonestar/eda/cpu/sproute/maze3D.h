@@ -12,7 +12,7 @@
 #include <time.h>
 
 #define PARENT(i) (i - 1) / 2
-//#define PARENT(i) ((i-1)>>1)
+// #define PARENT(i) ((i-1)>>1)
 #define LEFT(i) 2 * i + 1
 #define RIGHT(i) 2 * i + 2
 
@@ -1199,7 +1199,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
               tmp  = d13D[curL][curY][curX] + viacost;
               tmpL = curL + 1; // the bottom neighbor
               if (d13D[tmpL][curY][curX] >=
-                  BIG_INT) // bottom neighbor not been put into heap13D
+                  BIG_INT)     // bottom neighbor not been put into heap13D
               {
                 d13D[tmpL][curY][curX]         = tmp;
                 pr3D[tmpL][curY][curX].l       = curL;
@@ -1711,7 +1711,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
 
               } // edge len > 0
 
-            } // eunmerating edges
+            }   // eunmerating edges
 
             //	printf("edge %d shifted post processing finished\n",edgeID);
           } // if shift1 and shift2

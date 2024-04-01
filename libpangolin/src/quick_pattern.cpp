@@ -250,6 +250,6 @@ std::ostream& operator<<(std::ostream& strm,
 
 template class QuickPattern<VertexEmbedding, SimpleElement>; // Motif
 template class QuickPattern<EdgeInducedEmbedding<StructuralElement>,
-                            StructuralElement>; // Motif
+                            StructuralElement>;              // Motif
 template class QuickPattern<EdgeInducedEmbedding<LabeledElement>,
-                            LabeledElement>; // FSM
+                            LabeledElement>;                 // FSM

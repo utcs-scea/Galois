@@ -60,11 +60,11 @@ class Net {
   // TODO it's looking like we may not even need these dist versions
   mask_t* distTrainMasks;
   mask_t* distValMasks;
-  mask_t* distTestMasks; // masks for test, dst
+  mask_t* distTestMasks;   // masks for test, dst
 
-  mask_t* d_train_masks; // masks for training on device
-  mask_t* d_val_masks;   // masks for validation on device
-  mask_t* d_test_masks;  // masks for test on device
+  mask_t* d_train_masks;   // masks for training on device
+  mask_t* d_val_masks;     // masks for validation on device
+  mask_t* d_test_masks;    // masks for test on device
 
   mask_t* subgraphs_masks; // masks for subgraphs; size of local graph
   // masks for subgraphs on device; size of local graph
