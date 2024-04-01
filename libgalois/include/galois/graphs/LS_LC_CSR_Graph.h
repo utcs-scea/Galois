@@ -122,10 +122,10 @@ private:
 public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
       : m_vertices(num_vertices, VertexMetadata()) {
-        if constexpr (HasVertexData) {
-          m_vertex_data.resize(num_vertices);
-        }
-      }
+    if constexpr (HasVertexData) {
+      m_vertex_data.resize(num_vertices);
+    }
+  }
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
 
@@ -164,7 +164,7 @@ public:
       m_vertex_data.resize(m_vertices.size());
     }
     return m_vertices.size() - 1;
-  }  
+  }
 
   template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   VertexTopologyID addVertices(std::vector<V> data) {
@@ -172,9 +172,8 @@ public:
     m_vertices.resize(m_vertices.size() + data.size());
     m_vertex_data.resize(m_vertices.size());
 
-    galois::do_all(galois::iterate(start, start + data.size()), [&](VertexTopologyID const& id) {
-      getData(id) = data[id];
-    });
+    galois::do_all(galois::iterate(start, start + data.size()),
+                   [&](VertexTopologyID const& id) { getData(id) = data[id]; });
     return start;
   }
 
