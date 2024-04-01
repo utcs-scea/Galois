@@ -177,6 +177,8 @@ public:
     return start;
   }
 
+  size_t getDegree(VertexTopologyID id) { return m_vertices[id].degree; }
+
   VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
 
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
