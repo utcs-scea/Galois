@@ -16,7 +16,7 @@
 #define LOCAL_REFINEMENT 1     // Suggestion: Set to 1 if ACCURACY >= 5
 #define REMOVE_DUPLICATE_PIN 1 // Remove dup. pin for flute_wl() & flute()
 
-#ifndef DTYPE                  // Data type for distance
+#ifndef DTYPE // Data type for distance
 #define DTYPE int
 #endif
 
@@ -35,9 +35,9 @@
 /*************************************/
 /* Internal Parameters and Functions */
 /*************************************/
-#define POWVFILE "/POWV9.dat"          // LUT for POWV (Wirelength Vector)
-#define POSTFILE "/POST9.dat"          // LUT for POST (Steiner Tree)
-#define D 9                            // LUT is used for d <= D, D <= 9
+#define POWVFILE "/POWV9.dat" // LUT for POWV (Wirelength Vector)
+#define POSTFILE "/POST9.dat" // LUT for POST (Steiner Tree)
+#define D 9                   // LUT is used for d <= D, D <= 9
 #define TAU(A) (8 + 1.3 * (A))
 #define D1(A) (25 + 120 / ((A) * (A))) // flute_mr is used for D1 < d <= D2
 #define D2(A) ((A) <= 6 ? 500 : 75 + 5 * (A))
@@ -80,11 +80,11 @@ using namespace std;
 #define ADIFF(x, y) ((x) > (y) ? (x - y) : (y - x)) // Absolute difference
 
 #if D <= 7
-#define MGROUP 5040 / 4   // Max. # of groups, 7! = 5040
-#define MPOWV 15          // Max. # of POWVs per group
+#define MGROUP 5040 / 4 // Max. # of groups, 7! = 5040
+#define MPOWV 15        // Max. # of POWVs per group
 #elif D == 8
-#define MGROUP 40320 / 4  // Max. # of groups, 8! = 40320
-#define MPOWV 33          // Max. # of POWVs per group
+#define MGROUP 40320 / 4 // Max. # of groups, 8! = 40320
+#define MPOWV 33         // Max. # of POWVs per group
 #elif D == 9
 #define MGROUP 362880 / 4 // Max. # of groups, 9! = 362880
 #define MPOWV 79          // Max. # of POWVs per group
@@ -1553,7 +1553,7 @@ void local_refinement(Tree* tp, int p) {
       if (SteinerPin[tp->branch[i].n] == i && tp->branch[i].n != root)
         index[dd++] = tp->branch[i].n; // Steiner node
       else
-        index[dd++] = i;               // Pin
+        index[dd++] = i; // Pin
     }
   }
 

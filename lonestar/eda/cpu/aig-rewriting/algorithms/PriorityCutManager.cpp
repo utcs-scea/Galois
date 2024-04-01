@@ -414,7 +414,7 @@ inline bool PriCutManager::cutFilter(PriCutPool& cutPool, PriCutList& cutList,
       if (checkCutDominance(cut, resCut)) {
         cutPool.giveBackMemory(resCut); // Recycle Cut
         nFilt += 1;
-        return true;                    // resCut is dominated
+        return true; // resCut is dominated
       }
     } else {
       // sKip the non-contained cuts

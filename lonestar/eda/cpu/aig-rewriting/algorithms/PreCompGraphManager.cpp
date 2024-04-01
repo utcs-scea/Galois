@@ -437,8 +437,8 @@ PreCompGraphManager::PreCompGraphManager(NPNManager& npnManager)
   this->nTravIds   = 0;
   this->forestSize = 0;
   this->forest     = (ForestNode*)malloc(
-      sizeof(ForestNode) *
-      1800); // Value based on the execution of ABC rewrite command.
+          sizeof(ForestNode) *
+          1800); // Value based on the execution of ABC rewrite command.
   memset(this->forest, 0, sizeof(ForestNode));
 
   addForestVar(0x0000); // constant 0

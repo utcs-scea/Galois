@@ -522,7 +522,7 @@ void parallel_make_balance(GGraph& g, float tol, int p) {
         break;
     } // end else
 
-  }   // end while
+  } // end while
 }
 
 } // namespace

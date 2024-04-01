@@ -26,8 +26,6 @@
 #include "galois/layers/GraphConvolutionalLayer.h"
 #include "galois/layers/SAGELayer.h"
 
-#define TESTER_DIR TESTINPUT "/tester/"
-
 int main() {
   galois::DistMemSys G;
 

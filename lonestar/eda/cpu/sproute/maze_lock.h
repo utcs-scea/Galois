@@ -17,7 +17,7 @@ Bool newRipupCheck_lock(TreeEdge* treeedge, int ripup_threshold, int netID,
 
     for (i = 0; i < treeedge->route.routelen; i++) // first check
     {
-      if (gridsX[i] == gridsX[i + 1])              // a vertical edge
+      if (gridsX[i] == gridsX[i + 1]) // a vertical edge
       {
         ymin = min(gridsY[i], gridsY[i + 1]);
         grid = ymin * xGrid + gridsX[i];
@@ -43,7 +43,7 @@ Bool newRipupCheck_lock(TreeEdge* treeedge, int ripup_threshold, int netID,
 
       for (i = 0; i < treeedge->route.routelen; i++) // then lock
       {
-        if (gridsX[i] == gridsX[i + 1])              // a vertical edge
+        if (gridsX[i] == gridsX[i + 1]) // a vertical edge
         {
           ymin = min(gridsY[i], gridsY[i + 1]);
           grid = ymin * xGrid + gridsX[i];
@@ -59,7 +59,7 @@ Bool newRipupCheck_lock(TreeEdge* treeedge, int ripup_threshold, int netID,
 
       for (i = 0; i < treeedge->route.routelen; i++) // second check
       {
-        if (gridsX[i] == gridsX[i + 1])              // a vertical edge
+        if (gridsX[i] == gridsX[i + 1]) // a vertical edge
         {
           ymin = min(gridsY[i], gridsY[i + 1]);
           grid = ymin * xGrid + gridsX[i];

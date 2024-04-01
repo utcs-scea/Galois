@@ -113,7 +113,7 @@ typedef unsigned long int ulongint;
 #define HCD_TABLE_SIZE (256)
 #define HCD_DECODE_VECTOR_SIZE (8192) // maxed out for 'pine' input
 
-#define PRINT_BUFFER_SIZE (16384)     // up to this many neighbors
+#define PRINT_BUFFER_SIZE (16384) // up to this many neighbors
 #define ERROR_MESSAGE_BUFFER_SIZE (512)
 
 #define WARP_SIZE 32

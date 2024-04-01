@@ -20,7 +20,7 @@ public:
   void set_qpid(unsigned i) { qp_id = i; }    // set the quick pattern id
   unsigned get_qpid() const { return qp_id; } // get the quick pattern id
 private:
-  unsigned qp_id;                             // quick pattern id
+  unsigned qp_id; // quick pattern id
 };
 
 template <typename ElementTy>

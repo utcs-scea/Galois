@@ -110,9 +110,9 @@ int main(int argc, char** argv) {
             {*graph.begin()}), // initial range using initializer list
         SSSP                   // operator
         ,
-        galois::wl<PSchunk>()  // options. PSchunk expands to
-                               // galois::worklists::PerSocketChunkLIFO<16>,
-                               // where 16 is chunk size
+        galois::wl<PSchunk>() // options. PSchunk expands to
+                              // galois::worklists::PerSocketChunkLIFO<16>,
+                              // where 16 is chunk size
         ,
         galois::loopname("sssp_dchunk16"));
     //! [chunk worklist]
@@ -120,8 +120,8 @@ int main(int argc, char** argv) {
     //! [OBIM]
     galois::for_each(
         galois::iterate(
-            {*graph.begin()}),       // initial range using initializer list
-        SSSP                         // operator
+            {*graph.begin()}), // initial range using initializer list
+        SSSP                   // operator
         ,
         galois::wl<OBIM>(reqIndexer) // options. Pass an indexer instance for
                                      // OBIM construction.

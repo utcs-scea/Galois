@@ -384,7 +384,7 @@ struct ReadInput {
         / (galois::runtime::pagePoolSize()) // in pages
     );
 #else
-    galois::preAlloc(1 * numThreads        // some per-thread state
+    galois::preAlloc(1 * numThreads // some per-thread state
                      + 2 * points.size() *
                            sizeof(Element) // mesh is about 2x number of points
                                            // (for random points)

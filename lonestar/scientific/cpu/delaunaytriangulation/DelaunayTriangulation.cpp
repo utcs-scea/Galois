@@ -436,7 +436,7 @@ struct ReadInput {
 
     std::cout << "configuration: " << points.size() << " points\n";
 
-    galois::preAlloc(2 * numThreads        // some per-thread state
+    galois::preAlloc(2 * numThreads // some per-thread state
                      + 2 * points.size() *
                            sizeof(Element) // mesh is about 2x number of points
                                            // (for random points)

@@ -1,8 +1,6 @@
 #include "galois/Logging.h"
 #include "galois/layers/GraphConvolutionalLayer.h"
 
-#define TESTER_DIR TESTINPUT "/tester/"
-
 int main() {
   galois::DistMemSys G;
 

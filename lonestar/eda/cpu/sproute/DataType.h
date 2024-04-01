@@ -11,9 +11,9 @@
 typedef char Bool;
 
 typedef struct {
-  Bool xFirst;          // route x-direction first (only for L route)
-  Bool HVH;             // TRUE = HVH or FALSE = VHV (only for Z route)
-  Bool maze;            // Whether this segment is routed by maze
+  Bool xFirst; // route x-direction first (only for L route)
+  Bool HVH;    // TRUE = HVH or FALSE = VHV (only for Z route)
+  Bool maze;   // Whether this segment is routed by maze
 
   short x1, y1, x2, y2; // coordinates of two endpoints
   int netID;            // the netID of the net this segment belonging to
@@ -32,7 +32,7 @@ typedef struct {
   short* pinY; // array of Y coordinates of pins
   short* pinL; // array of L coordinates of pins
   short minwidth;
-} Net;         // A Net is a set of connected MazePoints
+} Net; // A Net is a set of connected MazePoints
 
 typedef struct edge_t : public galois::runtime::Lockable {
   // galois::substrate::SimpleLock lock;
@@ -97,7 +97,7 @@ typedef struct {
       HVH; // valid for ZROUTE, TRUE - the route is HVH shape, FALSE - VHV shape
   short Zpoint; // valid for ZROUTE, the position of turn point for Z-shape
   short*
-      gridsX;   // valid for MAZEROUTE, a list of grids (n=routelen+1) the route
+      gridsX; // valid for MAZEROUTE, a list of grids (n=routelen+1) the route
               // passes, (x1, y1) is the first one, but (x2, y2) is the lastone
   short*
       gridsY; // valid for MAZEROUTE, a list of grids (n=routelen+1) the route

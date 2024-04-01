@@ -5,8 +5,6 @@
 #include "galois/Logging.h"
 #include "galois/graphs/GNNGraph.h"
 
-#define CORA_DIR TESTINPUT "/cora/"
-
 int main() {
   galois::DistMemSys G;
 

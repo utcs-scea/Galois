@@ -1,7 +1,8 @@
 find_package(OpenMP)
 
 set(TESTINPUT "${CMAKE_SOURCE_DIR}/inputs")
-add_definitions("-DTESTINPUT=\"${TESTINPUT}\"")
+add_definitions("-DTESTER_DIR=\"${TESTINPUT}/tester\"")
+add_definitions("-DCORA_DIR=\"${TESTINPUT}/cora\"")
 
 set(hosts)
 set(host 12)

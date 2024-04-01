@@ -3024,8 +3024,8 @@ void mazeRouteMSMD_block(int iter, int expand, float costHeight,
                 }
               } // congested route
 
-            }   // maze routing
-          }     // loop edgeID
+            } // maze routing
+          }   // loop edgeID
         }
       },
       galois::steal(),

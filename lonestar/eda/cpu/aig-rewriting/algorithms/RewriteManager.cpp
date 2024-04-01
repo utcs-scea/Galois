@@ -193,8 +193,8 @@ aig::GNode RewriteManager::rewriteNode(ThreadContextData* threadCtx,
   for (int j = 0; j < 20; j++) {
     if (j < 4) {
       threadCtx->decNodeFunc[j] =
-          threadCtx->bestFanins[j];        // Link cut leaves with the best
-                                           // decomposition graph
+          threadCtx->bestFanins[j]; // Link cut leaves with the best
+                                    // decomposition graph
     } else {
       threadCtx->decNodeFunc[j] = nullptr; // Clear the link table, after leaves
     }

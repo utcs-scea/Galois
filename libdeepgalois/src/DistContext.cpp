@@ -245,7 +245,7 @@ void DistContext::constructNormFactor(deepgalois::Context* globalContext) {
              e != partitionedGraph->edge_end(i); e++) {
           const auto j = partitionedGraph->getEdgeDst(e);
           float_t c_j  = std::sqrt(
-              float_t(wholeGraph->get_degree(partitionedGraph->getGID(j))));
+               float_t(wholeGraph->get_degree(partitionedGraph->getGID(j))));
 
           if (c_i == 0.0 || c_j == 0.0) {
             this->normFactors[*e] = 0.0;

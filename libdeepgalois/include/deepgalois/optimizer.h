@@ -93,7 +93,7 @@ struct RMSprop : public stateful_optimizer<1> {
   float_t alpha; // learning rate
   float_t mu;    // decay term
 private:
-  float_t eps;   // constant value to avoid zero-division
+  float_t eps; // constant value to avoid zero-division
 };
 
 // Adam: A Method for Stochastic Optimization

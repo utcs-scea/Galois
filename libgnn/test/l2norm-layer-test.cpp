@@ -2,8 +2,6 @@
 #include "galois/GNNMath.h"
 #include "galois/layers/L2NormLayer.h"
 
-#define TESTER_DIR TESTINPUT "/tester/"
-
 int main() {
   galois::DistMemSys G;
 

@@ -118,7 +118,7 @@ struct TC {
       }
     } ///< Finding triangles is done.
     numTriangles += numTriangles_local;
-  }   ///< CPU operator is done.
+  } ///< CPU operator is done.
 };
 
 /*******************************************************************************

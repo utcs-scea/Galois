@@ -44,9 +44,9 @@ int enlarge, costheight, ripup_threshold, ahTH;
 int numValidNets,
     numInvalidNets; // # nets need to be routed (having pins in different grids)
 int numLayers;
-int totalNumSeg;    // total # segments
-int totalOverflow;  // total # overflow
-int mazeThreshold;  // the wirelen threshold to do maze routing
+int totalNumSeg;   // total # segments
+int totalOverflow; // total # overflow
+int mazeThreshold; // the wirelen threshold to do maze routing
 Net** nets;
 Net** invalid_nets;
 Edge *h_edges, *v_edges;

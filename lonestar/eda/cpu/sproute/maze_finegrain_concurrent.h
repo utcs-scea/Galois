@@ -1618,8 +1618,8 @@ void mazeRouteMSMD_finegrain_concurrent(int iter, int expand, float costHeight,
 
         } // congested route, if(enter)
         timer_finegrain.stop();
-      }   // only route the non-degraded edges (len>0)
-    }     // iterate on edges of a net
+      } // only route the non-degraded edges (len>0)
+    }   // iterate on edges of a net
   }
 
   printf("total ripups: %d max ripups: %d\n", total_ripups.reduce(),

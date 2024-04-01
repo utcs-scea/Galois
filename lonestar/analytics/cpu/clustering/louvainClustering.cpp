@@ -638,7 +638,7 @@ double algoLouvainWithColoring(Graph& graph, double lower, double threshold,
                   cluster_local_map; // Map each neighbor's cluster to local
                                      // number: Community --> Index
               std::vector<EdgeTy>
-                  counter;           // Number of edges to each unique cluster
+                  counter; // Number of edges to each unique cluster
               EdgeTy self_loop_wt = 0;
 
               if (degree > 0) {

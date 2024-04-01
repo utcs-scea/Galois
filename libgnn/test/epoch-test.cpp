@@ -4,8 +4,6 @@
 #include "galois/Logging.h"
 #include "galois/GraphNeuralNetwork.h"
 
-#define CORA_DIR TESTINPUT "/cora/"
-
 int main() {
   galois::DistMemSys G;
 

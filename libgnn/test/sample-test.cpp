@@ -23,8 +23,6 @@
 #include "galois/layers/SoftmaxLayer.h"
 #include "galois/layers/SigmoidLayer.h"
 
-#define TESTER_DIR TESTINPUT "/tester/"
-
 int main() {
   galois::DistMemSys G;
 

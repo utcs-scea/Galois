@@ -4,8 +4,6 @@
 #include "galois/Logging.h"
 #include "galois/GraphNeuralNetwork.h"
 
-#define TESTER_DIR TESTINPUT "/tester/"
-
 int main() {
   galois::DistMemSys G;
 

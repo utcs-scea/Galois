@@ -1199,7 +1199,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
               tmp  = d13D[curL][curY][curX] + viacost;
               tmpL = curL + 1; // the bottom neighbor
               if (d13D[tmpL][curY][curX] >=
-                  BIG_INT)     // bottom neighbor not been put into heap13D
+                  BIG_INT) // bottom neighbor not been put into heap13D
               {
                 d13D[tmpL][curY][curX]         = tmp;
                 pr3D[tmpL][curY][curX].l       = curL;
@@ -1711,7 +1711,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
 
               } // edge len > 0
 
-            }   // eunmerating edges
+            } // eunmerating edges
 
             //	printf("edge %d shifted post processing finished\n",edgeID);
           } // if shift1 and shift2

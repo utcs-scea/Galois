@@ -13,12 +13,12 @@
 #define SAMEX 0
 #define SAMEY 1
 
-float costHVH[XRANGE];     // Horizontal first Z
-float costVHV[YRANGE];     // Vertical first Z
-float costH[YRANGE];       // Horizontal segment cost
-float costV[XRANGE];       // Vertical segment cost
-float costLR[YRANGE];      // Left and right boundary cost
-float costTB[XRANGE];      // Top and bottom boundary cost
+float costHVH[XRANGE]; // Horizontal first Z
+float costVHV[YRANGE]; // Vertical first Z
+float costH[YRANGE];   // Horizontal segment cost
+float costV[XRANGE];   // Vertical segment cost
+float costLR[YRANGE];  // Left and right boundary cost
+float costTB[XRANGE];  // Top and bottom boundary cost
 
 float costHVHtest[YRANGE]; // Vertical first Z
 float costVtest[XRANGE];   // Vertical segment cost
@@ -100,11 +100,11 @@ void routeSegL(Segment* seg) {
     ymax = seg->y1;
   }
 
-  if (seg->x1 == seg->x2)      // V route
+  if (seg->x1 == seg->x2) // V route
     routeSegV(seg);
   else if (seg->y1 == seg->y2) // H route
     routeSegH(seg);
-  else                         // L route
+  else // L route
   {
     costL1 = costL2 = 0;
 
@@ -582,7 +582,7 @@ void newrouteZ_edge(int netID, int edgeID) {
       }
     } // else Z route
 
-  }   // if non-degraded edge
+  } // if non-degraded edge
 }
 
 // Z-route, rip-up the previous route according to the ripuptype
@@ -1048,7 +1048,7 @@ void routeMonotonic(int netID, int edgeID, int threshold) {
         gridsY[cnt] = yl;
         cnt++;
 
-      }    // yl<=yr
+      } // yl<=yr
 
       else // yl>yr
       {

@@ -392,7 +392,7 @@ void Net::construct_layers() {
   // append conv layers
   // galois::gPrint(header, "Constructing layers...\n");
   for (size_t i = 0; i < num_conv_layers - 1; i++) {
-    append_conv_layer(i, true);           // conv layers, act=true
+    append_conv_layer(i, true); // conv layers, act=true
   }
   append_conv_layer(num_conv_layers - 1); // the last hidden layer, act=false
 
@@ -402,7 +402,7 @@ void Net::construct_layers() {
   if (has_dense) {
     append_dense_layer(num_layers - 2); // dense layer
   }
-  append_out_layer(num_layers - 1);     // output layer
+  append_out_layer(num_layers - 1); // output layer
 
   // allocate memory for intermediate features and gradients
   for (size_t i = 0; i < num_layers; i++) {
