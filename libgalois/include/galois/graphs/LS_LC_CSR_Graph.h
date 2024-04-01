@@ -170,12 +170,13 @@ public:
   // consecutive topology IDs, and the lowest new ID is returned.
   template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   VertexTopologyID addVertices(std::vector<V> data) {
-    VertexTopologyID start = m_vertices.size();
+    VertexTopologyID const start = m_vertices.size();
     m_vertices.resize(m_vertices.size() + data.size());
     m_vertex_data.resize(m_vertices.size());
 
-    galois::do_all(galois::iterate(start, start + data.size()),
-                   [&](VertexTopologyID const& id) { setData(id, data[id]); });
+    galois::do_all(
+        galois::iterate(0ul, data.size()),
+        [&](VertexTopologyID const& off) { setData(start + off, data[off]); });
     return start;
   }
 
