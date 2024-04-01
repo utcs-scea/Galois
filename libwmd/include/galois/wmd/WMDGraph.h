@@ -34,7 +34,6 @@
 #include "graphTypes.h"
 #include "graph.h"
 #include "schema.h"
-#include "instrument.h"
 
 namespace galois {
 namespace graphs {
@@ -102,17 +101,13 @@ protected:
 
   inline void insertlocalEdgesPerThread(unsigned tid, uint64_t token,
                                         EdgeDataType& edge) {
-    I_RR();
     if (auto search = perThreadTokenToLocalEdgesIdx[tid].find(token);
         search !=
         perThreadTokenToLocalEdgesIdx[tid].end()) { // if token already exists
-      I_WR();
       perThreadLocalEdges[tid][search->second].push_back(std::move(edge));
     } else { // not exist, make a new one
-      I_WR();
       perThreadTokenToLocalEdgesIdx[tid].insert(
           {token, perThreadLocalEdges[tid].size()});
-      I_WR();
       std::vector<EdgeDataType> v;
       v.push_back(std::move(edge));
       perThreadLocalEdges[tid].push_back(std::move(v));
@@ -170,7 +165,6 @@ protected:
       if (segmentID != 0) {
         graphFile.seekg(start - 1);
         getline(graphFile, line);
-        I_RS();
 
         // if not at start of a line, discard partial line
         if (!line.empty())
@@ -181,7 +175,6 @@ protected:
       if (segmentID != numSegments - 1) {
         graphFile.seekg(end - 1);
         getline(graphFile, line);
-        I_RS();
 
         // if not at end of a line, include next line
         if (!line.empty())
@@ -196,7 +189,6 @@ protected:
       uint64_t segmentLength = end - start;
       char* segmentBuffer    = new char[segmentLength];
       graphFile.read(segmentBuffer, segmentLength);
-      I_RS();
 
       if (!graphFile)
         galois::gError("failed to read segment start: ", start, ", end: ", end,
@@ -218,7 +210,6 @@ protected:
           // if not at start of a line, discard partial line
           if (*(currentLine - 1) != '\n')
             currentLine = std::strchr(currentLine, '\n') + 1;
-          I_RR();
         }
 
         // last thread processes to end of file
@@ -233,7 +224,6 @@ protected:
           assert(std::strchr(currentLine, '\n'));
           char* nextLine      = std::strchr(currentLine, '\n') + 1;
           uint64_t lineLength = nextLine - currentLine;
-          I_RR();
 
           // skip comments
           if (currentLine[0] == '#') {
@@ -244,10 +234,8 @@ protected:
           // delimiter and # tokens set for wmd data file
           ParsedGraphStructure<NodeDataType, EdgeDataType> value =
               parser.ParseLine(currentLine, lineLength);
-          I_RS();
 
           if (value.isNode) {
-            I_WR();
             perThreadLocalNodes[tid].emplace_back(value.node);
           } else if (value.isEdge) {
             for (auto& edge : value.edges) {
@@ -261,7 +249,6 @@ protected:
         edgeCounter += edgeAdded;
         if (cur == segmentsPerHost - 1) {
           nodeCounter += perThreadLocalNodes[tid].size();
-          I_RR();
         }
       });
 
@@ -305,9 +292,7 @@ protected:
 
     for (std::unique_ptr<FileParser<NodeDataType, EdgeDataType>>& parser :
          parsers) {
-      I_RR();
       for (const std::string& file : parser->GetFiles()) {
-        I_RR();
         loadGraphFile(file, *parser, segmentsPerHost, nodeCounter, edgeCounter);
       }
     }
@@ -319,10 +304,8 @@ protected:
       setSizeEdges(edgeCounter.reduce());
     }
 
-    I_RR();
     localEdgeSize = edgeCounter.read_local();
     localNodeSize.resize(numHosts);
-    I_BM(numHosts);
     localNodeSize[hostID] = nodeCounter.reduce();
   }
 
@@ -348,14 +331,11 @@ protected:
       for (uint64_t i = beginNode; i < endNode; ++i) {
         uint32_t index = (localEdges[i][0].src) % numVirtualHosts;
         threadEdgeCnt[tid][index] += localEdges[i].size();
-        I_WR();
       }
     });
     for (uint32_t i = 0; i < activeThreads; i++) {
       for (uint32_t j = 0; j < numVirtualHosts; j++) {
         edgeCnt[j] += threadEdgeCnt[i][j];
-        I_RS();
-        I_WR();
       }
     }
     // Send EdgeCnt
@@ -363,7 +343,6 @@ protected:
       if (i == hostID)
         continue;
 
-      I_WM(edgeCnt.size());
       galois::runtime::SendBuffer b;
       galois::runtime::gSerialize(b, edgeCnt);
       net.sendTagged(i, galois::runtime::evilPhase, std::move(b));
@@ -377,22 +356,17 @@ protected:
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
       galois::runtime::gDeserialize(p->second, recvChunkCounts);
-      I_LC(p->first, recvChunkCounts.size() * sizeof(uint64_t));
       galois::do_all(galois::iterate((size_t)0, recvChunkCounts.size()),
                      [this, &edgeCnt, &recvChunkCounts](uint64_t i) {
-                       I_RR();
-                       I_WR();
                        edgeCnt[i] += recvChunkCounts[i];
                      });
     }
     increment_evilPhase();
     uint64_t edgesNum = 0;
     for (uint32_t h = 0; h < numVirtualHosts; h++) {
-      I_RS();
       edgesNum += edgeCnt[h];
     }
     setSizeEdges(edgesNum);
-    I_WR();
     // Process edgeCnt
     std::vector<uint64_t> edgeCntBkp = edgeCnt;
     uint32_t sf                      = scaleFactor;
@@ -401,42 +375,25 @@ protected:
       std::vector<uint32_t> vec;
       vec.push_back(i);
       cnt_vec.push_back(std::make_pair(edgeCnt[i], vec));
-      I_WR();
-      I_RS();
     }
     std::sort(cnt_vec.begin(), cnt_vec.end());
     while (sf > 1) {
       for (uint32_t i = 0; i < (sf * numHosts / 2); i++) {
         std::pair<uint64_t, std::vector<uint32_t>> mypair;
-        I_RR();
-        I_RR();
-        I_WR();
         cnt_vec[i].first += cnt_vec[sf * numHosts - i - 1].first;
         std::vector vec = cnt_vec[(sf * numHosts) - i - 1].second;
         for (size_t j = 0; j < vec.size(); j++) {
           cnt_vec[i].second.push_back(
               cnt_vec[(sf * numHosts) - i - 1].second[j]);
-          I_RS();
-          I_WR();
         }
       }
       sf /= 2;
-
-#ifdef GALOIS_INSTRUMENT
-      std::sort(cnt_vec.begin(), cnt_vec.begin() + (sf * numHosts));
-      for (uint32_t i = 0; i < (uint32_t)sf * numHosts; i++) {
-        I_RR();
-        I_WR();
-      }
-#endif
     }
     // Determine virtualToPhyMapping values
     for (uint32_t i = 0; i < numHosts; i++) {
       std::vector vec = cnt_vec[i].second;
       for (size_t j = 0; j < vec.size(); j++) {
         virtualToPhyMapping[vec[j]] = i;
-        I_RS();
-        I_WR();
       }
     }
   }
@@ -451,23 +408,17 @@ protected:
     std::unordered_map<uint64_t, size_t> globalNodeIDToLocalEdgesIdx;
     uint64_t numThreads = perThreadLocalEdges.size();
     for (size_t i = 0; i < numThreads; i++) {
-      I_RR();
       uint64_t perThreadSize = perThreadLocalEdges[i].size();
       for (size_t j = 0; j < perThreadSize; j++) {
-        I_RR();
         uint64_t globalID = perThreadLocalEdges[i][j][0].src;
-        I_RR();
         if (auto search = globalNodeIDToLocalEdgesIdx.find(globalID);
             search !=
             globalNodeIDToLocalEdgesIdx.end()) { // if token already exists
-          I_WM(perThreadLocalEdges[i][j].size());
           std::move(perThreadLocalEdges[i][j].begin(),
                     perThreadLocalEdges[i][j].end(),
                     std::back_inserter(localEdges[search->second]));
         } else { // not exist, make a new one
-          I_WR();
           globalNodeIDToLocalEdgesIdx.insert({globalID, localEdges.size()});
-          I_WR();
           localEdges.emplace_back(std::move(perThreadLocalEdges[i][j]));
         }
       }
@@ -480,7 +431,6 @@ protected:
     galois::do_all(
         galois::iterate(globalNodeIDToLocalEdgesIdx),
         [this](std::unordered_map<uint64_t, size_t>::value_type& p) {
-          I_WR();
           localEdgesIdxToGlobalNodeID[p.second] = p.first;
         },
         galois::steal());
@@ -489,14 +439,12 @@ protected:
     std::vector<uint64_t> perThreadLocalNodesOffset(perThreadLocalNodes.size(),
                                                     0);
     for (size_t i = 1; i < perThreadLocalNodes.size(); i++) {
-      I_WR();
       perThreadLocalNodesOffset[i] =
           perThreadLocalNodes[i - 1].size() + perThreadLocalNodesOffset[i - 1];
     }
     localNodes.resize(localNodeSize[hostID]);
     galois::on_each([&](unsigned tid, unsigned) {
       uint64_t perThreadOffset = perThreadLocalNodesOffset[tid];
-      I_WM(perThreadLocalNodes[tid].size());
       std::move(perThreadLocalNodes[tid].begin(),
                 perThreadLocalNodes[tid].end(),
                 localNodes.begin() + perThreadOffset);
@@ -518,7 +466,6 @@ protected:
     galois::do_all(
         galois::iterate((size_t)0, numLocalNodes),
         [this, &localNodeDegree](size_t n) {
-          I_WR();
           localNodeDegree[n] = localEdges[n].size();
         },
         galois::steal());
@@ -538,7 +485,6 @@ protected:
 
         galois::runtime::SendBuffer b;
         galois::runtime::gSerialize(b, std::move(sendBuffer));
-        I_LC(h, b.size());
         net.sendTagged(h, galois::runtime::evilPhase, std::move(b));
       }
     }
@@ -548,7 +494,6 @@ protected:
     galois::do_all(
         galois::iterate((size_t)0, localEdgesIdxToGlobalNodeID.size()),
         [this, &localNodeDegree](size_t n) {
-          I_WR();
           globalEdgePrefixSum[localEdgesIdxToGlobalNodeID[n]] +=
               localNodeDegree[n];
         },
@@ -572,7 +517,6 @@ protected:
       galois::do_all(
           galois::iterate((size_t)0, recvNodeDegree.size()),
           [this, &recvNodeDegree, &recvNodeGlobalID](size_t n) {
-            I_WR();
             globalEdgePrefixSum[recvNodeGlobalID[n]] += recvNodeDegree[n];
           },
           galois::steal());
@@ -581,7 +525,6 @@ protected:
     // globalEdgePrefixSum has degree info now, so could compute prefixsum
     // in place
     for (size_t h = 1; h < numGlobalNodes; h++) {
-      I_WR();
       globalEdgePrefixSum[h] += globalEdgePrefixSum[h - 1];
     }
 
@@ -751,7 +694,6 @@ private:
         galois::runtime::activeThreads);
     for (uint32_t i = 0; i < galois::runtime::activeThreads; i++) {
       threadNodesToSend[i].resize(numHosts, 0);
-      I_WR();
     }
     galois::on_each([&](unsigned tid, unsigned nthreads) {
       uint64_t beginNode;
@@ -763,16 +705,11 @@ private:
         int host =
             virtualToPhyMapping[srcGraph.localNodes[i].id % numVirtualHosts];
         threadNodesToSend[tid][host]++;
-        I_WR();
-        for (int k = 0; k < 2; k++)
-          I_RR();
       }
     });
     for (uint32_t tid = 0; tid < galois::runtime::activeThreads; tid++) {
       for (uint32_t h = 0; h < numHosts; h++) {
         localNodeSize[h] += threadNodesToSend[tid][h];
-        I_RR();
-        I_WR();
       }
     }
 
@@ -787,7 +724,6 @@ private:
       galois::runtime::SendBuffer sendBuffer;
       galois::runtime::gSerialize(sendBuffer, localNodeSize);
       net.sendTagged(h, galois::runtime::evilPhase, std::move(sendBuffer));
-      I_WM(localNodeSize.size());
     }
 
     for (uint32_t h = 0; h < numHosts - 1; h++) {
@@ -798,11 +734,8 @@ private:
       std::vector<uint64_t> cnt;
       // deserialize local_node_size
       galois::runtime::gDeserialize(p->second, cnt);
-      I_LC(p->first, cnt.size() * sizeof(uint64_t));
       for (uint32_t i = 0; i < numHosts; i++) {
         localNodeSize[i] += cnt[i];
-        I_RR();
-        I_WR();
       }
     }
 
@@ -812,15 +745,9 @@ private:
     globalNodeOffset[0] = 0;
     for (size_t h = 1; h < numHosts; h++) {
       globalNodeOffset[h] = localNodeSize[h - 1] + globalNodeOffset[h - 1];
-      for (int k = 0; k < 2; k++)
-        I_RR();
-      I_WR();
     }
     srcGraph.setSize(globalNodeOffset[numHosts - 1] +
                      localNodeSize[numHosts - 1]);
-    for (int k = 0; k < 2; k++)
-      I_RR();
-    I_WR();
 
     increment_evilPhase();
   }
@@ -955,7 +882,6 @@ private:
       galois::gInfo("[", hostID, "] ", "send to ", h,
                     " edgesToSend size: ", edgesToSend[h].size());
       net.sendTagged(h, galois::runtime::evilPhase, std::move(sendBuffer));
-      I_WM(edgesToSend[h].size());
     }
 
     // Appending edges in each host that belong to self
@@ -972,10 +898,6 @@ private:
       std::vector<std::vector<EdgeDataType>> edgeList;
 
       galois::runtime::gDeserialize(p->second, edgeList);
-#ifdef GALOIS_INSTRUMENT
-      for (auto l : edgeList)
-        I_LC(sendingHost, l.size() * sizeof(EdgeDataType));
-#endif
 
       galois::gInfo("[", hostID, "] recv from ", sendingHost,
                     " edgeList size: ", edgeList.size());
@@ -990,9 +912,6 @@ private:
           localEdges[lid].insert(std::end(localEdges[lid]),
                                  std::begin(edgeList[j]),
                                  std::end(edgeList[j]));
-          for (int i = 0; i < 3; i++)
-            I_RR();
-          I_WR();
         }
       });
       edgeList.clear();
@@ -1007,9 +926,6 @@ private:
         localEdges[lid].insert(std::end(localEdges[lid]),
                                std::begin(edgesToSend[hostID][j]),
                                std::end(edgesToSend[hostID][j]));
-        for (int i = 0; i < 4; i++)
-          I_RR();
-        I_WR();
       }
     });
     edgesToSend.clear();
@@ -1030,8 +946,6 @@ private:
       else
         cnt = localEdges[i].size();
       offsets[i + 1] += cnt + offsets[i];
-      I_RR();
-      I_WR();
     }
     numLocalEdges = offsets[numLocalNodes];
 
@@ -1040,7 +954,6 @@ private:
     galois::do_all(
         galois::iterate((size_t)0, localEdges.size()),
         [this, &localEdges](size_t i) {
-          I_WM(localEdges[i].size());
           std::move(localEdges[i].begin(), localEdges[i].end(),
                     edges.begin() + offsets[i]);
         },
@@ -1121,8 +1034,6 @@ public:
     virtualToPhyMapping.resize(numVirtualHosts);
     for (uint32_t i = 0; i < numVirtualHosts; i++) {
       virtualToPhyMapping[i] = srcGraph.virtualToPhyMapping[i];
-      I_RS();
-      I_WR();
     }
 
     // build local buffered graph
@@ -1182,7 +1093,6 @@ public:
 
     for (uint32_t i = 0; i < galois::runtime::activeThreads; i++) {
       threadNodesToSend[i].resize(numHosts);
-      I_WR();
     }
     // Phase 1
     galois::on_each([&](unsigned tid, unsigned nthreads) {
@@ -1214,7 +1124,6 @@ public:
       galois::runtime::SendBuffer sendBuffer;
       galois::runtime::gSerialize(sendBuffer, nodesToSend[h]);
       net.sendTagged(h, galois::runtime::evilPhase, std::move(sendBuffer));
-      I_WM(nodesToSend[h].size());
     }
 #ifndef NDEBUG
     std::atomic<uint64_t> addedData{0};
@@ -1225,7 +1134,6 @@ public:
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
       std::vector<NodeDataType> NodeData;
-      I_LC(p->first, p->second.size());
       galois::runtime::gDeserialize(p->second, NodeData);
       galois::do_all(galois::iterate((size_t)0, NodeData.size()),
                      [this, NodeData, &dstGraph, &globalToLocalMap
@@ -1262,7 +1170,6 @@ public:
         [this, &nodesToSend, &localNodes, &proxiesOnHosts, globalIDOffset,
          &dstGraph, &globalToLocalMap](uint64_t i) {
           if (i != hostID) {
-            I_RR();
             for (uint64_t j = 0; j < proxiesOnHosts[i].size(); j++) {
               auto& r =
                   dstGraph.getData(globalToLocalMap[proxiesOnHosts[i][j]]);
@@ -1284,7 +1191,6 @@ public:
       galois::runtime::gSerialize(sendBuffer, proxiesOnHosts[h]);
       galois::gDebug("[", hostID, "] ", "send to ", h,
                      " nodesToSend size: ", nodesToSend[h].size());
-      I_WM(nodesToSend[h].size() + proxiesOnHosts[h].size());
       net.sendTagged(h, galois::runtime::evilPhase, std::move(sendBuffer));
     }
 
@@ -1299,7 +1205,6 @@ public:
 
       std::vector<NodeDataType> nodeRecv;
       std::vector<uint64_t> IDofNodeRecv;
-      I_LC(sendingHost, p->second.size());
       galois::runtime::gDeserialize(p->second, nodeRecv);
       galois::runtime::gDeserialize(p->second, IDofNodeRecv);
 
@@ -1312,9 +1217,6 @@ public:
           [this, &nodeRecv, &IDofNodeRecv, &dstGraph,
            &globalToLocalMap](size_t j) {
             dstGraph.getData(globalToLocalMap[IDofNodeRecv[j]]) = nodeRecv[j];
-            for (int k = 0; k < 2; k++)
-              I_RR();
-            I_WR();
           },
           galois::steal());
       nodeRecv.clear();
