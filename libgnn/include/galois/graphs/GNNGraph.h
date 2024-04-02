@@ -1662,11 +1662,13 @@ private:
     GALOIS_LOG_VERBOSE("Partition loading: File to read is {}", input_file);
 
     std::cout << "input file:" << input_file << "\n";
-    if (FILE *fp = fopen(input_file.c_str(), "r")) {
-      std::cout << "succeeded to read the input file:" << input_file << "\n" << std::flush;
+    if (FILE* fp = fopen(input_file.c_str(), "r")) {
+      std::cout << "succeeded to read the input file:" << input_file << "\n"
+                << std::flush;
       fclose(fp);
     } else {
-      std::cout << "failed to read the input file:" << input_file << "\n" << std::flush;
+      std::cout << "failed to read the input file:" << input_file << "\n"
+                << std::flush;
     }
     // load partition
     switch (partition_scheme) {
