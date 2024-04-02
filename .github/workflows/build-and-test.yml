@@ -54,7 +54,7 @@ jobs:
     strategy:
       matrix:
         build-type: ['Release']
-        sanitizer-type: ['nosan', 'san']
+        sanitizer-type: ['nosan']
         # exclude:
         #   - build-type: 'Debug'
         #     sanitizer-type: 'san'

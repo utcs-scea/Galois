@@ -4,13 +4,13 @@ UNAME ?= $(shell whoami)
 UID ?= $(shell id -u)
 GID ?= $(shell id -g)
 
-BASE_IMAGE_NAME ?= pando-galois
+BASE_IMAGE_NAME ?= galois
 IMAGE_NAME ?= ${UNAME}-${BASE_IMAGE_NAME}
 SRC_DIR ?= $(shell pwd)
 VERSION ?= $(shell git log --pretty="%h" -1 Dockerfile)
 
-CONTAINER_SRC_DIR ?= /pando-galois
-CONTAINER_BUILD_DIR ?= /pando-galois/build
+CONTAINER_SRC_DIR ?= /galois
+CONTAINER_BUILD_DIR ?= /galois/build
 CONTAINER_WORKDIR ?= ${CONTAINER_SRC_DIR}
 CONTAINER_CONTEXT ?= default
 CONTAINER_OPTS ?=
@@ -125,4 +125,4 @@ docker-pre-commit:
 	@docker --context ${CONTAINER_CONTEXT} run --rm \
 	-v ${SRC_DIR}/:${CONTAINER_SRC_DIR} --privileged \
 	--workdir=${CONTAINER_WORKDIR} -t \
-	${IMAGE_NAME}:${VERSION} bash -lc "git config --global --add safe.directory /pando-galois && make hooks && make pre-commit"
+	${IMAGE_NAME}:${VERSION} bash -lc "git config --global --add safe.directory /galois && make hooks && make pre-commit"
