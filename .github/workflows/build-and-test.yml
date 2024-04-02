@@ -41,12 +41,12 @@ jobs:
       contents: read
       packages: write
     env:
-      IMAGE_NAME: pando-galois
-      CONTAINER_SRC_DIR: "/pando-galois"
-      CONTAINER_BUILD_DIR: "/pando-galois/build"
-      CONTAINER_WORK_DIR: "/pando-galois"
-      pando-galois_CONTAINER_ENV: "-e=pando-galois_BUILD_TOOL=Ninja"
-      pando-galois_CONTAINER_FLAGS: "--cpus=8"
+      IMAGE_NAME: galois
+      CONTAINER_SRC_DIR: "/galois"
+      CONTAINER_BUILD_DIR: "/galois/build"
+      CONTAINER_WORK_DIR: "/galois"
+      GALOIS_CONTAINER_ENV: "-e=GALOIS_BUILD_TOOL=Ninja"
+      GALOIS_CONTAINER_FLAGS: "--cpus=8"
       INTERACTIVE: ""
     defaults:
       run:
@@ -55,9 +55,9 @@ jobs:
       matrix:
         build-type: ['Release', 'Debug']
         sanitizer-type: ['nosan', 'san']
-        exclude:
-          - build-type: 'Debug'
-            sanitizer-type: 'san'
+        # exclude:
+        #   - build-type: 'Debug'
+        #     sanitizer-type: 'san'
     needs: docker-create-ubuntu-2204
 
     steps:
@@ -75,20 +75,20 @@ jobs:
         echo "UID=$(id -u)" >> $GITHUB_ENV
         echo "GID=$(id -g)" >> $GITHUB_ENV
         echo "SRC_DIR=$(pwd)" >> $GITHUB_ENV
-        echo "pando-galois_CCACHE_DIR=/var/local/$(whoami)/.ccache" >> $GITHUB_ENV
+        echo "GALOIS_CCACHE_DIR=/var/local/$(whoami)/.ccache" >> $GITHUB_ENV
         echo "IMAGE_VERSION=$(git log --pretty="%h" -1 Dockerfile)" >> $GITHUB_ENV
         if [ ${{ matrix.sanitizer-type }} == 'san' ]; then
-          echo "pando-galois_CONTAINER_ENV=$pando-galois_CONTAINER_ENV -e=pando-galois_EXTRA_CXX_FLAGS='\"-fsanitize=address -fsanitize=undefined\"'" >> $GITHUB_ENV
+          echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV -e=GALOIS_EXTRA_CXX_FLAGS='\"-fsanitize=address -fsanitize=undefined\"'" >> $GITHUB_ENV
         fi
         if [ ${{ matrix.build-type }} == 'Debug' ]; then
-          echo "pando-galois_CONTAINER_ENV=$pando-galois_CONTAINER_ENV -e=pando-galois_EXTRA_CXX_FLAGS='-O3'" >> $GITHUB_ENV
+          echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV -e=GALOIS_EXTRA_CXX_FLAGS='-O3'" >> $GITHUB_ENV
         fi
         cat $GITHUB_ENV
 
     - name: Configure
       timeout-minutes: 10
       run: |
-        mkdir -p ${{ env.pando-galois_CCACHE_DIR }} -m=777
+        mkdir -p ${{ env.GALOIS_CCACHE_DIR }} -m=777
         CONTAINER_CMD="bash -lc 'source /opt/intel/oneapi/setvars.sh && make setup-ci'" \
           CONTAINER_OPTS="-e=BUILD_TYPE=${{ matrix.build-type }}" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
@@ -119,10 +119,10 @@ jobs:
       contents: read
       packages: write
     env:
-      IMAGE_NAME: pando-galois
-      CONTAINER_SRC_DIR: "/pando-galois"
-      CONTAINER_BUILD_DIR: "/pando-galois/build"
-      CONTAINER_WORK_DIR: "/pando-galois"
+      IMAGE_NAME: galois
+      CONTAINER_SRC_DIR: "/galois"
+      CONTAINER_BUILD_DIR: "/galois/build"
+      CONTAINER_WORK_DIR: "/galois"
       INTERACTIVE: ""
     defaults:
       run:
