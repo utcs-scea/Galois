@@ -1,6 +1,6 @@
 find_package(OpenMP)
 
-set(TESTINPUT "${CMAKE_SOURCE_DIR}/inputs")
+set(TESTINPUT "${Galois_SOURCE_DIR}/inputs")
 add_definitions("-DTESTER_DIR=\"${TESTINPUT}/tester/\"")
 add_definitions("-DCORA_DIR=\"${TESTINPUT}/cora/\"")
 
