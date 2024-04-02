@@ -56,22 +56,7 @@ public:
   using VertexRange =
       boost::iterator_range<boost::counting_iterator<VertexTopologyID>>;
 
-  struct EdgeHandle {
-  private:
-    uint8_t buffer : 1;
-    uint64_t index : 48;
-    VertexTopologyID src : 48;
-
-    EdgeHandle(uint8_t buffer, uint64_t index, uint64_t src)
-        : buffer(buffer), index(index), src(src) {}
-
-    friend class LS_LC_CSR_Graph;
-
-  public:
-    EdgeHandle(EdgeHandle const&) = default;
-    EdgeHandle(EdgeHandle&&)      = default;
-
-  } __attribute__((packed));
+  using EdgeHandle = std::pair<VertexTopologyID, VertexTopologyID>;
 
 private:
   using SpinLock = galois::substrate::PaddedLock<concurrent>;
@@ -115,10 +100,6 @@ private:
     return m_edges[buffer][index];
   }
 
-  inline EdgeMetadata& getEdgeMetadata(EdgeHandle handle) const {
-    return getEdgeMetadata(handle.buffer, handle.index);
-  }
-
 public:
   LS_LC_CSR_Graph(uint64_t num_vertices)
       : m_vertices(num_vertices, VertexMetadata()) {
@@ -144,8 +125,7 @@ public:
 
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
   void setEdgeData(EdgeHandle handle, E data) {
-    VertexTopologyID const src                                    = handle.src;
-    m_edge_data[std::make_pair(src, getEdgeMetadata(handle).dst)] = data;
+    m_edge_data[handle] = data;
   }
 
   inline VertexTopologyID begin() const noexcept {
@@ -182,21 +162,24 @@ public:
 
   size_t getDegree(VertexTopologyID id) { return m_vertices[id].degree; }
 
-  VertexTopologyID getEdgeDst(EdgeHandle eh) { return getEdgeMetadata(eh).dst; }
+  VertexTopologyID getEdgeDst(EdgeHandle eh) { return eh.second; }
 
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
   inline E& getEdgeData(EdgeHandle handle) {
-    VertexTopologyID const src = handle.src;
-    return m_edge_data[std::make_pair(src, getEdgeDst(handle))];
+    return m_edge_data[handle];
   }
 
   EdgeRange edges(VertexTopologyID node) {
     auto& vertex_meta = m_vertices[node];
 
-    return EdgeRange(EdgeIterator(this, vertex_meta.buffer, vertex_meta.begin,
-                                  vertex_meta.end, node),
-                     EdgeIterator(this, vertex_meta.buffer, vertex_meta.end,
-                                  vertex_meta.end, node));
+    EdgeMetadata const* const start =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+
+    EdgeMetadata const* const end =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+
+    return EdgeRange(EdgeIterator(node, start, end),
+                     EdgeIterator(node, end, end));
   }
 
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
@@ -262,7 +245,7 @@ public:
       EdgeMetadata& edge_meta = getEdgeMetadata(vertex_meta.buffer, i);
       if (!edge_meta.is_tomb() &&
           edges_set.find(edge_meta.dst) != edges_set.end()) {
-        edge_meta.tomb();
+        edge_meta.set_tomb();
         --vertex_meta.degree;
         ++holes_added;
         // remove tombstoned edges from the start of the edge list
@@ -372,37 +355,33 @@ private:
     VertexTopologyID dst : 48;
 
     bool is_tomb() const noexcept { return (flags & TOMB) > 0; }
-    void tomb() { flags |= TOMB; }
+    void set_tomb() { flags |= TOMB; }
   } __attribute__((packed));
 
   static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
 
   class EdgeIterator
-      : public boost::iterator_facade<EdgeIterator, EdgeHandle const,
+      : public boost::iterator_facade<EdgeIterator, EdgeHandle,
                                       boost::forward_traversal_tag,
                                       EdgeHandle const> {
   private:
-    LS_LC_CSR_Graph* graph;
-    uint8_t buffer;
-    uint64_t index;
-    uint64_t end;
-    VertexTopologyID src;
+    VertexTopologyID const src;
+    EdgeMetadata const* curr;
+    EdgeMetadata const* const end;
 
-    explicit EdgeIterator(LS_LC_CSR_Graph* graph, uint8_t buffer,
-                          uint64_t index, uint64_t end, VertexTopologyID src)
-        : graph(graph), buffer(buffer), index(index), end(end), src(src) {}
+    EdgeIterator(VertexTopologyID src, EdgeMetadata const* start,
+                 EdgeMetadata const* end)
+        : src(src), curr(start), end(end) {}
 
     void increment() {
-      while (++index < end && graph->getEdgeMetadata(buffer, index).is_tomb())
+      while (++curr < end && curr->is_tomb())
         ;
     }
 
     // updates to the graph will invalidate iterators
-    bool equal(EdgeIterator const& other) const {
-      return graph == other.graph && index == other.index;
-    }
+    bool equal(EdgeIterator const& other) const { return curr == other.curr; }
 
-    EdgeHandle dereference() const { return EdgeHandle(buffer, index, src); }
+    EdgeHandle dereference() const { return EdgeHandle(src, curr->dst); }
 
     friend class LS_LC_CSR_Graph;
     friend class boost::iterator_core_access;
