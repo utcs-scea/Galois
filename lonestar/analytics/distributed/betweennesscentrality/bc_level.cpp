@@ -22,7 +22,7 @@
  * avoid the overheads of having 2 extra accumulator variables.
  */
 
-// #define BCDEBUG
+//#define BCDEBUG
 
 #include "DistBench/Output.h"
 #include "DistBench/Start.h"
@@ -91,12 +91,12 @@ struct NodeData {
   float dependency;
   float betweeness_centrality;
 
-  // #ifdef BCDEBUG
+  //#ifdef BCDEBUG
   void dump() {
     galois::gPrint("DUMP: ", current_length.load(), " ",
                    num_shortest_paths.load(), " ", dependency, "\n");
   }
-  // #endif
+  //#endif
 };
 
 // reading in list of sources to operate on if provided

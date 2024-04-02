@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
-// #include "flute_mst.h"
+//#include "flute_mst.h"
 
 /*****************************/
 /*  User-Defined Parameters  */
@@ -72,10 +72,10 @@ typedef struct {
 #define flutes_LMD(d, xs, ys, s, acc)                                          \
   (d <= D ? flutes_LD(d, xs, ys, s) : flutes_MD(d, xs, ys, s, acc))
 
-// #define max(x,y) ((x)>(y)?(x):(y))
-// #define min(x,y) ((x)<(y)?(x):(y))
-//  to work around max conflict with bitmap
-// #define abs(x) ((x)<0?(-x):(x))
+//#define max(x,y) ((x)>(y)?(x):(y))
+//#define min(x,y) ((x)<(y)?(x):(y))
+// to work around max conflict with bitmap
+//#define abs(x) ((x)<0?(-x):(x))
 using namespace std;
 #define ADIFF(x, y) ((x) > (y) ? (x - y) : (y - x)) // Absolute difference
 
@@ -574,9 +574,9 @@ DTYPE flutes_wl_MD(int d, DTYPE xs[], DTYPE ys[], int s[], int acc) {
     penalty[r] = pnlty, penalty[d - 1 - r] = pnlty;
   for (r = d / 2 - 1, pnlty = dy; r >= 0; r--, pnlty += dy)
     penalty[s[r]] += pnlty, penalty[s[d - 1 - r]] += pnlty;
-  // #define CCWL 0.16
-  //     for (r=0; r<d; r++)
-  //         penalty[r] = abs(d-1-r-r)*dx + abs(d-1-si[r]-si[r])*dy;
+  //#define CCWL 0.16
+  //    for (r=0; r<d; r++)
+  //        penalty[r] = abs(d-1-r-r)*dx + abs(d-1-si[r]-si[r])*dy;
 
   // Compute distx[], disty[]
   xydiff = (xs[d - 1] - xs[0]) - (ys[d - 1] - ys[0]);
@@ -1135,10 +1135,10 @@ Tree flutes_MD(int d, DTYPE xs[], DTYPE ys[], int s[], int acc) {
     penalty[s[r]] += pnlty, penalty[s[d - 1 - r]] += pnlty;
   penalty[s[1]] += pnlty, penalty[s[d - 2]] += pnlty;
   penalty[s[0]] += pnlty, penalty[s[d - 1]] += pnlty;
-  // #define CC 0.16
-  // #define v(r) ((r==0||r==1||r==d-2||r==d-1) ? d-3 : abs(d-1-r-r))
-  //     for (r=0; r<d; r++)
-  //         penalty[r] = v(r)*dx + v(si[r])*dy;
+  //#define CC 0.16
+  //#define v(r) ((r==0||r==1||r==d-2||r==d-1) ? d-3 : abs(d-1-r-r))
+  //    for (r=0; r<d; r++)
+  //        penalty[r] = v(r)*dx + v(si[r])*dy;
 
   // Compute distx[], disty[]
   xydiff = (xs[d - 1] - xs[0]) - (ys[d - 1] - ys[0]);

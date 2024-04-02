@@ -14,8 +14,7 @@ int main() {
 
   // load test graph
   auto test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
-      false);
+      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   std::vector<galois::GNNLayerType> layer_types = {
       galois::GNNLayerType::kGraphConvolutional};
@@ -35,22 +34,23 @@ int main() {
   //////////////////////////////////////////////////////////////////////////////
 
   galois::PointerWithSize<galois::GNNFloat> distributions = gnn->DoInference();
-
+  // accuracy will be 0.2: everything chooses the first 1 as the entire row
+  // is the same
   float pred_accuracy = gnn->GetGlobalAccuracy(distributions);
   GALOIS_LOG_VERBOSE("{}", pred_accuracy);
-  GALOIS_LOG_ASSERT(static_cast<int>(pred_accuracy * 1000) == 333);
+  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0.2));
 
   // validation mode
   gnn->SetLayerPhases(galois::GNNPhase::kValidate);
   galois::PointerWithSize<galois::GNNFloat> dist2 = gnn->DoInference();
   pred_accuracy = gnn->GetGlobalAccuracy(dist2);
-  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0));
+  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0.0));
 
   // test mode
   gnn->SetLayerPhases(galois::GNNPhase::kTest);
   galois::PointerWithSize<galois::GNNFloat> dist3 = gnn->DoInference();
   pred_accuracy = gnn->GetGlobalAccuracy(dist3);
-  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0));
+  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0.0));
 
   // manufactured predictions to make sure it predicts things correctly based
   // on mode
@@ -62,11 +62,11 @@ int main() {
   gnn->SetLayerPhases(galois::GNNPhase::kTrain);
   pred_accuracy = gnn->GetGlobalAccuracy(mpred);
   GALOIS_LOG_VERBOSE("{}", pred_accuracy);
-  GALOIS_LOG_ASSERT(static_cast<int>(pred_accuracy * 1000) == 666);
+  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0.8));
 
   gnn->SetLayerPhases(galois::GNNPhase::kValidate);
   pred_accuracy = gnn->GetGlobalAccuracy(mpred);
-  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0.5));
+  GALOIS_LOG_ASSERT(pred_accuracy == static_cast<float>(0.0));
 
   gnn->SetLayerPhases(galois::GNNPhase::kTest);
   pred_accuracy = gnn->GetGlobalAccuracy(mpred);

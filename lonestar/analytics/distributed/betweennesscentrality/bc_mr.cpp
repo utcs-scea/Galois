@@ -541,7 +541,7 @@ std::vector<float> makeResults(std::unique_ptr<Graph>& hg) {
 constexpr static const char* const name = "Min-Rounds Betweeness Centrality";
 constexpr static const char* const desc = "Min-Rounds Betweeness "
                                           "Centrality on Distributed Galois.";
-constexpr static const char* const url  = nullptr;
+constexpr static const char* const url = nullptr;
 
 uint64_t macroRound = 0; // macro round, i.e. number of batches done so far
 

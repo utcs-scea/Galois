@@ -116,9 +116,9 @@ struct SGD_LC_LinearArray_Undirected_Graph {
     size_t masterLength = buf.st_size;
 
     int _MAP_BASE = MAP_PRIVATE;
-    // #ifdef MAP_POPULATE
-    //   _MAP_BASE  |= MAP_POPULATE;
-    // #endif
+    //#ifdef MAP_POPULATE
+    //  _MAP_BASE  |= MAP_POPULATE;
+    //#endif
 
     void* m = mmap(0, masterLength, PROT_READ, _MAP_BASE, masterFD, 0);
     if (m == MAP_FAILED) {

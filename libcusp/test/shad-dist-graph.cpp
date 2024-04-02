@@ -53,10 +53,13 @@ int main() {
   sumGlobalNodes += graph->numMasters();
   sumGlobalEdges += graph->sizeEdges();
 
-  assert(sumGlobalNodes.reduce() == numNodes);
-  assert(sumGlobalNodes.reduce() == graph->globalSize());
-  assert(sumGlobalEdges.reduce() == numEdges);
-  assert(sumGlobalEdges.reduce() == graph->globalSizeEdges());
+  uint64_t reducedSumGlobalNodes = sumGlobalNodes.reduce();
+  uint64_t reducedSumGlobalEdges = sumGlobalEdges.reduce();
+
+  assert(reducedSumGlobalNodes == numNodes);
+  assert(reducedSumGlobalNodes == graph->globalSize());
+  assert(reducedSumGlobalEdges == numEdges);
+  assert(reducedSumGlobalEdges == graph->globalSizeEdges());
 
   std::cout << "Num. nodes/edges tests has been passed\n";
 

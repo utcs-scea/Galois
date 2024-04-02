@@ -34,8 +34,7 @@ int main() {
                      num_threads);
   // load test graph
   galois::graphs::GNNGraph<char, void> test_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
-      false);
+      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   galois::GNNLayerDimensions dimension_0;
   dimension_0.input_rows     = 7;
@@ -204,8 +203,7 @@ int main() {
   // sigmoid
   //////////////////////////////////////////////////////////////////////////////
   galois::graphs::GNNGraph<char, void> multi_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false,
-      false);
+      "tester", galois::graphs::GNNPartitionScheme::kOEC, false, false);
 
   auto sigmoid_layer = std::make_unique<galois::SigmoidLayer<char, void>>(
       3, multi_graph, &p_back_2, dimension_out);

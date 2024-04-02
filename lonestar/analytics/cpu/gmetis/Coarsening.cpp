@@ -387,7 +387,7 @@ MetisGraph* coarsen(MetisGraph* fineMetisGraph, unsigned coarsenTo,
                     bool verbose) {
   MetisGraph* coarseGraph = fineMetisGraph;
   unsigned size           = std::distance(fineMetisGraph->getGraph()->begin(),
-                                          fineMetisGraph->getGraph()->end());
+                                fineMetisGraph->getGraph()->end());
   unsigned iterNum        = 0;
   bool with2Hop           = false;
   unsigned stat           = 0;

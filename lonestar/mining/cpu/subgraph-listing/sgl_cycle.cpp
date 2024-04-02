@@ -4,7 +4,7 @@
 const char* name = "sgl";
 const char* desc = "listing edge-induced subgraphs of a given pattern in a "
                    "graph using bfs extension";
-const char* url  = nullptr;
+const char* url = nullptr;
 
 #include "pangolin/BfsMining/vertex_miner_api.h"
 class MyAPI : public VertexMinerAPI<BaseEmbedding> {

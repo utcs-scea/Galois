@@ -33,7 +33,7 @@ namespace cll = llvm::cl;
 static const char* name = "Longest edge mesh generator";
 static const char* desc = "Implementation of Rivara's Longest Edge algorithm "
                           "based on hyper-graph grammars.";
-static const char* url  = "longest_edge";
+static const char* url = "longest_edge";
 
 // Command line arguments
 static cll::opt<std::string> dataDir("data", cll::Positional,

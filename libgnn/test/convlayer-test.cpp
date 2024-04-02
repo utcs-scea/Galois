@@ -15,8 +15,7 @@ int main() {
                      num_threads);
   // load test graph
   galois::graphs::GNNGraph<char, void> test_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
-      false);
+      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
 
   galois::PointerWithSize<galois::GNNFloat> feats =
       test_graph.GetLocalFeatures();

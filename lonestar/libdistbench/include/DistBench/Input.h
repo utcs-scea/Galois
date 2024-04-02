@@ -166,7 +166,7 @@ constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   case GINGER_O:
   case GINGER_I:
     return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, useWMD, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, useWMD ,true,
         inputFileTranspose);
 
   case FENNEL_O:
@@ -371,7 +371,8 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
       return galois::cuspPartitionGraph<GenericCVCColumnFlip, NodeData,
                                         EdgeData>(inputFile, galois::CUSP_CSC,
                                                   galois::CUSP_CSC, useWMD,
-                                                  false, inputFileTranspose);
+                                                  false,
+                                                  inputFileTranspose);
     } else {
       GALOIS_DIE("cvc requires transpose graph");
       break;

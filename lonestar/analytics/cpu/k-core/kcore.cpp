@@ -29,9 +29,9 @@
 constexpr static const char* const REGION_NAME = "k-core";
 constexpr static const char* const name        = "k-core";
 constexpr static const char* const desc        = "Finds the k-core of a graph, "
-                                                 "defined as the subgraph where"
-                                                 " all vertices have degree at "
-                                                 "least k.";
+                                          "defined as the subgraph where"
+                                          " all vertices have degree at "
+                                          "least k.";
 
 /*******************************************************************************
  * Declaration of command line arguments
