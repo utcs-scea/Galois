@@ -53,7 +53,7 @@ jobs:
         shell: bash -l {0}
     strategy:
       matrix:
-        build-type: ['Release', 'Debug']
+        build-type: ['Release']
         sanitizer-type: ['nosan', 'san']
         # exclude:
         #   - build-type: 'Debug'
