@@ -236,6 +236,8 @@ public:
         "GraphPartitioningTime", GRNAME);
     Tgraph_construct.start();
 
+    std::cout << "CuSP side file path:" << localGraphFileName << "\n" << std::flush;
+
     if (readFromFile) {
       galois::gDebug("[", base_DistGraph::id,
                      "] Reading local graph from file ", localGraphFileName);
@@ -245,6 +247,7 @@ public:
     }
 
     galois::graphs::OfflineGraph* offlineGraph{nullptr};
+    std::cout << "offline graph starts..\n" << std::flush;
 
     std::string host_prefix =
         std::string("[") +
@@ -255,6 +258,7 @@ public:
     galois::graphs::BufferedGraph<EdgeTy> bufGraph;
     bufGraph.resetReadCounters();
 
+    std::cout << "offline graph starts.. 1\n" << std::flush;
     std::vector<unsigned> dummy;
     // not actually getting masters, but getting assigned readers for nodes
     if (masterBlockFile == "") {
@@ -316,14 +320,17 @@ public:
       base_DistGraph::readersFromFile(*offlineGraph, masterBlockFile);
     }
 
+    std::cout << "offline graph starts.. 2\n" << std::flush;
     graphPartitioner = std::make_unique<Partitioner>(
         host, _numHosts, base_DistGraph::numGlobalNodes,
         base_DistGraph::numGlobalEdges);
     // TODO abstract this away somehow
     graphPartitioner->saveGIDToHost(base_DistGraph::gid2host);
 
+    std::cout << "offline graph starts.. 3\n" << std::flush;
     // get training nodes and split evenly among hosts
     std::vector<uint32_t> trainPoints = this->getGNNBreakpoints(filename);
+    std::cout << "offline graph starts.. 4\n" << std::flush;
     // TODO(hc)
     if (!trainPoints.empty()) {
       std::vector<unsigned> testDistribution =
@@ -359,6 +366,7 @@ public:
         galois::gWarn("partitioning policy used doesn't use trainpoints");
       }
     }
+    std::cout << "offline graph starts.. 5\n" << std::flush;
 
     // signifies how many outgoing edges a particular host should expect from
     // this host
@@ -377,6 +385,7 @@ public:
       hasIncomingEdge.resize(base_DistGraph::numHosts);
     }
 
+    std::cout << "offline graph starts.. 6\n" << std::flush;
     // phase 0
 
     galois::gDebug("[", base_DistGraph::id, "] Starting graph reading.");
@@ -401,6 +410,7 @@ public:
                                 host_prefix);
     }
 
+    std::cout << "offline graph starts.. 7\n" << std::flush;
     graphReadTimer.stop();
     galois::gDebug("[", base_DistGraph::id, "] Reading graph complete.");
 
@@ -414,6 +424,7 @@ public:
       galois::gDebug("[", base_DistGraph::id, "] Master assignment complete.");
     }
 
+    std::cout << "offline graph starts.. 8\n" << std::flush;
     galois::StatTimer inspectionTimer("EdgeInspection", GRNAME);
     inspectionTimer.start();
     bufGraph.resetReadCounters();
@@ -439,6 +450,7 @@ public:
       edgeCutInspection(bufGraph, inspectionTimer, edgeOffset,
                         prefixSumOfEdges);
     }
+    std::cout << "offline graph starts.. 9\n" << std::flush;
     // inspection timer is stopped in edgeInspection function
 
     // flip partitioners that have a master assignment phase to stage 2
@@ -448,6 +460,7 @@ public:
       graphPartitioner->enterStage2();
     }
 
+    std::cout << "offline graph starts.. 10\n" << std::flush;
     // get memory back from inspection metadata
     numOutgoingEdges.clear();
     hasIncomingEdge.clear();
@@ -463,6 +476,7 @@ public:
                                        base_DistGraph::numEdges);
     base_DistGraph::graph.constructNodes();
 
+    std::cout << "offline graph starts.. 11\n" << std::flush;
     // edge end fixing
     auto& base_graph = base_DistGraph::graph;
     galois::do_all(
@@ -477,10 +491,12 @@ public:
     freeVector(prefixSumOfEdges); // should no longer use this variable
     galois::CondStatTimer<MORE_DIST_STATS> TfillMirrors("FillMirrors", GRNAME);
 
+    std::cout << "offline graph starts.. 12\n" << std::flush;
     TfillMirrors.start();
     fillMirrors();
     TfillMirrors.stop();
 
+    std::cout << "offline graph starts.. 13\n" << std::flush;
     if (_edgeStateRounds > 1) {
       // reset edge load since we need exact same answers again
       resetEdgeLoad();
@@ -495,6 +511,7 @@ public:
       bufGraph.resetAndFree();
     }
 
+    std::cout << "offline graph starts.. 14\n" << std::flush;
     // Finalization
 
     // TODO this is a hack; fix it somehow
@@ -517,6 +534,7 @@ public:
     galois::CondStatTimer<MORE_DIST_STATS> Tthread_ranges("ThreadRangesTime",
                                                           GRNAME);
 
+    std::cout << "offline graph starts.. 15\n" << std::flush;
     Tthread_ranges.start();
     base_DistGraph::determineThreadRanges();
     Tthread_ranges.stop();
@@ -528,6 +546,7 @@ public:
     Tgraph_construct.stop();
     galois::gDebug("[", base_DistGraph::id, "] Graph construction complete.");
 
+    std::cout << "offline graph starts.. 16\n" << std::flush;
     if (useWMD) {
       // Different from the gr format file that has been used by Galois
       // and does not contain node data in the file,
@@ -537,6 +556,7 @@ public:
       assignNodeDataFromSHADProp(&shadConverter);
     }
 
+    std::cout << "offline graph starts.. 17\n" << std::flush;
     // report state rounds
     if (base_DistGraph::id == 0) {
       galois::runtime::reportStat_Single(GRNAME, "CuSPStateRounds",
