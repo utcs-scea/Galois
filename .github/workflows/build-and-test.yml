@@ -42,9 +42,9 @@ jobs:
       packages: write
     env:
       IMAGE_NAME: galois
-      CONTAINER_SRC_DIR: "/galois"
-      CONTAINER_BUILD_DIR: "/galois/build"
-      CONTAINER_WORK_DIR: "/galois"
+      CONTAINER_SRC_DIR: "/pando-galois"
+      CONTAINER_BUILD_DIR: "/pando-galois/build"
+      CONTAINER_WORK_DIR: "/pando-galois"
       GALOIS_CONTAINER_ENV: "-e=GALOIS_BUILD_TOOL=Ninja"
       GALOIS_CONTAINER_FLAGS: "--cpus=8"
       INTERACTIVE: ""
@@ -120,9 +120,9 @@ jobs:
       packages: write
     env:
       IMAGE_NAME: galois
-      CONTAINER_SRC_DIR: "/galois"
-      CONTAINER_BUILD_DIR: "/galois/build"
-      CONTAINER_WORK_DIR: "/galois"
+      CONTAINER_SRC_DIR: "/pando-galois"
+      CONTAINER_BUILD_DIR: "/pando-galois/build"
+      CONTAINER_WORK_DIR: "/pando-galois"
       INTERACTIVE: ""
     defaults:
       run:

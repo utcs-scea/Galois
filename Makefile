@@ -4,13 +4,13 @@ UNAME ?= $(shell whoami)
 UID ?= $(shell id -u)
 GID ?= $(shell id -g)
 
-BASE_IMAGE_NAME ?= galois
+BASE_IMAGE_NAME ?= pando-galois
 IMAGE_NAME ?= ${UNAME}-${BASE_IMAGE_NAME}
 SRC_DIR ?= $(shell pwd)
 VERSION ?= $(shell git log --pretty="%h" -1 Dockerfile)
 
-CONTAINER_SRC_DIR ?= /galois
-CONTAINER_BUILD_DIR ?= /galois/build
+CONTAINER_SRC_DIR ?= /pando-galois
+CONTAINER_BUILD_DIR ?= /pando-galois/build
 CONTAINER_WORKDIR ?= ${CONTAINER_SRC_DIR}
 CONTAINER_CONTEXT ?= default
 CONTAINER_OPTS ?=
