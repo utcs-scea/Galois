@@ -172,7 +172,7 @@ T doGradientUpdate(T* __restrict__ itemLatent, T* __restrict__ userLatent,
   T step   = stepSize;
   T rating = edgeRating;
   T error  = innerProduct(itemLatent, itemLatent + LATENT_VECTOR_SIZE,
-                          userLatent, -rating);
+                         userLatent, -rating);
 
   // Take gradient step to reduce error
   for (int i = 0; i < LATENT_VECTOR_SIZE; i++) {

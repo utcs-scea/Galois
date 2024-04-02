@@ -1,11 +1,7 @@
 find_package(OpenMP)
 
-set(TESTINPUT "${Galois_SOURCE_DIR}/inputs")
-add_definitions("-DTESTER_DIR=\"${TESTINPUT}/tester/\"")
-add_definitions("-DCORA_DIR=\"${TESTINPUT}/cora/\"")
-
 set(hosts)
-set(host 6)
+set(host 12)
 while (${host} GREATER 1)
   list(APPEND hosts ${host})
   math(EXPR host "${host} - 1")
@@ -21,7 +17,7 @@ if (NOT GALOIS_ENABLE_GPU)
       ${GALOIS_TESTS}
       convlayer-test
       sage-layer-test
-      # l2norm-layer-test TODO(hc): L2Norm is not maintained
+      l2norm-layer-test
       softmaxlayer-test
       sigmoidlayer-test
       gnnconstruct-test
@@ -31,7 +27,7 @@ if (NOT GALOIS_ENABLE_GPU)
       epoch-test
       multilabel-epoch-test
       multilabel-read
-      # f1-test TODO(hc): it is a multilable test and will be fixed later
+      f1-test
       sample-bit-test
       gcn-sample-edge-test
   )

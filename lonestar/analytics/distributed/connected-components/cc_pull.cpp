@@ -288,7 +288,7 @@ constexpr static const char* const name = "ConnectedComp Pull - Distributed "
                                           "Heterogeneous";
 constexpr static const char* const desc = "ConnectedComp pull on Distributed "
                                           "Galois.";
-constexpr static const char* const url  = nullptr;
+constexpr static const char* const url = nullptr;
 
 int main(int argc, char** argv) {
   galois::DistMemSys G;

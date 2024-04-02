@@ -26,11 +26,10 @@ llvm::cl::opt<galois::graphs::GNNPartitionScheme> partition_scheme(
                            "Original Cartesian Vertex-Cut")),
     cll::init(galois::graphs::GNNPartitionScheme::kOEC));
 
-cll::opt<bool> useWMD("useWMD",
-                      cll::desc("true if the input graph is"
-                                " SHAD WMD graph format."
-                                " Otheriwse, set false."),
-                      cll::init(false));
+cll::opt<bool> useWMD("useWMD", cll::desc("true if the input graph is"
+                                          " SHAD WMD graph format."
+                                          " Otheriwse, set false."),
+                       cll::init(false));
 
 llvm::cl::opt<unsigned> num_layers(
     "numLayers",

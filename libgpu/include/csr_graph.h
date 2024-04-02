@@ -15,7 +15,7 @@
 #define LSG_CSR_GRAPH
 
 // TODO: original branch has this include; revert it back eventually
-// #include "graph_gpu.h"
+//#include "graph_gpu.h"
 
 #include <fstream>
 #include "checker.h"

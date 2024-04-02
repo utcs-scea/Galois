@@ -44,7 +44,7 @@ typedef float FeatureType;
 float SGD_STEP_SIZE(int X) {
   return SGD_LEARNING_RATE * 1.5f / (1.0f + SGD_DECAY_RATE * pow(X + 1, 1.5f));
 } // Purdue.
-// #define SGD_STEP_SIZE(X) (0.001f *1.5f/(1.0+0.9* pow(X+1,1.5))) //Intel.
+//#define SGD_STEP_SIZE(X) (0.001f *1.5f/(1.0+0.9* pow(X+1,1.5))) //Intel.
 /************************************************
  *
  *************************************************/

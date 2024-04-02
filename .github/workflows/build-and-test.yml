@@ -53,11 +53,11 @@ jobs:
         shell: bash -l {0}
     strategy:
       matrix:
-        build-type: ['Release']
-        sanitizer-type: ['nosan']
-        # exclude:
-        #   - build-type: 'Debug'
-        #     sanitizer-type: 'san'
+        build-type: ['Release', 'Debug']
+        sanitizer-type: ['nosan', 'san']
+        exclude:
+          - build-type: 'Debug'
+            sanitizer-type: 'san'
     needs: docker-create-ubuntu-2204
 
     steps:
@@ -105,9 +105,9 @@ jobs:
           make docker
 
     - name: Run Tests
-      timeout-minutes: 15
+      timeout-minutes: 5
       run: |
-        CONTAINER_CMD="bash -lc 'source /opt/intel/oneapi/setvars.sh &&  make run-tests'" \
+        CONTAINER_CMD="make run-tests" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
           VERSION="${{ env.IMAGE_VERSION }}" \
           make docker

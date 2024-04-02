@@ -703,7 +703,7 @@ struct SGDAsynEdgeCudaFunctor {
     */
     _P_DATA1      = (int*)malloc(sizeof(int) * (users / C + movies / R));
     _P1           = (struct a_list**)malloc(sizeof(struct a_list*) *
-                                            (users / C + movies / R - 1));
+                                  (users / C + movies / R - 1));
     _P_DATA1[0]   = 0;
     _P_DATA3      = ((
         struct mk*)(malloc(sizeof(struct mk) * (users / C + movies / R - 1))));
@@ -782,6 +782,6 @@ struct SGDAsynEdgeCudaFunctor {
     // fprintf(stderr, "Destroying SGDAsynEdgeCudaFunctor object.\n");
   }
 };
-// ###################################################################//
+//###################################################################//
 
 #endif /* GALOISGPU_APPS_SGD_CUDA_SGDASYNCEDGECU_H_ */

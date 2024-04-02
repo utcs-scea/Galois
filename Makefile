@@ -117,7 +117,6 @@ run-tests:
 	@ctest --test-dir build -R wmd --verbose
 	@ctest --test-dir build -R large-vec --verbose
 	@ctest --test-dir build -R compile-lscsr --verbose
-	@ctest --test-dir build/libgnn/test --verbose
 
 # this command is slow since hooks are not stored in the container image
 # this is mostly for CI use
@@ -125,4 +124,4 @@ docker-pre-commit:
 	@docker --context ${CONTAINER_CONTEXT} run --rm \
 	-v ${SRC_DIR}/:${CONTAINER_SRC_DIR} --privileged \
 	--workdir=${CONTAINER_WORKDIR} -t \
-	${IMAGE_NAME}:${VERSION} bash -lc "git config --global --add safe.directory /galois && make hooks && make pre-commit"
+	${IMAGE_NAME}:${VERSION} bash -lc "git config --global --add safe.directory /pando-galois && make hooks && make pre-commit"

@@ -9,8 +9,7 @@ int main() {
 
   // load test graph; false at end = multilabel
   galois::graphs::GNNGraph<char, void> test_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false,
-      false);
+      "tester", galois::graphs::GNNPartitionScheme::kOEC, false, false);
   const galois::GNNLabel* labels = test_graph.GetMultiClassLabel(0);
 
   unsigned i = 0;
