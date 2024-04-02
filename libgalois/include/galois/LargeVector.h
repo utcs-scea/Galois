@@ -65,9 +65,6 @@ private:
     size_t const mmap_size =
         std::max(m_mappings.front().second * 2, m_capacity * sizeof(T));
 
-    std::cout << "new_cap = " << new_cap << "\tmmap_size = " << mmap_size
-              << std::endl;
-
     m_data = static_cast<T*>(
         mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
              MAP_SHARED | MAP_HUGETLB | MAP_HUGE_2MB | MAP_POPULATE, m_fd, 0));
