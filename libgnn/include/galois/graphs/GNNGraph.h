@@ -24,7 +24,8 @@ namespace galois {
 // TODO remove the need to hardcode this path
 //! Path to location of all gnn files
 static const std::string default_gnn_dataset_path =
-    "/net/ohm/export/iss/inputs/Learning/";
+    //"/net/ohm/export/iss/inputs/Learning/";
+    " nope";
 
 //! Helper struct to maintain start/end/size of any particular range. Mostly
 //! used for mask ranges.
@@ -1661,6 +1662,12 @@ private:
     GALOIS_LOG_VERBOSE("Partition loading: File to read is {}", input_file);
 
     std::cout << "input file:" << input_file << "\n";
+    if (FILE *fp = fopen(input_file.c_str(), "r")) {
+      std::cout << "succeeded to read the input file:" << input_file << "\n" << std::flush;
+      fclose(fp);
+    } else {
+      std::cout << "failed to read the input file:" << input_file << "\n" << std::flush;
+    }
     // load partition
     switch (partition_scheme) {
     case galois::graphs::GNNPartitionScheme::kOEC:
