@@ -1655,12 +1655,12 @@ private:
                 galois::graphs::GNNPartitionScheme partition_scheme) {
     // XXX input path
     std::string input_file = input_directory + dataset_name + ".csgr";
-    std::cout << "input file:" << input_file << "\n";
     if (this->use_wmd_) {
       input_file = dataset_name;
     }
     GALOIS_LOG_VERBOSE("Partition loading: File to read is {}", input_file);
 
+    std::cout << "input file:" << input_file << "\n";
     // load partition
     switch (partition_scheme) {
     case galois::graphs::GNNPartitionScheme::kOEC:
