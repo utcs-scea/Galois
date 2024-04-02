@@ -245,7 +245,7 @@ private:
    */
   template <typename T>
   void deleteArray(T** addr) {
-    delete[] * addr;
+    delete[] *addr;
   }
 
   /**

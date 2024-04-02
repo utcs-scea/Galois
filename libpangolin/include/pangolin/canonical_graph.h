@@ -31,8 +31,8 @@ std::ostream& operator<<(std::ostream& strm,
 template <typename EmbeddingTy, typename ElementTy>
 class CanonicalGraph {
   friend std::ostream&
-  operator<<<>(std::ostream& strm,
-               const CanonicalGraph<EmbeddingTy, ElementTy>& cg);
+  operator<< <>(std::ostream& strm,
+                const CanonicalGraph<EmbeddingTy, ElementTy>& cg);
 
 public:
   CanonicalGraph() : number_of_vertices(0), hash_value(0) {}

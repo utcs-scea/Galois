@@ -135,14 +135,14 @@ void GNNBenchStart(int argc, char** argv, const char* app, const char* desc,
       // partitioning policies. They consider and attempt to balance the
       // number of master "training" nodes for each host.
       // SHAD-GNN on WMD graphs is not necessarily constrained to this design.
-      // SHAD-GNN has the specific number of training vertices, and randomly 
+      // SHAD-GNN has the specific number of training vertices, and randomly
       // selects vertices from a graph as that, which means that Galois-GNN
       // could avoid vertex imbalancing due to the skewness if it chooses
       // vertices in balance manner.
       // To sum up, we do not support the specialized partitioning policies,
       // but choose vertices in balance manner.
       GALOIS_LOG_FATAL("Gnn CVC and OEC are not supported for WMD graphs {}",
-          GNNPartitionToString(partition_scheme));
+                       GNNPartitionToString(partition_scheme));
     }
   }
 

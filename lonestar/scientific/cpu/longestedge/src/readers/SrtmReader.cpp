@@ -32,7 +32,7 @@ Map* SrtmReader::read(
   // from disk
   double** map_data = Map::init_map_data(rows, cols);
   Map* map          = new Map(map_data, cols, rows, 1. / VALUES_IN_DEGREE,
-                     1. / VALUES_IN_DEGREE);
+                              1. / VALUES_IN_DEGREE);
 
   map->setNorthBorder(map_N_border);
   map->setWestBorder(map_W_border);

@@ -480,7 +480,7 @@ constexpr static const char* const name = "PageRank - Compiler Generated "
                                           "Distributed Heterogeneous";
 constexpr static const char* const desc = "Residual PageRank on Distributed "
                                           "Galois.";
-constexpr static const char* const url = 0;
+constexpr static const char* const url  = 0;
 
 int main(int argc, char** argv) {
   galois::DistMemSys G;

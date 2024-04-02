@@ -129,7 +129,8 @@ namespace graphs {
  * loaded based on command line arguments
  */
 template <typename NodeData, typename EdgeData>
-std::unique_ptr<DistGraph<NodeData, EdgeData>> constructSymmetricGraph(std::vector<unsigned>&) {
+std::unique_ptr<DistGraph<NodeData, EdgeData>>
+constructSymmetricGraph(std::vector<unsigned>&) {
   std::string inputFile = deepgalois::path + dataset + ".csgr";
   galois::gInfo("File to read is ", inputFile);
   switch (partitionScheme) {
