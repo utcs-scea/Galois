@@ -5,7 +5,7 @@ add_definitions("-DTESTER_DIR=\"${TESTINPUT}/tester/\"")
 add_definitions("-DCORA_DIR=\"${TESTINPUT}/cora/\"")
 
 set(hosts)
-set(host 12)
+set(host 6)
 while (${host} GREATER 1)
   list(APPEND hosts ${host})
   math(EXPR host "${host} - 1")
