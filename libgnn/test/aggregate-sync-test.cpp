@@ -208,7 +208,7 @@ int main() {
   }
   //////////////////////////////////////////////////////////////////////////////
   auto test_graph_2 = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      "tester", galois::graphs::GNNPartitionScheme::kCVC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kCVC, true, false);
   // print edges for sanity
   for (size_t node = 0; node < test_graph_2->size(); node++) {
     for (auto e = test_graph_2->edge_begin(node);

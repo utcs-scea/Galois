@@ -9,7 +9,7 @@ int main() {
 
   // load test graph; false at end = multilabel
   galois::graphs::GNNGraph<char, void> test_graph(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, false, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false, false);
 
   // perfect precision and recall
   std::vector<galois::GNNFloat> prediction = {
