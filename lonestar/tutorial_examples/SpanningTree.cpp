@@ -70,8 +70,8 @@ struct BlockedWorkItem {
 };
 
 template <bool MakeContinuation, int Limit>
-auto specialized_process(Graph& graph,
-                         galois::InsertBag<Edge>& mst) -> decltype(auto) {
+auto specialized_process(Graph& graph, galois::InsertBag<Edge>& mst)
+    -> decltype(auto) {
   return
       [&](const GNode& src, const Graph::edge_iterator& start, auto& pusher) {
         Node& sdata = graph.getData(src, galois::MethodFlag::UNPROTECTED);
@@ -242,9 +242,9 @@ int main(int argc, char** argv) {
     unsigned numRoots = roots.reduce();
     unsigned numEdges = std::distance(mst.begin(), mst.end());
     if (graph.size() - numRoots != numEdges) {
-      std::cerr << "Generated graph is not a forest. " << "Expected "
-                << graph.size() - numRoots << " edges but " << "found "
-                << numEdges << "\n";
+      std::cerr << "Generated graph is not a forest. "
+                << "Expected " << graph.size() - numRoots << " edges but "
+                << "found " << numEdges << "\n";
       return false;
     }
     std::cout << "Num trees: " << numRoots << "\n";

@@ -314,7 +314,7 @@ struct XXH32_state_s {
   unsigned memsize;
   unsigned
       reserved; /* never read nor write, will be removed in a future version */
-}; /* typedef'd to XXH32_state_t */
+};              /* typedef'd to XXH32_state_t */
 
 #ifndef XXH_NO_LONG_LONG /* remove 64-bits support */
 struct XXH64_state_s {
@@ -327,7 +327,7 @@ struct XXH64_state_s {
   unsigned memsize;
   unsigned reserved[2]; /* never read nor write, will be removed in a future
                            version */
-}; /* typedef'd to XXH64_state_t */
+};                      /* typedef'd to XXH64_state_t */
 #endif
 
 #ifdef XXH_PRIVATE_API

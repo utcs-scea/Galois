@@ -95,7 +95,7 @@ typedef unsigned long int ulongint;
 
 #define B2MB(x) ((x) / (1024 * 1024))
 // megabytes to bytes
-#define MB2B(x) ((x) * 1024 * 1024)
+#define MB2B(x) ((x)*1024 * 1024)
 
 #define MAX_NODES (1 << 22)
 #define OFFSET_BITS 10

@@ -125,7 +125,8 @@ void BlifWriter::writeNetlist(aig::Aig& aig, algorithm::PriCutManager& cutMan) {
                      << std::endl;
     } else {
       if (inNodeData.type == aig::NodeType::CONSTZERO) {
-        this->blifFile << ".names " << " po" << std::setfill('0');
+        this->blifFile << ".names "
+                       << " po" << std::setfill('0');
         this->blifFile << std::setw(nDigitsPOs) << i << std::endl;
         this->blifFile << ((outEdgePolarity == true) ? "0" : "1") << std::endl;
       } else {

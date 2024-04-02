@@ -325,7 +325,7 @@ struct SparseBitVector {
     void increment() {
       if (currentHead != nullptr) {
         advanceToNextBit(false); // false = increment currentBit
-      } // do nothing if head is nullptr (i.e. the end)
+      }                          // do nothing if head is nullptr (i.e. the end)
     }
 
     /**

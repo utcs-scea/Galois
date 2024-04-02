@@ -94,8 +94,9 @@ struct Node {
 };
 
 std::ostream& operator<<(std::ostream& os, const Node& n) {
-  os << "(" << "id: " << n.id << ", excess: " << n.excess
-     << ", height: " << n.height << ", current: " << n.current << ")";
+  os << "("
+     << "id: " << n.id << ", excess: " << n.excess << ", height: " << n.height
+     << ", current: " << n.current << ")";
   return os;
 }
 

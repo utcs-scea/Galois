@@ -1057,8 +1057,9 @@ bool verify(Graph& graph,
       auto& data = graph.getData(dst);
       if (data.component() != me.component()) {
         std::cerr << std::dec << "not in same component: " << (unsigned int)n
-                  << " (" << me.component() << ")" << " and "
-                  << (unsigned int)dst << " (" << data.component() << ")"
+                  << " (" << me.component() << ")"
+                  << " and " << (unsigned int)dst << " (" << data.component()
+                  << ")"
                   << "\n";
         return true;
       }

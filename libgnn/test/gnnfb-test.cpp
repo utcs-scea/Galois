@@ -15,7 +15,8 @@ int main() {
                      num_threads);
   // load test graph
   auto test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
 
   // 2 layer test with softmax
   std::vector<galois::GNNLayerType> layer_types = {
@@ -172,7 +173,8 @@ int main() {
   GALOIS_LOG_VERBOSE("Running with different congifuration");
 
   test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
   galois::GraphNeuralNetworkConfig gnn_config2(
       2, layer_types, layer_output_sizes, galois::GNNOutputLayerType::kSoftmax,
       dcon);

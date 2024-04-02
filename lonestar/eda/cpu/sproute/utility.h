@@ -924,7 +924,7 @@ void newLayerAssignmentV4() {
         treenodes[n2a].assigned = TRUE;
 
       } // edge len > 0
-    } // eunmerating edges
+    }   // eunmerating edges
   }
 
   // printf("sum check number 2 %d\n",sumcheck);

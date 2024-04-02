@@ -39,7 +39,8 @@ public:
     printf("writing gbbs file\n");
     std::ofstream outfile;
     outfile.open(filename + ".gbbs");
-    outfile << "AdjacencyGraph" << "\n";
+    outfile << "AdjacencyGraph"
+            << "\n";
     auto m   = graph.size();
     auto nnz = graph.sizeEdges();
     outfile << m << "\n";

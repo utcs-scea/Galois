@@ -309,7 +309,7 @@ void readFile(const char* benchFile) {
         segcount +=
             2 * pinInd -
             3; // at most (2*numPins-2) nodes, (2*numPins-3) nets for a net
-      } // if valid net
+      }        // if valid net
       else {
         strcpy(invalid_nets[invalid_netID]->name, netName);
         invalid_nets[invalid_netID]->netIDorg = netID;

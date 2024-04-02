@@ -68,7 +68,12 @@ int main(int argc, char** argv) {
   gethostname(bname, sizeof(bname));
   using namespace galois;
 
-  std::cout << "Host" << "," << "Lock Name" << "," << "numThreads" << ","
+  std::cout << "Host"
+            << ","
+            << "Lock Name"
+            << ","
+            << "numThreads"
+            << ","
             << "Time (us)" << std::endl;
 
   // using PTS   = PerThreadStorage<unsigned>;

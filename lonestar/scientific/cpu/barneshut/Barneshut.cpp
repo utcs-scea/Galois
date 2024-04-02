@@ -124,8 +124,8 @@ struct Config {
 };
 
 std::ostream& operator<<(std::ostream& os, const Config& c) {
-  os << "Barnes-Hut configuration:" << " dtime: " << c.dtime
-     << " eps: " << c.eps << " tol: " << c.tol;
+  os << "Barnes-Hut configuration:"
+     << " dtime: " << c.dtime << " eps: " << c.eps << " tol: " << c.tol;
   return os;
 }
 

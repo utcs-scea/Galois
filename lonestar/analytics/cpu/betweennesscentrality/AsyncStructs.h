@@ -524,7 +524,8 @@ void doAsyncBC() {
   if (output) {
     std::cerr << "Writting out bc values...\n";
     std::stringstream outfname;
-    outfname << "certificate" << "_" << numThreads << ".txt";
+    outfname << "certificate"
+             << "_" << numThreads << ".txt";
     std::string fname = outfname.str();
     std::ofstream outfile(fname.c_str());
     for (unsigned i = 0; i < nnodes; ++i) {

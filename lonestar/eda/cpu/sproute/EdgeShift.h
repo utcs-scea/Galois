@@ -162,7 +162,7 @@ int edgeShift(Tree* t) {
                 }
                 costH[j] += min(cost1, cost2);
               } // if(n3!=n2)
-            } // loop l
+            }   // loop l
             for (l = 0; l < nbrCnt[n2]; l++) {
               n3 = nbr[n2][l];
               if (n3 != n1) // exclude current edge n1-n2
@@ -196,8 +196,8 @@ int edgeShift(Tree* t) {
                 }
                 costH[j] += min(cost1, cost2);
               } // if(n3!=n1)
-            } // loop l
-          } // loop j
+            }   // loop l
+          }     // loop j
           bestCost = BIG_INT;
           Pos      = t->branch[n1].y;
           for (j = minY; j <= maxY; j++) {
@@ -281,7 +281,7 @@ int edgeShift(Tree* t) {
                 }
                 costV[j] += min(cost1, cost2);
               } // if(n3!=n2)
-            } // loop l
+            }   // loop l
             for (l = 0; l < nbrCnt[n2]; l++) {
               n3 = nbr[n2][l];
               if (n3 != n1) // exclude current edge n1-n2
@@ -315,8 +315,8 @@ int edgeShift(Tree* t) {
                 }
                 costV[j] += min(cost1, cost2);
               } // if(n3!=n1)
-            } // loop l
-          } // loop j
+            }   // loop l
+          }     // loop j
           bestCost = BIG_INT;
           Pos      = t->branch[n1].x;
           for (j = minX; j <= maxX; j++) {

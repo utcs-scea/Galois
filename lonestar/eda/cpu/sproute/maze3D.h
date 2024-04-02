@@ -256,18 +256,18 @@ void setupHeap3D(int netID, int edgeID, int* heapLen1, int* heapLen2,
                     }
 
                   } // if MAZEROUTE
-                } // if not a degraded edge (len>0)
+                }   // if not a degraded edge (len>0)
 
                 // add the neighbor of cur node into heapQueue
                 heapQueue[queuetail] = nbr;
                 queuetail++;
-              } // if the node is not heapVisited
-            } // if nbr!=n2
-          } // loop i (3 neigbors for cur node)
-        } // if cur node is a Steiner nodes
-      } // while heapQueue is not empty
+              }            // if the node is not heapVisited
+            }              // if nbr!=n2
+          }                // loop i (3 neigbors for cur node)
+        }                  // if cur node is a Steiner nodes
+      }                    // while heapQueue is not empty
       *heapLen1 = heapcnt; // record the length of heap13D
-    } // else n1 is not a Pin node
+    }                      // else n1 is not a Pin node
 
     // find all the grids on subtree t2 (connect to n2) and put them into
     // heap23D find all the grids on tree edges in subtree t2 (connecting to n2)
@@ -366,18 +366,18 @@ void setupHeap3D(int netID, int edgeID, int* heapLen1, int* heapLen2,
                     }
 
                   } // if MAZEROUTE
-                } // if the edge is not degraded (len>0)
+                }   // if the edge is not degraded (len>0)
 
                 // add the neighbor of cur node into heapQueue
                 heapQueue[queuetail] = nbr;
                 queuetail++;
-              } // if the node is not heapVisited
-            } // if nbr!=n1
-          } // loop i (3 neigbors for cur node)
-        } // if cur node is a Steiner nodes
-      } // while heapQueue is not empty
+              }            // if the node is not heapVisited
+            }              // if nbr!=n1
+          }                // loop i (3 neigbors for cur node)
+        }                  // if cur node is a Steiner nodes
+      }                    // while heapQueue is not empty
       *heapLen2 = heapcnt; // record the length of heap23D
-    } // else n2 is not a Pin node
+    }                      // else n2 is not a Pin node
 
     //	printf("queuetail %d, numnodes %d\n", queuetail, numNodes);
     //	fflush(stdout);
@@ -438,7 +438,7 @@ int copyGrids3D(TreeNode* treenodes, int n1, TreeEdge* treeedges, int edge_n1n2,
         gridsL_n1n2[cnt] = treeedges[edge_n1n2].route.gridsL[i];
         cnt++;
       }
-    } // MAZEROUTE
+    }    // MAZEROUTE
     else // NOROUTE
     {
       fflush(stdout);
@@ -447,7 +447,7 @@ int copyGrids3D(TreeNode* treenodes, int n1, TreeEdge* treeedges, int edge_n1n2,
       gridsL_n1n2[cnt] = n1l;
       cnt++;
     }
-  } // if n1 is the first node of (n1, n2)
+  }    // if n1 is the first node of (n1, n2)
   else // n2 is the first node of (n1, n2)
   {
     if (treeedges[edge_n1n2].route.routelen > 0) {
@@ -457,7 +457,7 @@ int copyGrids3D(TreeNode* treenodes, int n1, TreeEdge* treeedges, int edge_n1n2,
         gridsL_n1n2[cnt] = treeedges[edge_n1n2].route.gridsL[i];
         cnt++;
       }
-    } // MAZEROUTE
+    }    // MAZEROUTE
     else // NOROUTE
     {
       gridsX_n1n2[cnt] = n1x;
@@ -1362,7 +1362,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
 
               // treenodes[n1].l = E1l;
               treenodes[n1].assigned = TRUE;
-            } // if E1 is on (n1, A1) or (n1, A2)
+            }    // if E1 is on (n1, A1) or (n1, A2)
             else // E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
             {
               C1        = endpt1;
@@ -1428,7 +1428,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
                 }
               }
             } // else E1 is not on (n1, A1) or (n1, A2), but on (C1, C2)
-          } // n1 is not a pin and E1!=n1
+          }   // n1 is not a pin and E1!=n1
           else {
             newUpdateNodeLayers(treenodes, edge_n1n2, n1a, lastL);
           }
@@ -1500,7 +1500,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
 
               // update position for n2
               treenodes[n2].assigned = TRUE;
-            } // if E2 is on (n2, B1) or (n2, B2)
+            }    // if E2 is on (n2, B1) or (n2, B2)
             else // E2 is not on (n2, B1) or (n2, B2), but on (d13D, d23D)
             {
               D1        = endpt1;
@@ -1566,7 +1566,7 @@ void mazeRouteMSMDOrder3D(int expand, int ripupTHlb, int ripupTHub) {
                   break;
                 }
               }
-            } // else E2 is not on (n2, B1) or (n2, B2), but on (d13D, d23D)
+            }    // else E2 is not on (n2, B1) or (n2, B2), but on (d13D, d23D)
           } else // n2 is not a pin and E2!=n2
           {
             newUpdateNodeLayers(treenodes, edge_n1n2, n2a, lastL);

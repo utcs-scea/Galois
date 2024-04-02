@@ -1177,7 +1177,8 @@ void buildNextLevelGraph(GraphTy& graph, GraphTy& graph_next,
   assert(prefix_edges_count[num_unique_clusters - 1] == num_edges_next);
   galois::gPrint("#nodes : ", num_nodes_next, ", #edges : ", num_edges_next,
                  "\n");
-  std::cerr << "Graph construction started" << "\n";
+  std::cerr << "Graph construction started"
+            << "\n";
   galois::StatTimer TimerConstructFrom("Timer_Construct_From");
   TimerConstructFrom.start();
   graph_next.constructFrom(num_nodes_next, num_edges_next, prefix_edges_count,
@@ -1266,7 +1267,8 @@ void buildNextLevelGraphSubComm(GraphTy& graph, GraphTy& graph_next,
   galois::gPrint("#prefix last : ", prefix_edges_count[num_unique_clusters - 1],
                  "\n");
 
-  std::cerr << "Graph construction started" << "\n";
+  std::cerr << "Graph construction started"
+            << "\n";
 
   galois::StatTimer TimerConstructFrom("Timer_Construct_From");
   TimerConstructFrom.start();

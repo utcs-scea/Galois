@@ -204,7 +204,8 @@ int main() {
   // sigmoid
   //////////////////////////////////////////////////////////////////////////////
   galois::graphs::GNNGraph<char, void> multi_graph(
-      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, false,
+      false);
 
   auto sigmoid_layer = std::make_unique<galois::SigmoidLayer<char, void>>(
       3, multi_graph, &p_back_2, dimension_out);

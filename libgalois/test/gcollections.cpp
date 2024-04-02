@@ -35,8 +35,8 @@
 #include <random>
 
 template <typename C>
-auto constexpr needs_heap(int) -> decltype(typename C::promise_to_dealloc(),
-                                           bool()) {
+auto constexpr needs_heap(int)
+    -> decltype(typename C::promise_to_dealloc(), bool()) {
   return true;
 }
 
