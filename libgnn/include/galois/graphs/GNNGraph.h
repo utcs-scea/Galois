@@ -1655,6 +1655,7 @@ private:
                 galois::graphs::GNNPartitionScheme partition_scheme) {
     // XXX input path
     std::string input_file = input_directory + dataset_name + ".csgr";
+    std::cout << "input file:" << input_file << "\n";
     if (this->use_wmd_) {
       input_file = dataset_name;
     }
