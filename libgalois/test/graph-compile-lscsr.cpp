@@ -74,7 +74,7 @@ int main() {
   g.setData(3, 3);
   GALOIS_ASSERT(g.getData(3) == 3);
 
-  size_t four = g.addVertices({4, 5, 6, 7});
+  uint64_t four = g.addVertices({4, 5, 6, 7});
 
   for (size_t ii = 0; ii < 4; ++ii) {
     // make sure previous data survived the resize
@@ -87,6 +87,12 @@ int main() {
   for (auto const& handle : g.edges(0)) {
     GALOIS_ASSERT(g.getEdgeDst(handle) == g.getEdgeData(handle));
   }
+
+  uint64_t eight = g.addVertexTopologyOnly();
+  GALOIS_ASSERT(eight == 8);
+
+  g.addEdgesTopologyOnly(8, {3, 2, 1, 0});
+  GALOIS_ASSERT(g.getEdgeDst(g.edge_begin(8)) == 3);
 
   return 0;
 }
