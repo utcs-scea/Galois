@@ -36,7 +36,7 @@
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
-#include "galois/LargeArray.h"
+#include "galois/PrefixSum.h"
 
 #ifdef __cpp_lib_hardware_interference_size
 using std::hardware_destructive_interference_size;
@@ -87,13 +87,43 @@ private:
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
   EdgeDataStore m_edge_data;
-
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
-
   // m_holes is the number of holes in the log (m_edges[1])
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
       ATOMIC_VAR_INIT(0);
+
+  /*
+   * Prefix Sum utilities
+   */
+  std::vector<uint64_t> m_pfx_sum_cache;
+  static uint64_t transmute(const VertexMetadata& vertex_meta) {
+    return vertex_meta.degree;
+  }
+  static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
+    return p.degree + l;
+  }
+  static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
+    return f + s;
+  }
+  PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
+            CacheLinePaddedArr>
+      m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
+
+  alignas(hardware_destructive_interference_size)
+      std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
+
+  void resetPrefixSum() {
+    m_pfx_sum_cache.resize(m_vertices.size());
+    m_pfx.src = &m_vertices[0];
+    m_pfx.dst = &m_pfx_sum_cache[0];
+  }
+
+  // Compute the prefix sum using the two level method
+  void computePrefixSum() {
+    m_pfx.computePrefixSum(m_vertices.size());
+    m_prefix_valid.store(true, std::memory_order_release);
+  }
 
   // returns a reference to the metadata for the pointed-to edge
   inline EdgeMetadata& getEdgeMetadata(uint8_t buffer, uint64_t index) const {
@@ -106,6 +136,7 @@ public:
     if constexpr (HasVertexData) {
       m_vertex_data.resize(num_vertices);
     }
+    resetPrefixSum();
   }
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
@@ -143,6 +174,7 @@ public:
     if constexpr (HasVertexData) {
       m_vertex_data.resize(m_vertices.size());
     }
+    resetPrefixSum();
     return m_vertices.size() - 1;
   }
 
@@ -153,7 +185,7 @@ public:
     VertexTopologyID const start = m_vertices.size();
     m_vertices.resize(m_vertices.size() + data.size());
     m_vertex_data.resize(m_vertices.size());
-
+    resetPrefixSum();
     galois::do_all(
         galois::iterate(0ul, data.size()),
         [&](VertexTopologyID const& off) { setData(start + off, data[off]); });
@@ -169,8 +201,37 @@ public:
     return m_edge_data[handle];
   }
 
+  /*
+   * Count the total number of edges in parallel.
+   */
+  uint64_t sizeEdges() {
+    galois::GAccumulator<uint64_t> num_edges;
+    num_edges.reset();
+    galois::do_all(galois::iterate(begin(), end()),
+                   [&](VertexTopologyID const& vertex) {
+                     num_edges += getDegree(vertex);
+                   });
+    return num_edges.reduce();
+  }
+
+  EdgeIterator edge_begin(VertexTopologyID vertex) {
+    auto const& vertex_meta = m_vertices[vertex];
+    EdgeMetadata const* const start =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+    EdgeMetadata const* const end =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+    return EdgeIterator(vertex, start, end);
+  }
+
+  EdgeIterator edge_end(VertexTopologyID vertex) {
+    auto const& vertex_meta = m_vertices[vertex];
+    EdgeMetadata const* const end =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+    return EdgeIterator(vertex, end, end);
+  }
+
   EdgeRange edges(VertexTopologyID node) {
-    auto& vertex_meta = m_vertices[node];
+    auto const& vertex_meta = m_vertices[node];
 
     EdgeMetadata const* const start =
         &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
@@ -182,6 +243,25 @@ public:
                      EdgeIterator(node, end, end));
   }
 
+  /*
+   * Sort the outgoing edges for the given vertex, pruning tombstoned edges in
+   * the process.
+   */
+  void sortEdges(VertexTopologyID node) {
+    auto& vertex_meta = m_vertices[node];
+
+    EdgeMetadata* start =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+
+    EdgeMetadata* end = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+
+    std::sort(start, end);
+
+    // Tombstoned edges will be moved to the end, so we can drop them by moving
+    // the end pointer:
+    vertex_meta.end = vertex_meta.begin + vertex_meta.degree;
+  }
+
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
     GALOIS_ASSERT(data.size() == dsts.size());
@@ -189,7 +269,6 @@ public:
     for (size_t i = 0; i < dsts.size(); ++i) {
       m_edge_data[std::make_pair(src, dsts[i])] = data[i];
     }
-    // todo: save edge data
   }
 
   void addEdgesTopologyOnly(VertexTopologyID src,
@@ -233,6 +312,8 @@ public:
 
     m_holes.fetch_add(vertex_meta.degree, std::memory_order_relaxed);
     vertex_meta.degree += dsts.size();
+
+    m_prefix_valid.store(false, std::memory_order_release);
   }
 
   void deleteEdges(VertexTopologyID src,
@@ -265,6 +346,7 @@ public:
     }
 
     m_holes.fetch_add(holes_added, std::memory_order_relaxed);
+    m_prefix_valid.store(false, std::memory_order_release);
   }
 
   // Performs the compaction algorithm by copying any vertices left in buffer 0
@@ -330,6 +412,20 @@ public:
     return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
   }
 
+  /**
+   * DO NOT USE WHILE MODIFYING THE GRAPH!
+   * ONLY USE IF GRAPH HAS BEEN LOADED
+   *
+   * @param n Index into edge prefix sum
+   * @returns The value that would be located at index n in an edge prefix sum
+   * array
+   */
+  uint64_t operator[](uint64_t n) {
+    if (!m_prefix_valid.load(std::memory_order_acquire))
+      computePrefixSum();
+    return m_pfx_sum_cache[n];
+  }
+
 private:
   struct VertexMetadata {
     uint8_t buffer : 1;
@@ -356,13 +452,23 @@ private:
 
     bool is_tomb() const noexcept { return (flags & TOMB) > 0; }
     void set_tomb() { flags |= TOMB; }
+
+    bool operator<(EdgeMetadata const& rhs) {
+      if (is_tomb() != rhs.is_tomb())
+        // tombstoned edges come last
+        return is_tomb() < rhs.is_tomb();
+      else
+        // otherwise, sort by dst
+        return dst < rhs.dst;
+    }
+
   } __attribute__((packed));
 
   static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
 
   class EdgeIterator
       : public boost::iterator_facade<EdgeIterator, EdgeHandle,
-                                      boost::forward_traversal_tag,
+                                      boost::bidirectional_traversal_tag,
                                       EdgeHandle const> {
   private:
     VertexTopologyID const src;
@@ -375,6 +481,11 @@ private:
 
     void increment() {
       while (++curr < end && curr->is_tomb())
+        ;
+    }
+
+    void decrement() {
+      while ((--curr)->is_tomb())
         ;
     }
 

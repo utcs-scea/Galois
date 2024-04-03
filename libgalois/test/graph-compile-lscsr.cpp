@@ -74,7 +74,7 @@ int main() {
   g.setData(3, 3);
   GALOIS_ASSERT(g.getData(3) == 3);
 
-  size_t four = g.addVertices({4, 5, 6, 7});
+  uint64_t four = g.addVertices({4, 5, 6, 7});
 
   for (size_t ii = 0; ii < 4; ++ii) {
     // make sure previous data survived the resize
@@ -87,6 +87,31 @@ int main() {
   for (auto const& handle : g.edges(0)) {
     GALOIS_ASSERT(g.getEdgeDst(handle) == g.getEdgeData(handle));
   }
+
+  uint64_t eight = g.addVertexTopologyOnly();
+  GALOIS_ASSERT(eight == 8);
+
+  g.addEdgesTopologyOnly(eight, {3, 2, 1, 0});
+  GALOIS_ASSERT(g.getEdgeDst(*g.edge_begin(eight)) == 3);
+  GALOIS_ASSERT(g.getEdgeDst(*(++g.edge_begin(eight))) == 2);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 1);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++(++g.edge_begin(eight))))) == 0);
+  GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 0);
+
+  g.deleteEdges(eight, {1});
+  g.sortEdges(eight);
+
+  GALOIS_ASSERT(g.getEdgeDst(*g.edge_begin(eight)) == 0);
+  GALOIS_ASSERT(g.getEdgeDst(*(++g.edge_begin(eight))) == 2);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 3);
+  GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 3);
+
+  // check prefix sum
+  GALOIS_ASSERT(g[0] == 3);
+  GALOIS_ASSERT(g[1] == 3);
+  GALOIS_ASSERT(g[2] == 3);
+  // ...
+  GALOIS_ASSERT(g[8] == 6);
 
   return 0;
 }
