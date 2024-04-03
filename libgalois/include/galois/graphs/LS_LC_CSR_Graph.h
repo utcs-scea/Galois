@@ -36,7 +36,7 @@
 
 #include "galois/config.h"
 #include "galois/LargeVector.h"
-#include "galois/LargeArray.h"
+#include "galois/PrefixSum.h"
 
 #ifdef __cpp_lib_hardware_interference_size
 using std::hardware_destructive_interference_size;
@@ -87,13 +87,43 @@ private:
   LargeVector<EdgeMetadata> m_edges[2];
   SpinLock m_edges_lock; // guards resizing of edges vectors
   EdgeDataStore m_edge_data;
-
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
-
   // m_holes is the number of holes in the log (m_edges[1])
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
       ATOMIC_VAR_INIT(0);
+
+  /*
+   * Prefix Sum utilities
+   */
+  std::vector<uint64_t> m_pfx_sum_cache;
+  static uint64_t transmute(const VertexMetadata& vertex_meta) {
+    return vertex_meta.degree;
+  }
+  static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
+    return p.degree + l;
+  }
+  static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
+    return f + s;
+  }
+  PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
+            CacheLinePaddedArr>
+      m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
+
+  alignas(hardware_destructive_interference_size)
+      std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
+
+  void resetPrefixSum() {
+    m_pfx_sum_cache.resize(m_vertices.size());
+    m_pfx.src = &m_vertices[0];
+    m_pfx.dst = &m_pfx_sum_cache[0];
+  }
+
+  // Compute the prefix sum using the two level method
+  void computePrefixSum() {
+    m_pfx.computePrefixSum(m_vertices.size());
+    m_prefix_valid.store(true, std::memory_order_release);
+  }
 
   // returns a reference to the metadata for the pointed-to edge
   inline EdgeMetadata& getEdgeMetadata(uint8_t buffer, uint64_t index) const {
@@ -183,7 +213,7 @@ public:
   }
 
   EdgeIterator edge_begin(VertexTopologyID vertex) {
-    auto const& vertex_meta = m_vertices[node];
+    auto const& vertex_meta = m_vertices[vertex];
     EdgeMetadata const* const start =
         &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
     EdgeMetadata const* const end =
@@ -192,7 +222,7 @@ public:
   }
 
   EdgeIterator edge_end(VertexTopologyID vertex) {
-    auto const& vertex_meta = m_vertices[node];
+    auto const& vertex_meta = m_vertices[vertex];
     EdgeMetadata const* const end =
         &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
     return EdgeIterator(vertex, end, end);
@@ -375,6 +405,20 @@ public:
   // Returns the number of bytes used for holes in the log.
   inline size_t getLogHolesMemoryUsageBytes() {
     return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
+  }
+
+  /**
+   * DO NOT USE WHILE MODIFYING THE GRAPH!
+   * ONLY USE IF GRAPH HAS BEEN LOADED
+   *
+   * @param n Index into edge prefix sum
+   * @returns The value that would be located at index n in an edge prefix sum
+   * array
+   */
+  uint64_t operator[](uint64_t n) {
+    if (!m_prefix_valid.load(std::memory_order_acquire))
+      computePrefixSum();
+    return m_pfx_sum_cache[n];
   }
 
 private:
