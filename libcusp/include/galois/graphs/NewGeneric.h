@@ -33,6 +33,7 @@
 #include "shad/ShadGraphConverter.h"
 
 #include <optional>
+#include <filesystem>
 #include <sstream>
 
 #define CUSP_PT_TIMER 0
@@ -313,6 +314,9 @@ public:
         } else {
           std::cout << "failed to read the input file at NewGeneric.h\n" << std::flush;
         }
+
+        std::filesystem::path p{filename.c_str()};
+        std::cout << "File size:" << std::filesystem::file_size(p) << "\n" << std::flush;
         offlineGraph = new galois::graphs::OfflineGraph(filename);
         std::cout << "offline graph reading failed\n" << std::flush;
         base_DistGraph::numGlobalNodes = offlineGraph->size();
