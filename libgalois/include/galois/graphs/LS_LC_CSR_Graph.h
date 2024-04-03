@@ -466,6 +466,7 @@ private:
 
   static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
 
+public:
   class EdgeIterator
       : public boost::iterator_facade<EdgeIterator, EdgeHandle,
                                       boost::bidirectional_traversal_tag,
