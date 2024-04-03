@@ -306,7 +306,15 @@ public:
             md, base_DistGraph::numGlobalNodes, base_DistGraph::numGlobalEdges,
             shadConverter.getOutIndexBuffer(), dummy, nodeWeight, edgeWeight);
       } else {
+        std::cout << filename << " is given to offline graph\n";
+        if (FILE* fp = fopen(filename.c_str(), "r")) {
+          std::cout << "succeeded to read the input file at NewGeneric.h\n" << std::flush;
+          fclose(fp);
+        } else {
+          std::cout << "failed to read the input file at NewGeneric.h\n" << std::flush;
+        }
         offlineGraph = new galois::graphs::OfflineGraph(filename);
+        std::cout << "offline graph reading failed\n" << std::flush;
         base_DistGraph::numGlobalNodes = offlineGraph->size();
         base_DistGraph::numGlobalEdges = offlineGraph->sizeEdges();
         base_DistGraph::computeMasters(md, *offlineGraph, dummy, nodeWeight,
