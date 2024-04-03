@@ -169,8 +169,37 @@ public:
     return m_edge_data[handle];
   }
 
+  /*
+   * Count the total number of edges in parallel.
+   */
+  uint64_t sizeEdges() {
+    galois::GAccumulator<uint64_t> num_edges;
+    num_edges.reset();
+    galois::do_all(galois::iterate(begin(), end()),
+                   [&](VertexTopologyID const& vertex) {
+                     num_edges += getDegree(vertex);
+                   });
+    return num_edges.reduce();
+  }
+
+  EdgeIterator edge_begin(VertexTopologyID vertex) {
+    auto const& vertex_meta = m_vertices[node];
+    EdgeMetadata const* const start =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+    EdgeMetadata const* const end =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+    return EdgeIterator(vertex, start, end);
+  }
+
+  EdgeIterator edge_end(VertexTopologyID vertex) {
+    auto const& vertex_meta = m_vertices[node];
+    EdgeMetadata const* const end =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+    return EdgeIterator(vertex, end, end);
+  }
+
   EdgeRange edges(VertexTopologyID node) {
-    auto& vertex_meta = m_vertices[node];
+    auto const& vertex_meta = m_vertices[node];
 
     EdgeMetadata const* const start =
         &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
@@ -182,6 +211,25 @@ public:
                      EdgeIterator(node, end, end));
   }
 
+  /*
+   * Sort the outgoing edges for the given vertex, pruning tombstoned edges in
+   * the process.
+   */
+  void sortEdges(VertexTopologyID node) {
+    auto& vertex_meta = m_vertices[node];
+
+    EdgeMetadata* start =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+
+    EdgeMetadata* end = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+
+    std::sort(start, end);
+
+    // Tombstoned edges will be moved to the end, so we can drop them by moving
+    // the end pointer:
+    vertex_meta.end = vertex_meta.start + vertex_meta.degree;
+  }
+
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
     GALOIS_ASSERT(data.size() == dsts.size());
@@ -189,7 +237,6 @@ public:
     for (size_t i = 0; i < dsts.size(); ++i) {
       m_edge_data[std::make_pair(src, dsts[i])] = data[i];
     }
-    // todo: save edge data
   }
 
   void addEdgesTopologyOnly(VertexTopologyID src,
@@ -356,6 +403,16 @@ private:
 
     bool is_tomb() const noexcept { return (flags & TOMB) > 0; }
     void set_tomb() { flags |= TOMB; }
+
+    bool operator<(EdgeMetadata const& rhs) {
+      if (is_tomb() != rhs.is_tomb())
+        // tombstoned edges come last
+        return is_tomb() < rhs.is_tomb();
+      else
+        // otherwise, sort by dst
+        return dst < rhs.dst;
+    }
+
   } __attribute__((packed));
 
   static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
