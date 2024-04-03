@@ -702,7 +702,7 @@ private: ///////////////////////////////////////////////////////////////////////
   EdgeTy*
   constructOutEdgeValue(FileGraph&, typename FileGraph::edge_iterator,
                         GraphNode src, GraphNode dst,
-                        typename std::enable_if<_A1&& !_A2>::type* = 0) {
+                        typename std::enable_if<_A1 && !_A2>::type* = 0) {
     return createOutEdge(src, dst, galois::MethodFlag::UNPROTECTED);
   }
 
@@ -977,7 +977,7 @@ public
   //! Sorts edge of a node by destination.
   void sortEdgesByDst(GraphNode N,
                       galois::MethodFlag mflag = MethodFlag::WRITE) {
-    // acquire(N, mflag);
+    acquire(N, mflag);
     typedef typename gNode::EdgeInfo EdgeInfo;
     std::sort(N->begin(), N->end(),
               [=](const EdgeInfo& e1, const EdgeInfo& e2) {
