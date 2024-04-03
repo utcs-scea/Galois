@@ -136,6 +136,7 @@ public:
     if constexpr (HasVertexData) {
       m_vertex_data.resize(num_vertices);
     }
+    resetPrefixSum();
   }
 
   inline uint64_t size() const noexcept { return m_vertices.size(); }
@@ -173,6 +174,7 @@ public:
     if constexpr (HasVertexData) {
       m_vertex_data.resize(m_vertices.size());
     }
+    resetPrefixSum();
     return m_vertices.size() - 1;
   }
 
@@ -183,7 +185,7 @@ public:
     VertexTopologyID const start = m_vertices.size();
     m_vertices.resize(m_vertices.size() + data.size());
     m_vertex_data.resize(m_vertices.size());
-
+    resetPrefixSum();
     galois::do_all(
         galois::iterate(0ul, data.size()),
         [&](VertexTopologyID const& off) { setData(start + off, data[off]); });
@@ -257,7 +259,7 @@ public:
 
     // Tombstoned edges will be moved to the end, so we can drop them by moving
     // the end pointer:
-    vertex_meta.end = vertex_meta.start + vertex_meta.degree;
+    vertex_meta.end = vertex_meta.begin + vertex_meta.degree;
   }
 
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
@@ -310,6 +312,8 @@ public:
 
     m_holes.fetch_add(vertex_meta.degree, std::memory_order_relaxed);
     vertex_meta.degree += dsts.size();
+
+    m_prefix_valid.store(false, std::memory_order_release);
   }
 
   void deleteEdges(VertexTopologyID src,
@@ -342,6 +346,7 @@ public:
     }
 
     m_holes.fetch_add(holes_added, std::memory_order_relaxed);
+    m_prefix_valid.store(false, std::memory_order_release);
   }
 
   // Performs the compaction algorithm by copying any vertices left in buffer 0
@@ -463,7 +468,7 @@ private:
 
   class EdgeIterator
       : public boost::iterator_facade<EdgeIterator, EdgeHandle,
-                                      boost::forward_traversal_tag,
+                                      boost::bidirectional_traversal_tag,
                                       EdgeHandle const> {
   private:
     VertexTopologyID const src;
@@ -476,6 +481,11 @@ private:
 
     void increment() {
       while (++curr < end && curr->is_tomb())
+        ;
+    }
+
+    void decrement() {
+      while ((--curr)->is_tomb())
         ;
     }
 

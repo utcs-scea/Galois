@@ -91,8 +91,27 @@ int main() {
   uint64_t eight = g.addVertexTopologyOnly();
   GALOIS_ASSERT(eight == 8);
 
-  g.addEdgesTopologyOnly(8, {3, 2, 1, 0});
-  GALOIS_ASSERT(g.getEdgeDst(g.edge_begin(8)) == 3);
+  g.addEdgesTopologyOnly(eight, {3, 2, 1, 0});
+  GALOIS_ASSERT(g.getEdgeDst(*g.edge_begin(eight)) == 3);
+  GALOIS_ASSERT(g.getEdgeDst(*(++g.edge_begin(eight))) == 2);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 1);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++(++g.edge_begin(eight))))) == 0);
+  GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 0);
+
+  g.deleteEdges(eight, {1});
+  g.sortEdges(eight);
+
+  GALOIS_ASSERT(g.getEdgeDst(*g.edge_begin(eight)) == 0);
+  GALOIS_ASSERT(g.getEdgeDst(*(++g.edge_begin(eight))) == 2);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 3);
+  GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 3);
+
+  // check prefix sum
+  GALOIS_ASSERT(g[0] == 3);
+  GALOIS_ASSERT(g[1] == 3);
+  GALOIS_ASSERT(g[2] == 3);
+  // ...
+  GALOIS_ASSERT(g[8] == 6);
 
   return 0;
 }
