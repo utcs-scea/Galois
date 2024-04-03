@@ -361,8 +361,8 @@ private:
   static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
 
   class EdgeIterator
-      : public boost::iterator_facade<EdgeIterator, EdgeHandle,
-                                      boost::forward_traversal_tag,
+      : public boost::iterator_facade<EdgeIterator, EdgeHandle const,
+                                      boost::bidirectional_traversal_tag,
                                       EdgeHandle const> {
   private:
     VertexTopologyID const src;
@@ -375,6 +375,11 @@ private:
 
     void increment() {
       while (++curr < end && curr->is_tomb())
+        ;
+    }
+
+    void decrement() {
+      while ((--curr)->is_tomb())
         ;
     }
 
