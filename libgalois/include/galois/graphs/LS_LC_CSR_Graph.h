@@ -58,6 +58,9 @@ public:
 
   using EdgeHandle = std::pair<VertexTopologyID, VertexTopologyID>;
 
+  class EdgeIterator;
+  using EdgeRange = boost::iterator_range<EdgeIterator>;
+
 private:
   using SpinLock = galois::substrate::PaddedLock<concurrent>;
   static constexpr bool HasVertexData = !std::is_same_v<VertexData, void>;
@@ -76,9 +79,6 @@ private:
   // forward-declarations of internal structs
   struct VertexMetadata;
   struct EdgeMetadata;
-
-  class EdgeIterator;
-  using EdgeRange = boost::iterator_range<EdgeIterator>;
 
   VertexDataStore m_vertex_data;
   std::vector<VertexMetadata> m_vertices;
