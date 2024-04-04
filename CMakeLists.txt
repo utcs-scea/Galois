@@ -208,10 +208,6 @@ if(GALOIS_ENABLE_PAPI)
   add_definitions(-DGALOIS_ENABLE_PAPI)
 endif()
 
-if (GALOIS_ENABLE_INSTRUMENT)
-  add_definitions(-DGALOIS_INSTRUMENT)
-endif()
-
 find_package(Threads REQUIRED)
 
 include(CheckMmap)

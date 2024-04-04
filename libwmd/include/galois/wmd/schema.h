@@ -82,7 +82,9 @@ public:
     uint64_t ndx = 0, start = 0, end = 0;
     std::vector<std::string> tokens(numTokens);
 
-    for (; end < lineLength - 1; end++) {
+    for (; line[end] != '\0' && line[end] != '\n' && ndx < numTokens &&
+           end < lineLength;
+         end++) {
       if (line[end] == delim) {
         tokens[ndx] = std::string(line + start, end - start);
         start       = end + 1;
@@ -90,8 +92,10 @@ public:
       }
     }
 
-    tokens[numTokens - 1] =
-        std::string(line + start, end - start); // flush last token
+    if (ndx < numTokens) {
+      tokens[numTokens - 1] =
+          std::string(line + start, end - start); // flush last token
+    }
     return tokens;
   }
 };

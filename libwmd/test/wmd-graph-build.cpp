@@ -57,8 +57,8 @@ void parser(std::string line, std::unordered_map<std::uint64_t, Vrtx>& vertices)
                     tokens[0] == "Publication" ||
                     tokens[0] == "Topic";
       if (isNode) {
-        uint64_t id;
-        agile::workflow1::TYPES vertexType;
+        uint64_t id = 0;
+        agile::workflow1::TYPES vertexType = agile::workflow1::TYPES::NONE;
         if (tokens[0] == "Person") {
           vertexType = agile::workflow1::TYPES::PERSON;
           id = std::stoull(tokens[1]);
@@ -94,7 +94,7 @@ void parser(std::string line, std::unordered_map<std::uint64_t, Vrtx>& vertices)
           assert(false);
         }
         // Inverse edge
-        agile::workflow1::TYPES inverseEdgeType;
+        agile::workflow1::TYPES inverseEdgeType = agile::workflow1::TYPES::NONE;
         if (tokens[0] == "Sale") {
           inverseEdgeType = agile::workflow1::TYPES::PURCHASE;
         } else if (tokens[0] == "Author") {
@@ -169,11 +169,8 @@ int main(int argc, char* argv[]) {
       std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
                                                  agile::workflow1::Edge>>(
           10, filenames));
-  I_INIT("tmp/WMDGraph", net.ID, net.Num, 0);
   Graph* graph = new Graph(parsers, net.ID, net.Num, true, false,
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
-  I_ROUND(0);
-  I_CLEAR();
   assert(graph != nullptr);
 
   std::unordered_map<std::uint64_t, Vrtx> vertices;
@@ -246,6 +243,5 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-  I_DEINIT();
   return 0;
 }
