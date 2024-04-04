@@ -216,13 +216,13 @@ public:
     return num_edges.reduce();
   }
 
-  EdgeIterator edge_begin(VertexTopologyID vertex) {
+  inline EdgeIterator edge_begin(VertexTopologyID vertex) {
     auto const& vertex_meta = m_vertices[vertex];
     return EdgeIterator(
         vertex, &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin));
   }
 
-  EdgeIterator edge_end(VertexTopologyID vertex) {
+  inline EdgeIterator edge_end(VertexTopologyID vertex) {
     auto const& vertex_meta = m_vertices[vertex];
     return EdgeIterator(vertex,
                         &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end));
@@ -298,20 +298,20 @@ public:
       m_edges_lock.unlock();
     }
 
-    EdgeMetadata* const new_begin_it = &getEdgeMetadata(1, new_begin);
+    EdgeMetadata* log_dst = &getEdgeMetadata(1, new_begin);
     if constexpr (sorted) {
       std::merge(dsts.begin(), dsts.end(),
                  &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
                  &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
-                 new_begin_it);
+                 log_dst);
     } else {
       // copy old edges
-      std::copy(&getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
-                &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
-                new_begin_it);
+      log_dst = std::copy(
+          &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+          &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end), log_dst);
 
       // insert new edges
-      std::copy(dsts.begin(), dsts.end(), new_begin_it + vertex_meta.degree());
+      std::copy(dsts.begin(), dsts.end(), log_dst);
     }
 
     // update vertex metadata
@@ -425,8 +425,9 @@ private:
 
 public:
   class EdgeIterator
-      : public boost::iterator_facade<EdgeIterator, EdgeHandle const,
-                                      boost::random_access_traversal_tag> {
+      : public boost::iterator_facade<EdgeIterator, EdgeHandle,
+                                      boost::random_access_traversal_tag,
+                                      EdgeHandle const> {
   private:
     VertexTopologyID const src;
     EdgeMetadata const* ptr;
@@ -436,8 +437,6 @@ public:
 
     void advance(std::ptrdiff_t n) { ptr += n; }
 
-    template <class OtherDerived, class OtherIterator, class V, class C,
-              class R, class D>
     std::ptrdiff_t distance_to(EdgeIterator const& y) const {
       return y.ptr - ptr;
     }
