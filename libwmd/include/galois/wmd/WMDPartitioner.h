@@ -14,17 +14,30 @@
 #include "galois/DReducible.h"
 
 #include "WMDGraph.h"
-#include "instrument.h"
 
 #include <atomic>
 #include <unistd.h>
 #include <ios>
 #include <iostream>
 #include <fstream>
+#include <set>
 #include <string>
 
 namespace galois {
+
+template <typename EdgeType>
+struct GenericEdge {
+  GenericEdge() = default;
+  GenericEdge(uint64_t src_, uint64_t dst_, EdgeType data_)
+      : src(src_), dst(dst_), data(data_) {}
+
+  uint64_t src;
+  uint64_t dst;
+  EdgeType data;
+};
+
 namespace graphs {
+
 /**
  * @tparam NodeTy type of node data for the graph
  * @tparam EdgeTy type of edge data for the graph
@@ -173,9 +186,6 @@ public:
     inspectionTimer.start();
     base_DistGraph::numGlobalNodes = g.size();
     base_DistGraph::numGlobalEdges = g.sizeEdges();
-    for (int k = 0; k < 2; k++)
-      I_RR();
-    I_WM(2);
 
     // galois::gstl::Vector<uint64_t> prefixSumOfEdges;
     // prefixSumOfEdges.resize(base_DistGraph::numOwned);
@@ -186,17 +196,11 @@ public:
     uint64_t nodeEnd   = bufGraph.globalNodeOffset[base_DistGraph::id] +
                        bufGraph.localNodeSize[base_DistGraph::id];
     base_DistGraph::numOwned = bufGraph.localNodeSize[base_DistGraph::id];
-    for (int k = 0; k < 4; k++)
-      I_RR();
-    I_WM(1);
 
     base_DistGraph::gid2host.resize(base_DistGraph::numHosts);
     for (uint64_t h = 0; h < base_DistGraph::numHosts - 1; h++) {
       base_DistGraph::gid2host[h] = std::pair<uint64_t, uint64_t>(
           bufGraph.globalNodeOffset[h], bufGraph.globalNodeOffset[h + 1]);
-      for (int k = 0; k < 2; k++)
-        I_RR();
-      I_WM(1);
     }
     base_DistGraph::gid2host[base_DistGraph::numHosts - 1] =
         std::pair<uint64_t, uint64_t>(
@@ -232,7 +236,6 @@ public:
     // Allocate and construct the graph
     base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
                                        base_DistGraph::numEdges);
-    I_WM(base_DistGraph::numNodes);
     base_DistGraph::graph.constructNodes();
 
     // construct edges
@@ -243,16 +246,11 @@ public:
         galois::iterate(nodeBegin, nodeEnd),
         [&](uint64_t globalID) {
           auto edgeDst = bufGraph.edgeLocalDst(globalID);
-          I_RR();
           std::vector<uint64_t> dstData;
           for (auto dst : edgeDst) {
             dstData.emplace_back(base_DistGraph::globalToLocalMap[dst]);
-            I_RR();
-            I_WR();
           }
           auto edgeData = bufGraph.edgeDataPtr(globalID);
-          I_RR();
-          I_WM(bufGraph.edgeNum(globalID));
           base_DistGraph::graph.addEdgesUnSort(
               true, (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
               dstData.data(), edgeData, bufGraph.edgeNum(globalID), false);
@@ -387,34 +385,25 @@ public:
         galois::iterate(base_DistGraph::masterNodesRange().begin(),
                         base_DistGraph::masterNodesRange().end()),
         [&](auto& node) {
-          I_RS();
           if (!projection.KeepNode(*this, node)) {
             return;
           }
-          I_RR();
           NodeGID nodeGID = base_DistGraph::getGID(node);
           std::vector<NodeGID> edgeDsts;
           std::vector<NewEdgeType> keptEdgeData;
 
           uint64_t keptEdges = 0;
           for (const auto& edge : base_DistGraph::edges(node)) {
-            I_RS();
-            I_RR();
             EdgeTy edgeData = base_DistGraph::getEdgeData(edge);
-            I_RR();
             NodeLID dstNode = base_DistGraph::getEdgeDst(edge);
             if (!projection.KeepEdge(*this, edgeData, node, dstNode)) {
               continue;
             }
             keptEdges++;
-            I_RR();
-            I_WR();
             edgeDsts.emplace_back(base_DistGraph::getGID(dstNode));
-            I_WR();
             keptEdgeData.emplace_back(
                 projection.ProjectEdge(*this, edgeData, node, dstNode));
             if (dstNode >= base_DistGraph::numOwned) {
-              I_WR();
               keepMirrors[dstNode - base_DistGraph::numOwned] = true;
             }
           }
@@ -424,8 +413,7 @@ public:
             }
             globalNodes += 1;
             globalEdges += keptEdges;
-            NodeLID nodeLID = masterNodes.fetch_add(1);
-            I_WR();
+            NodeLID nodeLID                        = masterNodes.fetch_add(1);
             newGraph->localToGlobalVector[nodeLID] = nodeGID;
             newTopology[nodeLID]                   = std::move(edgeDsts);
             newEdgeData[nodeLID]                   = std::move(keptEdgeData);
@@ -437,15 +425,11 @@ public:
     galois::do_all(galois::iterate(uint64_t(base_DistGraph::numOwned),
                                    uint64_t(base_DistGraph::numNodes)),
                    [&](auto& mirrorNode) {
-                     I_RS();
-                     I_RR();
                      if (!keepMirrors[mirrorNode - base_DistGraph::numOwned]) {
                        return;
                      }
-                     I_RR();
                      NodeGID nodeGID = base_DistGraph::getGID(mirrorNode);
                      NodeLID nodeLID = numMasters + mirrorNodes.fetch_add(1);
-                     I_WR();
                      newGraph->localToGlobalVector[nodeLID] = nodeGID;
                    });
 
@@ -477,15 +461,11 @@ public:
     newTopology.resize(newGraph->numNodes);
     newEdgeData.resize(newGraph->numNodes);
     newGraph->localToGlobalVector.resize(newGraph->numNodes);
-    I_WM(newGraph->numNodes);
     newGraph->recalculateG2LMap();
 
     for (uint32_t i = newGraph->numOwned; i < newGraph->numNodes; i++) {
-      I_RR();
       uint64_t globalID = newGraph->getGID(i);
       // deliberately use the old graph partitioner to get the owner of the GID
-      I_RR();
-      I_WR();
       newGraph->mirrorNodes[graphPartitioner->retrieveMaster(globalID)]
           .emplace_back(globalID);
     }
@@ -496,15 +476,11 @@ public:
     galois::do_all(
         galois::iterate(uint64_t(0), uint64_t(newGraph->numNodes)),
         [&](auto& node) {
-          I_RS();
-          I_RR();
           NodeLID oldGraphLID =
               base_DistGraph::getLID(newGraph->localToGlobalVector[node]);
-          I_WR(node >= newGraph->numOwned);
           newGraph->graph.getData(node) = projection.ProjectNode(
               *this, base_DistGraph::getData(oldGraphLID), oldGraphLID);
 
-          I_RR();
           uint64_t numEdges = newTopology[node].size();
           if (node >= newGraph->numOwned) {
             return;
@@ -512,12 +488,8 @@ public:
           std::vector<NodeLID> localDsts;
           localDsts.reserve(numEdges);
           for (NodeGID gid : newTopology[node]) {
-            I_RR();
-            I_WR();
             localDsts.emplace_back(newGraph->getLID(gid));
           }
-          I_RR();
-          I_WM(numEdges);
           newGraph->graph.addEdgesUnSort(true, node, localDsts.data(),
                                          newEdgeData[node].data(), numEdges,
                                          false);
@@ -536,6 +508,114 @@ public:
     newGraph->initializeSpecificRanges();
 
     return newGraph;
+  }
+
+  /**
+   * Test-only Constructor
+   */
+  WMDGraph(unsigned host, unsigned _numHosts, std::vector<NodeTy> nodes_,
+           std::vector<galois::GenericEdge<EdgeTy>> edges_)
+      : base_DistGraph(host, _numHosts) {
+    base_DistGraph::numGlobalNodes = nodes_.size();
+    base_DistGraph::numGlobalEdges = edges_.size();
+    base_DistGraph::localToGlobalVector.resize(base_DistGraph::numGlobalNodes);
+
+    std::vector<uint64_t> ndegrees;
+    graphPartitioner = std::make_unique<Partitioner>(
+        host, _numHosts, base_DistGraph::numGlobalNodes,
+        base_DistGraph::numGlobalEdges, ndegrees);
+
+    // TODO(Patrick) support using virtualToPhysicalMapping
+    base_DistGraph::numEdges          = 0;
+    base_DistGraph::numNodesWithEdges = 0;
+    std::vector<NodeTy> localNodes;
+    std::set<uint64_t> localMirrors;
+    std::vector<std::vector<galois::GenericEdge<EdgeTy>>> localEdges;
+    std::vector<uint32_t> virtualToPhyMapping(_numHosts);
+    base_DistGraph::gid2host.resize(base_DistGraph::numHosts);
+    for (uint64_t h = 0; h < base_DistGraph::numHosts; h++) {
+      virtualToPhyMapping[h] = h;
+      uint64_t beginNode;
+      uint64_t endNode;
+      std::tie(beginNode, endNode) =
+          galois::block_range((uint64_t)0, base_DistGraph::numGlobalNodes, h,
+                              base_DistGraph::numHosts);
+      base_DistGraph::gid2host[h] =
+          std::pair<uint64_t, uint64_t>(beginNode, endNode);
+      if (h != host) {
+        continue;
+      }
+      uint64_t edgeIter = 0;
+      for (; edgeIter < edges_.size() && edges_[edgeIter].src < beginNode;
+           edgeIter++) {
+      }
+      for (uint64_t i = beginNode; i < endNode; i++) {
+        uint64_t lid = i - beginNode;
+        localNodes.emplace_back(nodes_[i]);
+        localEdges.emplace_back(std::vector<galois::GenericEdge<EdgeTy>>());
+        base_DistGraph::localToGlobalVector[lid] = i;
+        while (edgeIter < edges_.size() && edges_[edgeIter].src == i) {
+          auto edge = edges_[edgeIter++];
+          if (edge.dst < beginNode || edge.dst >= endNode) {
+            localMirrors.insert(edge.dst);
+          }
+          localEdges[lid].emplace_back(edge);
+          base_DistGraph::numEdges++;
+        }
+        if (localEdges[lid].size() > 0) {
+          base_DistGraph::numNodesWithEdges++;
+        }
+      }
+    }
+    graphPartitioner->saveGIDToHost(base_DistGraph::gid2host);
+
+    base_DistGraph::numOwned    = localNodes.size();
+    uint64_t numMirrors         = localMirrors.size();
+    base_DistGraph::numNodes    = base_DistGraph::numOwned + numMirrors;
+    base_DistGraph::beginMaster = 0;
+
+    base_DistGraph::localToGlobalVector.resize(base_DistGraph::numOwned);
+    for (uint64_t mirrorGID : localMirrors) {
+      localNodes.emplace_back(nodes_[mirrorGID]);
+      base_DistGraph::localToGlobalVector.emplace_back(mirrorGID);
+    }
+    base_DistGraph::recalculateG2LMap();
+
+    for (uint32_t i = base_DistGraph::numOwned; i < base_DistGraph::numNodes;
+         i++) {
+      uint64_t globalID = base_DistGraph::getGID(i);
+      base_DistGraph::mirrorNodes[graphPartitioner->retrieveMaster(globalID)]
+          .emplace_back(globalID);
+    }
+
+    base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
+                                       base_DistGraph::numEdges);
+    uint64_t edgeCount = 0;
+    for (uint64_t node = 0; node < base_DistGraph::numNodes; node++) {
+      base_DistGraph::getData(node) = localNodes[node];
+      if (node >= base_DistGraph::numOwned) {
+        continue;
+      }
+      uint64_t numEdges = localEdges[node].size();
+      if (numEdges == 0) {
+        continue;
+      }
+      std::vector<uint64_t> localDsts;
+      std::vector<EdgeTy> newEdgeData;
+      for (auto edge : localEdges[node]) {
+        localDsts.emplace_back(base_DistGraph::getLID(edge.dst));
+        newEdgeData.emplace_back(edge.data);
+      }
+      edgeCount += numEdges;
+      base_DistGraph::graph.addEdgesUnSort(true, node, localDsts.data(),
+                                           newEdgeData.data(), numEdges, false);
+    }
+    base_DistGraph::graph.getEdgePrefixSum();
+
+    base_DistGraph::determineThreadRanges();
+    base_DistGraph::determineThreadRangesMaster();
+    base_DistGraph::determineThreadRangesWithEdges();
+    base_DistGraph::initializeSpecificRanges();
   }
 
 private:
@@ -645,7 +725,6 @@ private:
       if (h != base_DistGraph::id) {
         galois::runtime::SendBuffer bitsetBuffer;
         galois::runtime::gSerialize(bitsetBuffer, presentProxies[h]);
-        I_LC(h, bitsetBuffer.size());
         net.sendTagged(h, galois::runtime::evilPhase, std::move(bitsetBuffer));
       }
     }
@@ -658,7 +737,6 @@ private:
       } while (!p);
       uint32_t sendingHost = p->first;
       // deserialize proxiesOnOtherHosts
-      I_LC(sendingHost, p->second.size());
       galois::runtime::gDeserialize(p->second,
                                     proxiesOnOtherHosts[sendingHost]);
     }
@@ -797,10 +875,7 @@ private:
                                         base_DistGraph::numOwned);
     for (uint32_t i = base_DistGraph::numOwned; i < base_DistGraph::numNodes;
          i++) {
-      I_RR();
       uint64_t globalID = base_DistGraph::localToGlobalVector[i];
-      I_RR();
-      I_WR();
       assert(graphPartitioner->retrieveMaster(globalID) <
              base_DistGraph::numHosts);
       base_DistGraph::mirrorNodes[graphPartitioner->retrieveMaster(globalID)]

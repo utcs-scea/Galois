@@ -48,11 +48,8 @@ int main(int argc, char* argv[]) {
       std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
                                                  agile::workflow1::Edge>>(
           10, filenames));
-  I_INIT("tmp/WMDGraph", net.ID, net.Num, 0);
   Graph* graph = new Graph(parsers, net.ID, net.Num, true, false,
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
-  I_ROUND(0);
-  I_CLEAR();
   assert(graph != nullptr);
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
@@ -120,6 +117,5 @@ int main(int argc, char* argv[]) {
     }
     output.close();
   }
-  I_DEINIT();
   return 0;
 }
