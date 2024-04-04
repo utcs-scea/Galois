@@ -46,10 +46,6 @@ void check() {
 
   print_graph("added 2->1");
 
-  g.deleteEdges(1, {3});
-
-  print_graph("deleted 1->3");
-
   g.compact();
 
   print_graph("compacted");
@@ -98,26 +94,27 @@ int main() {
   GALOIS_ASSERT(g.getEdgeDst(*(++(++(++g.edge_begin(eight))))) == 0);
   GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 0);
 
-  g.deleteEdges(eight, {1});
   g.sortEdges(eight);
 
   GALOIS_ASSERT(g.getEdgeDst(*g.edge_begin(eight)) == 0);
-  GALOIS_ASSERT(g.getEdgeDst(*(++g.edge_begin(eight))) == 2);
-  GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 3);
+  GALOIS_ASSERT(g.getEdgeDst(*(++g.edge_begin(eight))) == 1);
+  GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 2);
+  GALOIS_ASSERT(g.getEdgeDst(*(g.edge_begin(eight) + 2)) == 2);
   GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 3);
 
   // check searching
   GALOIS_ASSERT(g.findEdgeSorted(eight, 0));
-  GALOIS_ASSERT(!g.findEdgeSorted(eight, 1));
+  GALOIS_ASSERT(g.findEdgeSorted(eight, 1));
   GALOIS_ASSERT(g.findEdgeSorted(eight, 2));
   GALOIS_ASSERT(g.findEdgeSorted(eight, 3));
+  GALOIS_ASSERT(!g.findEdgeSorted(eight, 4));
 
   // check prefix sum
   GALOIS_ASSERT(g[0] == 3);
   GALOIS_ASSERT(g[1] == 3);
   GALOIS_ASSERT(g[2] == 3);
   // ...
-  GALOIS_ASSERT(g[8] == 6);
+  GALOIS_ASSERT(g[8] == 7);
 
   return 0;
 }
