@@ -264,7 +264,7 @@ public:
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
     GALOIS_ASSERT(data.size() == dsts.size());
-    this->addEdgesTopologyOnly<sorted = sorted>(src, dsts);
+    this->addEdgesTopologyOnly<sorted>(src, dsts);
     for (size_t i = 0; i < dsts.size(); ++i) {
       m_edge_data[std::make_pair(src, dsts[i])] = data[i];
     }
