@@ -78,7 +78,7 @@ private:
 
   // forward-declarations of internal structs
   struct VertexMetadata;
-  struct EdgeMetadata;
+  using EdgeMetadata = VertexTopologyID;
 
   VertexDataStore m_vertex_data;
   std::vector<VertexMetadata> m_vertices;
@@ -98,10 +98,10 @@ private:
    */
   std::vector<uint64_t> m_pfx_sum_cache;
   static uint64_t transmute(const VertexMetadata& vertex_meta) {
-    return vertex_meta.degree;
+    return vertex_meta.degree();
   }
   static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
-    return p.degree + l;
+    return p.degree() + l;
   }
   static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
     return f + s;
@@ -192,7 +192,9 @@ public:
     return start;
   }
 
-  inline size_t getDegree(VertexTopologyID id) { return m_vertices[id].degree; }
+  inline size_t getDegree(VertexTopologyID id) {
+    return m_vertices[id].degree();
+  }
 
   inline VertexTopologyID getEdgeDst(EdgeHandle eh) { return eh.second; }
 
@@ -216,36 +218,22 @@ public:
 
   EdgeIterator edge_begin(VertexTopologyID vertex) {
     auto const& vertex_meta = m_vertices[vertex];
-    EdgeMetadata const* const start =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-    EdgeMetadata const* const end =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
-    return EdgeIterator(vertex, start, end);
+    return EdgeIterator(
+        vertex, &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin));
   }
 
   EdgeIterator edge_end(VertexTopologyID vertex) {
     auto const& vertex_meta = m_vertices[vertex];
-    EdgeMetadata const* const end =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
-    return EdgeIterator(vertex, end, end);
+    return EdgeIterator(vertex,
+                        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end));
   }
 
-  EdgeRange edges(VertexTopologyID node) {
-    auto const& vertex_meta = m_vertices[node];
-
-    EdgeMetadata const* const start =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-
-    EdgeMetadata const* const end =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
-
-    return EdgeRange(EdgeIterator(node, start, end),
-                     EdgeIterator(node, end, end));
+  inline EdgeRange edges(VertexTopologyID node) {
+    return EdgeRange(edge_begin(node), edge_end(node));
   }
 
   /*
-   * Sort the outgoing edges for the given vertex, pruning tombstoned edges in
-   * the process.
+   * Sort the outgoing edges for the given vertex.
    */
   void sortEdges(VertexTopologyID node) {
     auto& vertex_meta = m_vertices[node];
@@ -256,10 +244,6 @@ public:
     EdgeMetadata* end = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
 
     std::sort(start, end);
-
-    // Tombstoned edges will be moved to the end, so we can drop them by moving
-    // the end pointer:
-    vertex_meta.end = vertex_meta.begin + vertex_meta.degree;
   }
 
   /*
@@ -276,24 +260,31 @@ public:
     return std::binary_search(start, end, EdgeMetadata(dst));
   }
 
+  template <bool sorted = false>
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
     GALOIS_ASSERT(data.size() == dsts.size());
-    this->addEdgesTopologyOnly(src, dsts);
+    this->addEdgesTopologyOnly<sorted = sorted>(src, dsts);
     for (size_t i = 0; i < dsts.size(); ++i) {
       m_edge_data[std::make_pair(src, dsts[i])] = data[i];
     }
   }
 
+  /*
+   * Adds outgoing edges from the given src to all dsts. If `sorted`, assume
+   * both `dsts` and the existing edge array is sorted ascending, and maintain
+   * sorted order.
+   */
+  template <bool sorted = false>
   void addEdgesTopologyOnly(VertexTopologyID src,
                             const std::vector<VertexTopologyID> dsts) {
-
-    // Copies the edge list to the end of m_edges[1], prepending
-    // the new edges.
+    // Copies the edge list to the end of m_edges[1] together with the new
+    // edges.
 
     auto& vertex_meta = m_vertices[src];
+    m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
 
-    uint64_t const new_degree = vertex_meta.degree + dsts.size();
+    uint64_t const new_degree = vertex_meta.degree() + dsts.size();
     uint64_t const new_begin =
         m_edges_tail.fetch_add(new_degree, std::memory_order_relaxed);
     uint64_t const new_end = new_begin + new_degree;
@@ -307,57 +298,27 @@ public:
       m_edges_lock.unlock();
     }
 
-    // insert new edges
-    std::transform(dsts.begin(), dsts.end(), &getEdgeMetadata(1, new_begin),
-                   [](VertexTopologyID dst) { return EdgeMetadata(dst); });
-
-    // copy old, non-tombstoned edges
-    std::copy_if(&getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+    EdgeMetadata* const new_begin_it = &getEdgeMetadata(1, new_begin);
+    if constexpr (sorted) {
+      std::merge(dsts.begin(), dsts.end(),
+                 &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
                  &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
-                 &getEdgeMetadata(1, new_begin + dsts.size()),
-                 [](EdgeMetadata& edge) { return !edge.is_tomb(); });
+                 new_begin_it);
+    } else {
+      // copy old edges
+      std::copy(&getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+                &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
+                new_begin_it);
+
+      // insert new edges
+      std::copy(dsts.begin(), dsts.end(), new_begin_it + vertex_meta.degree());
+    }
 
     // update vertex metadata
     vertex_meta.buffer = 1;
     vertex_meta.begin  = new_begin;
     vertex_meta.end    = new_end;
 
-    m_holes.fetch_add(vertex_meta.degree, std::memory_order_relaxed);
-    vertex_meta.degree += dsts.size();
-
-    m_prefix_valid.store(false, std::memory_order_release);
-  }
-
-  void deleteEdges(VertexTopologyID src,
-                   const std::vector<VertexTopologyID>& edges) {
-    std::unordered_set<VertexTopologyID> edges_set(edges.begin(), edges.end());
-
-    auto& vertex_meta    = m_vertices[src];
-    uint64_t holes_added = 0;
-    for (auto i = vertex_meta.begin; i < vertex_meta.end; ++i) {
-      EdgeMetadata& edge_meta = getEdgeMetadata(vertex_meta.buffer, i);
-      if (!edge_meta.is_tomb() &&
-          edges_set.find(edge_meta.dst) != edges_set.end()) {
-        edge_meta.set_tomb();
-        --vertex_meta.degree;
-        ++holes_added;
-        // remove tombstoned edges from the start of the edge list
-        if (i == vertex_meta.begin)
-          ++vertex_meta.begin;
-      }
-    }
-
-    // remove tombstoned edges from the end of the edge list
-    for (auto i = vertex_meta.end; i > vertex_meta.begin; --i) {
-      if (getEdgeMetadata(vertex_meta.buffer, i - 1).is_tomb()) {
-        --vertex_meta.end;
-        --vertex_meta.degree;
-      } else {
-        break;
-      }
-    }
-
-    m_holes.fetch_add(holes_added, std::memory_order_relaxed);
     m_prefix_valid.store(false, std::memory_order_release);
   }
 
@@ -374,7 +335,7 @@ public:
                      VertexMetadata& vertex_meta = m_vertices[vertex_id];
 
                      if (vertex_meta.buffer == 0) {
-                       this->addEdgesTopologyOnly(vertex_id, {});
+                       this->addEdgesTopologyOnly<false>(vertex_id, {});
                      }
 
                      // we are about to swap the buffers, so all vertices will
@@ -449,78 +410,45 @@ private:
     uint8_t buffer : 1;
     uint64_t begin : 48; // inclusive
     uint64_t end : 48;   // exclusive
-    uint64_t degree;
 
-    VertexMetadata() : buffer(0), begin(0), end(0), degree(0) {}
+    VertexMetadata() : buffer(0), begin(0), end(0) {}
 
     VertexMetadata(VertexMetadata const& other)
-        : buffer(other.buffer), begin(other.begin), end(other.end),
-          degree(other.degree) {}
+        : buffer(other.buffer), begin(other.begin), end(other.end) {}
 
     VertexMetadata(VertexMetadata&& other)
         : buffer(std::move(other.buffer)), begin(std::move(other.begin)),
-          end(std::move(other.end)), degree(std::move(other.degree)) {}
+          end(std::move(other.end)) {}
+
+    inline uint64_t degree() const { return end - begin; }
   };
-
-  struct EdgeMetadata {
-    enum Flags : uint16_t { TOMB = 0x1 };
-
-    uint16_t flags : 16;
-    VertexTopologyID dst : 48;
-
-    bool is_tomb() const noexcept { return (flags & TOMB) > 0; }
-    void set_tomb() { flags |= TOMB; }
-
-    EdgeMetadata() {}
-    explicit EdgeMetadata(VertexTopologyID dst) : flags(0), dst(dst) {}
-
-    // Sort edges, with tombstoned coming after non-tombstoned.
-    friend bool operator<(EdgeMetadata const& lhs, EdgeMetadata const& rhs) {
-      if (lhs.is_tomb() != rhs.is_tomb())
-        // tombstoned edges come last
-        return lhs.is_tomb() < rhs.is_tomb();
-      else
-        // otherwise, sort by dst
-        return lhs.dst < rhs.dst;
-    }
-
-    // Check dst equality only.
-    friend bool operator==(EdgeMetadata const& lhs, EdgeMetadata const& rhs) {
-      return (lhs.dst == rhs.dst);
-    }
-
-  } __attribute__((packed));
-
-  static_assert(sizeof(EdgeMetadata) <= sizeof(uint64_t));
 
 public:
   class EdgeIterator
-      : public boost::iterator_facade<EdgeIterator, EdgeHandle,
-                                      boost::bidirectional_traversal_tag,
-                                      EdgeHandle const> {
+      : public boost::iterator_facade<EdgeIterator, EdgeHandle const,
+                                      boost::random_access_traversal_tag> {
   private:
     VertexTopologyID const src;
-    EdgeMetadata const* curr;
-    EdgeMetadata const* const end;
+    EdgeMetadata const* ptr;
 
-    EdgeIterator(VertexTopologyID src, EdgeMetadata const* start,
-                 EdgeMetadata const* end)
-        : src(src), curr(start), end(end) {}
+    EdgeIterator(VertexTopologyID src, EdgeMetadata const* ptr)
+        : src(src), ptr(ptr) {}
 
-    void increment() {
-      while (++curr < end && curr->is_tomb())
-        ;
+    void advance(std::ptrdiff_t n) { ptr += n; }
+
+    template <class OtherDerived, class OtherIterator, class V, class C,
+              class R, class D>
+    std::ptrdiff_t distance_to(EdgeIterator const& y) const {
+      return y.ptr - ptr;
     }
 
-    void decrement() {
-      while ((--curr)->is_tomb())
-        ;
-    }
+    void increment() { ++ptr; }
 
-    // updates to the graph will invalidate iterators
-    bool equal(EdgeIterator const& other) const { return curr == other.curr; }
+    void decrement() { --ptr; }
 
-    EdgeHandle dereference() const { return EdgeHandle(src, curr->dst); }
+    bool equal(EdgeIterator const& other) const { return ptr == other.ptr; }
+
+    EdgeHandle dereference() const { return EdgeHandle(src, *ptr); }
 
     friend class LS_LC_CSR_Graph;
     friend class boost::iterator_core_access;
