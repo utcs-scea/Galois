@@ -106,6 +106,12 @@ int main() {
   GALOIS_ASSERT(g.getEdgeDst(*(++(++g.edge_begin(eight)))) == 3);
   GALOIS_ASSERT(g.getEdgeDst(*(--g.edge_end(eight))) == 3);
 
+  // check searching
+  GALOIS_ASSERT(g.findEdgeSorted(eight, 0));
+  GALOIS_ASSERT(!g.findEdgeSorted(eight, 1));
+  GALOIS_ASSERT(g.findEdgeSorted(eight, 2));
+  GALOIS_ASSERT(g.findEdgeSorted(eight, 3));
+
   // check prefix sum
   GALOIS_ASSERT(g[0] == 3);
   GALOIS_ASSERT(g[1] == 3);

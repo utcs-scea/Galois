@@ -977,7 +977,7 @@ public
   //! Sorts edge of a node by destination.
   void sortEdgesByDst(GraphNode N,
                       galois::MethodFlag mflag = MethodFlag::WRITE) {
-    // acquire(N, mflag);
+    acquire(N, mflag);
     typedef typename gNode::EdgeInfo EdgeInfo;
     std::sort(N->begin(), N->end(),
               [=](const EdgeInfo& e1, const EdgeInfo& e2) {

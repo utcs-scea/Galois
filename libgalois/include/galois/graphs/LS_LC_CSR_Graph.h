@@ -262,6 +262,20 @@ public:
     vertex_meta.end = vertex_meta.begin + vertex_meta.degree;
   }
 
+  /*
+   * Returns whether the given edge exists.
+   *
+   * Assumes sortEdges was already called for the vertex!
+   */
+  bool findEdgeSorted(VertexTopologyID src, VertexTopologyID dst) {
+    auto const& vertex_meta = m_vertices[src];
+    EdgeMetadata* start =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+    EdgeMetadata* end = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
+
+    return std::binary_search(start, end, EdgeMetadata(dst));
+  }
+
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
     GALOIS_ASSERT(data.size() == dsts.size());
@@ -295,9 +309,7 @@ public:
 
     // insert new edges
     std::transform(dsts.begin(), dsts.end(), &getEdgeMetadata(1, new_begin),
-                   [](VertexTopologyID dst) {
-                     return EdgeMetadata{.flags = 0, .dst = dst};
-                   });
+                   [](VertexTopologyID dst) { return EdgeMetadata(dst); });
 
     // copy old, non-tombstoned edges
     std::copy_if(&getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
@@ -453,13 +465,22 @@ private:
     bool is_tomb() const noexcept { return (flags & TOMB) > 0; }
     void set_tomb() { flags |= TOMB; }
 
-    bool operator<(EdgeMetadata const& rhs) {
-      if (is_tomb() != rhs.is_tomb())
+    EdgeMetadata() {}
+    explicit EdgeMetadata(VertexTopologyID dst) : flags(0), dst(dst) {}
+
+    // Sort edges, with tombstoned coming after non-tombstoned.
+    friend bool operator<(EdgeMetadata const& lhs, EdgeMetadata const& rhs) {
+      if (lhs.is_tomb() != rhs.is_tomb())
         // tombstoned edges come last
-        return is_tomb() < rhs.is_tomb();
+        return lhs.is_tomb() < rhs.is_tomb();
       else
         // otherwise, sort by dst
-        return dst < rhs.dst;
+        return lhs.dst < rhs.dst;
+    }
+
+    // Check dst equality only.
+    friend bool operator==(EdgeMetadata const& lhs, EdgeMetadata const& rhs) {
+      return (lhs.dst == rhs.dst);
     }
 
   } __attribute__((packed));
