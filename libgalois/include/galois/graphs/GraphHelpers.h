@@ -263,9 +263,9 @@ void determineUnitRangesLoopGraph(GraphTy& graph, uint32_t unitsToSplit,
   // cannot use edge_end/begin on log strcutred CSR since its edges are not
   // consecutive.
   uint64_t numEdgesInRange = (is_LS_LC_CSR) ? graph.sizeEdges()
-                                            : graph.edge_end(endNode - 1) -
-                                                  graph.edge_begin(beginNode);
-  uint64_t edgeOffset      = (is_LS_LC_CSR) ? 0 : *graph.edge_begin(beginNode);
+                                            : std::distance(graph.edge_end(beginNode),
+                                                  graph.edge_begin(endNode - 1));
+  uint64_t edgeOffset      = (is_LS_LC_CSR) ? 0 : graph[beginNode];
 
   returnRanges[0] = beginNode;
   std::vector<unsigned int> dummyScaleFactor;

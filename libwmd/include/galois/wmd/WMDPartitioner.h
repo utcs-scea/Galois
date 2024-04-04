@@ -230,10 +230,8 @@ public:
     // Graph construction related calls
     base_DistGraph::beginMaster = 0;
     // Allocate and construct the graph
-    base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
-                                       base_DistGraph::numEdges);
+    base_DistGraph::initGraph(base_DistGraph::numNodes);
     I_WM(base_DistGraph::numNodes);
-    base_DistGraph::graph.constructNodes();
 
     // construct edges
     // not need to move edges from other host since all edges is already ready
@@ -250,12 +248,14 @@ public:
             I_RR();
             I_WR();
           }
-          auto edgeData = bufGraph.edgeDataPtr(globalID);
+          auto edgeDataPtr = bufGraph.edgeDataPtr(globalID);
+          std::vector<EdgeTy> edgeData(bufGraph.edgeNum(globalID));
+          std::copy(edgeDataPtr, edgeDataPtr + bufGraph.edgeNum(globalID), edgeData.begin());
           I_RR();
           I_WM(bufGraph.edgeNum(globalID));
-          base_DistGraph::graph.addEdgesUnSort(
-              true, (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
-              dstData.data(), edgeData, bufGraph.edgeNum(globalID), false);
+          base_DistGraph::graph->addEdges(
+              (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
+              dstData, edgeData);
         },
         galois::steal());
 
@@ -272,8 +272,8 @@ public:
     galois::gInfo("[", base_DistGraph::id,
                   "] LS_CSR graph master nodes: ", base_DistGraph::numOwned);
     galois::gInfo("[", base_DistGraph::id, "] LS_CSR graph local edges: ",
-                  base_DistGraph::graph.sizeEdges());
-    assert(base_DistGraph::graph.sizeEdges() == base_DistGraph::numEdges);
+                  base_DistGraph::sizeEdges());
+    assert(base_DistGraph::sizeEdges() == base_DistGraph::numEdges);
     assert(base_DistGraph::graph.size() == base_DistGraph::numNodes);
 
     bufGraph.resetAndFree();

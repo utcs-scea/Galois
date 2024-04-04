@@ -31,7 +31,7 @@
 #include <fstream>
 
 #include "galois/graphs/DistributedGraph.h"
-#include "galois/graphs/LS_LC_CSR_64_Graph.h"
+#include "galois/graphs/LS_LC_CSR_Graph.h"
 #include "galois/graphs/BufferedGraph.h"
 #include "galois/runtime/DistStats.h"
 #include "galois/graphs/OfflineGraph.h"
@@ -56,7 +56,7 @@ private:
   //! Graph name used for printing things
   constexpr static const char* const GRNAME = "dGraph";
 
-  using GraphTy = galois::graphs::LS_LC_CSR_64_Graph<NodeTy, EdgeTy, true>;
+  using GraphTy = galois::graphs::LS_LC_CSR_Graph<NodeTy, EdgeTy>;
 
   // vector for determining range objects for master nodes + nodes
   // with edges (which includes masters)
@@ -83,7 +83,7 @@ private:
 
 protected:
   //! The internal graph used by DistLocalGraph to represent the graph
-  GraphTy graph;
+  GraphTy* graph;
 
   //! Marks if the graph is transposed or not.
   bool transposed;
@@ -476,15 +476,9 @@ protected:
 
 public:
   //! Type representing a node in this graph
-  using GraphNode = typename GraphTy::GraphNode;
-  //! Expose EdgeTy to other classes
-  using EdgeType = EdgeTy;
-  //! iterator type over nodes
-  using iterator = typename GraphTy::iterator;
-  //! constant iterator type over nodes
-  using const_iterator = typename GraphTy::const_iterator;
+  using GraphNode = typename GraphTy::VertexTopologyID;
   //! iterator type over edges
-  using edge_iterator = typename GraphTy::edge_iterator;
+  using edge_iterator = typename GraphTy::EdgeIterator;
 
   /**
    * Constructor for DistLocalGraph. Initializes metadata fields.
@@ -529,6 +523,9 @@ private:
 
 public:
   virtual ~DistLocalGraph() {}
+  void initGraph(uint64_t numNodes) {
+    graph = new GraphTy(numNodes);
+  }
   //! Determines which host has the master for a particular node
   //! @returns Host id of node in question
   inline unsigned getHostID(uint64_t gid) const { return getHostIDImpl(gid); }
@@ -575,10 +572,9 @@ public:
    * @param mflag access flag for node data
    * @returns A node data object
    */
-  inline typename GraphTy::node_data_reference
-  getData(GraphNode N,
-          galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
-    auto& r = graph.getData(N, mflag);
+  inline NodeTy&
+  getData(GraphNode N) {
+    auto& r = graph->getData(N);
     return r;
   }
 
@@ -589,10 +585,10 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
-  inline typename GraphTy::edge_data_reference
-  getEdgeData(edge_iterator ni,
-              galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
-    auto& r = graph.getEdgeData(ni, mflag);
+  inline EdgeTy&
+  getEdgeData(GraphNode src, edge_iterator ni) {
+    GraphNode dst = getEdgeDst(ni);
+    auto& r = graph->getEdgeData(std::make_pair(src, getGID(dst)));
     return r;
   }
 
@@ -602,7 +598,7 @@ public:
    * @param ni edge id to get destination of
    * @returns Local ID of destination of edge ni
    */
-  GraphNode getEdgeDst(edge_iterator ni) { return graph.getEdgeDst(ni); }
+  GraphNode getEdgeDst(edge_iterator ni) { return getGID(graph->getEdgeDst(*ni)); }
 
   /**
    * Gets the first edge of some node.
@@ -611,7 +607,7 @@ public:
    * @returns iterator to first edge of N
    */
   inline edge_iterator edge_begin(GraphNode N) {
-    return graph.edge_begin(N, galois::MethodFlag::UNPROTECTED);
+    return graph->edges(N).begin();
   }
 
   /**
@@ -622,13 +618,13 @@ public:
    * of the next node (or an "end" iterator if there is no next node)
    */
   inline edge_iterator edge_end(GraphNode N) {
-    return graph.edge_end(N, galois::MethodFlag::UNPROTECTED);
+    return graph->edges(N).end();
   }
 
   /**
    * Return the degree of the edge in the local graph
    **/
-  inline uint64_t localDegree(GraphNode N) { return graph.getDegree(N); }
+  inline uint64_t localDegree(GraphNode N) { return graph->getDegree(N); }
 
   /**
    * Returns an iterable object over the edges of a particular node in the
@@ -647,14 +643,16 @@ public:
    *
    * @returns number of nodes present in this (local) graph
    */
-  inline size_t size() const { return graph.size(); }
+  inline size_t size() const { return graph->size(); }
 
   /**
    * Gets number of edges on this (local) graph.
    *
    * @returns number of edges present in this (local) graph
    */
-  inline size_t sizeEdges() const { return graph.sizeEdges(); }
+  inline size_t sizeEdges() {
+    return graph->sizeEdges();
+  }
 
   /**
    * Gets number of nodes on this (local) graph.
@@ -746,7 +744,7 @@ protected:
    */
   inline void determineThreadRanges() {
     allNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(
-        galois::runtime::activeThreads, graph.getEdgePrefixSum());
+        galois::runtime::activeThreads, graph->getEdgePrefixSum());
   }
 
   /**
@@ -770,9 +768,8 @@ protected:
     } else {
       galois::gDebug("Manually det. master thread ranges");
       masterRanges = galois::graphs::determineUnitRangesFromGraph(
-          graph, galois::runtime::activeThreads, beginMaster,
-          beginMaster + numOwned, 0,
-          (galois::graphs::is_LS_LC_CSR_64_Graph<decltype(graph)>::value == 1));
+          *graph, galois::runtime::activeThreads, beginMaster,
+          beginMaster + numOwned, 0, true);
     }
   }
 
@@ -797,7 +794,7 @@ protected:
     } else {
       galois::gDebug("Manually det. with edges thread ranges");
       withEdgeRanges = galois::graphs::determineUnitRangesFromGraph(
-          graph, galois::runtime::activeThreads, 0, numNodesWithEdges, 0);
+          *graph, galois::runtime::activeThreads, 0, numNodesWithEdges, 0);
     }
   }
 
@@ -877,10 +874,9 @@ public:
    * It sorts edges of the nodes by destination.
    */
   void sortEdgesByDestination() {
-    using GN = typename GraphTy::GraphNode;
     galois::do_all(
-        galois::iterate(graph),
-        [&](GN n) { graph.sortEdges(n, IdLess<GN, EdgeTy>()); },
+        galois::iterate(graph->vertices().begin(), graph->vertices().end()),
+        [&](GraphNode n) { graph->sortEdges(n); },
         galois::no_stats(), galois::loopname("CSREdgeSort"), galois::steal());
   }
 
