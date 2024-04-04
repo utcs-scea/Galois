@@ -438,6 +438,12 @@ public:
     return m_pfx_sum_cache[n];
   }
 
+  std::vector<uint62_t> const& getEdgePrefixSum() {
+    if (!m_prefix_valid.load(std::memory_order_acquire))
+      computePrefixSum();
+    return m_pfx_sum_cache;
+  }
+
 private:
   struct VertexMetadata {
     uint8_t buffer : 1;
