@@ -523,9 +523,7 @@ private:
 
 public:
   virtual ~DistLocalGraph() {}
-  void initGraph(uint64_t numNodes) {
-    graph = new GraphTy(numNodes);
-  }
+  void initGraph(uint64_t numNodes) { graph = new GraphTy(numNodes); }
   //! Determines which host has the master for a particular node
   //! @returns Host id of node in question
   inline unsigned getHostID(uint64_t gid) const { return getHostIDImpl(gid); }
@@ -572,8 +570,7 @@ public:
    * @param mflag access flag for node data
    * @returns A node data object
    */
-  inline NodeTy&
-  getData(GraphNode N) {
+  inline NodeTy& getData(GraphNode N) {
     auto& r = graph->getData(N);
     return r;
   }
@@ -585,10 +582,9 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
-  inline EdgeTy&
-  getEdgeData(GraphNode src, edge_iterator ni) {
+  inline EdgeTy& getEdgeData(GraphNode src, edge_iterator ni) {
     GraphNode dst = getEdgeDst(ni);
-    auto& r = graph->getEdgeData(std::make_pair(src, getGID(dst)));
+    auto& r       = graph->getEdgeData(std::make_pair(src, getGID(dst)));
     return r;
   }
 
@@ -598,7 +594,9 @@ public:
    * @param ni edge id to get destination of
    * @returns Local ID of destination of edge ni
    */
-  GraphNode getEdgeDst(edge_iterator ni) { return getGID(graph->getEdgeDst(*ni)); }
+  GraphNode getEdgeDst(edge_iterator ni) {
+    return getGID(graph->getEdgeDst(*ni));
+  }
 
   /**
    * Gets the first edge of some node.
@@ -617,9 +615,7 @@ public:
    * @returns iterator to the end of the edges of node N, i.e. the first edge
    * of the next node (or an "end" iterator if there is no next node)
    */
-  inline edge_iterator edge_end(GraphNode N) {
-    return graph->edges(N).end();
-  }
+  inline edge_iterator edge_end(GraphNode N) { return graph->edges(N).end(); }
 
   /**
    * Return the degree of the edge in the local graph
@@ -650,9 +646,7 @@ public:
    *
    * @returns number of edges present in this (local) graph
    */
-  inline size_t sizeEdges() {
-    return graph->sizeEdges();
-  }
+  inline size_t sizeEdges() { return graph->sizeEdges(); }
 
   /**
    * Gets number of nodes on this (local) graph.
@@ -876,8 +870,8 @@ public:
   void sortEdgesByDestination() {
     galois::do_all(
         galois::iterate(graph->vertices().begin(), graph->vertices().end()),
-        [&](GraphNode n) { graph->sortEdges(n); },
-        galois::no_stats(), galois::loopname("CSREdgeSort"), galois::steal());
+        [&](GraphNode n) { graph->sortEdges(n); }, galois::no_stats(),
+        galois::loopname("CSREdgeSort"), galois::steal());
   }
 
   //! Used by substrate to determine if some stats are to be reported

@@ -23,10 +23,7 @@
 
 using namespace agile::workflow1;
 
-typedef galois::graphs::WMDGraph<Vertex,
-                                 Edge, OECPolicy>
-    Graph;
-
+typedef galois::graphs::WMDGraph<Vertex, Edge, OECPolicy> Graph;
 
 struct Vrtx {
   uint64_t id;
@@ -35,102 +32,102 @@ struct Vrtx {
 
   Vrtx(uint64_t id, agile::workflow1::TYPES type) : id(id), type(type) {}
   Vrtx() : id(0), type(agile::workflow1::TYPES::NONE) {}
-  
 };
 
-void parser(std::string line, std::unordered_map<std::uint64_t, Vrtx>& vertices) {
-  if (line.find("//") != std::string::npos || line.find("#") != std::string::npos) {
-      return;
-    } else if (line.find("/*") != std::string::npos || line.find("*/") != std::string::npos) {
-      return;
-    } else {
-      const char* ptr = line.c_str();
-      std::istringstream ss(ptr);
-      std::string token;
-      std::vector<std::string> tokens;
-      while(std::getline(ss, token, ',')) {
-        tokens.push_back(token);
-      }
-      bool isNode = tokens[0] == "Person" ||
-                    tokens[0] == "ForumEvent" ||
-                    tokens[0] == "Forum" ||
-                    tokens[0] == "Publication" ||
-                    tokens[0] == "Topic";
-      if (isNode) {
-        uint64_t id = 0;
-        agile::workflow1::TYPES vertexType = agile::workflow1::TYPES::NONE;
-        if (tokens[0] == "Person") {
-          vertexType = agile::workflow1::TYPES::PERSON;
-          id = std::stoull(tokens[1]);
-        } else if (tokens[0] == "ForumEvent") {
-          vertexType = agile::workflow1::TYPES::FORUMEVENT;
-          id = std::stoull(tokens[4]);
-        } else if (tokens[0] == "Forum") {
-          vertexType = agile::workflow1::TYPES::FORUM;
-          id = std::stoull(tokens[3]);
-        } else if (tokens[0] == "Publication") {
-          vertexType = agile::workflow1::TYPES::PUBLICATION;
-          id = std::stoull(tokens[5]);
-        } else if (tokens[0] == "Topic") {
-          vertexType = agile::workflow1::TYPES::TOPIC;
-          id = std::stoull(tokens[6]);
-        } else {
-          assert(false);
-        }
-        Vrtx vertex(id, vertexType);
-        vertices.insert({vertex.id, vertex});
+void parser(std::string line,
+            std::unordered_map<std::uint64_t, Vrtx>& vertices) {
+  if (line.find("//") != std::string::npos ||
+      line.find("#") != std::string::npos) {
+    return;
+  } else if (line.find("/*") != std::string::npos ||
+             line.find("*/") != std::string::npos) {
+    return;
+  } else {
+    const char* ptr = line.c_str();
+    std::istringstream ss(ptr);
+    std::string token;
+    std::vector<std::string> tokens;
+    while (std::getline(ss, token, ',')) {
+      tokens.push_back(token);
+    }
+    bool isNode = tokens[0] == "Person" || tokens[0] == "ForumEvent" ||
+                  tokens[0] == "Forum" || tokens[0] == "Publication" ||
+                  tokens[0] == "Topic";
+    if (isNode) {
+      uint64_t id                        = 0;
+      agile::workflow1::TYPES vertexType = agile::workflow1::TYPES::NONE;
+      if (tokens[0] == "Person") {
+        vertexType = agile::workflow1::TYPES::PERSON;
+        id         = std::stoull(tokens[1]);
+      } else if (tokens[0] == "ForumEvent") {
+        vertexType = agile::workflow1::TYPES::FORUMEVENT;
+        id         = std::stoull(tokens[4]);
+      } else if (tokens[0] == "Forum") {
+        vertexType = agile::workflow1::TYPES::FORUM;
+        id         = std::stoull(tokens[3]);
+      } else if (tokens[0] == "Publication") {
+        vertexType = agile::workflow1::TYPES::PUBLICATION;
+        id         = std::stoull(tokens[5]);
+      } else if (tokens[0] == "Topic") {
+        vertexType = agile::workflow1::TYPES::TOPIC;
+        id         = std::stoull(tokens[6]);
       } else {
-        Edge edge(tokens);
-        Vrtx srcVertex;
-        if(vertices.find(edge.src) != vertices.end()) {
-          srcVertex = vertices[edge.src];
-          vertices[edge.src].edges.push_back(edge);
-        } else {
-          assert(false);
-        }
-        if(vertices.find(edge.src) != vertices.end()) {
-          vertices.insert({edge.src, srcVertex});
-        } else {
-          assert(false);
-        }
-        // Inverse edge
-        agile::workflow1::TYPES inverseEdgeType = agile::workflow1::TYPES::NONE;
-        if (tokens[0] == "Sale") {
-          inverseEdgeType = agile::workflow1::TYPES::PURCHASE;
-        } else if (tokens[0] == "Author") {
-          inverseEdgeType = agile::workflow1::TYPES::WRITTENBY;
-        } else if (tokens[0] == "Includes") {
-          inverseEdgeType = agile::workflow1::TYPES::INCLUDEDIN;
-        } else if (tokens[0] == "HasTopic") {
-          inverseEdgeType = agile::workflow1::TYPES::TOPICIN;
-        } else if (tokens[0] == "HasOrg") {
-          inverseEdgeType = agile::workflow1::TYPES::ORGIN;
-        } else {
-          assert(false);
-        }
-        agile::workflow1::Edge inverseEdge    = edge;
-        inverseEdge.type = inverseEdgeType;
-        std::swap(inverseEdge.src, inverseEdge.dst);
-        std::swap(inverseEdge.src_type, inverseEdge.dst_type);
-        Vrtx dstVertex;
-        if(vertices.find(edge.dst) != vertices.end()) {
-          dstVertex = vertices[edge.dst];
-          vertices[edge.dst].edges.push_back(inverseEdge);
-        } else {
-          assert(false);
-        }
-        if(vertices.find(edge.dst) != vertices.end()) {
-          vertices.insert({edge.dst, dstVertex});
-        } else {
-          assert(false);
-        }
+        assert(false);
       }
+      Vrtx vertex(id, vertexType);
+      vertices.insert({vertex.id, vertex});
+    } else {
+      Edge edge(tokens);
+      Vrtx srcVertex;
+      if (vertices.find(edge.src) != vertices.end()) {
+        srcVertex = vertices[edge.src];
+        vertices[edge.src].edges.push_back(edge);
+      } else {
+        assert(false);
+      }
+      if (vertices.find(edge.src) != vertices.end()) {
+        vertices.insert({edge.src, srcVertex});
+      } else {
+        assert(false);
+      }
+      // Inverse edge
+      agile::workflow1::TYPES inverseEdgeType = agile::workflow1::TYPES::NONE;
+      if (tokens[0] == "Sale") {
+        inverseEdgeType = agile::workflow1::TYPES::PURCHASE;
+      } else if (tokens[0] == "Author") {
+        inverseEdgeType = agile::workflow1::TYPES::WRITTENBY;
+      } else if (tokens[0] == "Includes") {
+        inverseEdgeType = agile::workflow1::TYPES::INCLUDEDIN;
+      } else if (tokens[0] == "HasTopic") {
+        inverseEdgeType = agile::workflow1::TYPES::TOPICIN;
+      } else if (tokens[0] == "HasOrg") {
+        inverseEdgeType = agile::workflow1::TYPES::ORGIN;
+      } else {
+        assert(false);
+      }
+      agile::workflow1::Edge inverseEdge = edge;
+      inverseEdge.type                   = inverseEdgeType;
+      std::swap(inverseEdge.src, inverseEdge.dst);
+      std::swap(inverseEdge.src_type, inverseEdge.dst_type);
+      Vrtx dstVertex;
+      if (vertices.find(edge.dst) != vertices.end()) {
+        dstVertex = vertices[edge.dst];
+        vertices[edge.dst].edges.push_back(inverseEdge);
+      } else {
+        assert(false);
+      }
+      if (vertices.find(edge.dst) != vertices.end()) {
+        vertices.insert({edge.dst, dstVertex});
+      } else {
+        assert(false);
+      }
+    }
   }
-
 }
 
-void getDataFromGraph(std::string& filename, std::unordered_map<std::uint64_t, Vrtx>& vertices) {
-  //read file line by line
+void getDataFromGraph(std::string& filename,
+                      std::unordered_map<std::uint64_t, Vrtx>& vertices) {
+  // read file line by line
   std::string line;
   std::ifstream myfile(filename);
   if (myfile.is_open()) {
@@ -141,7 +138,6 @@ void getDataFromGraph(std::string& filename, std::unordered_map<std::uint64_t, V
   } else {
     std::cout << "Unable to open file";
   }
-
 }
 
 int main(int argc, char* argv[]) {
@@ -159,7 +155,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::string dataFile = argv[1];
-  std::string file = dataFile;
+  std::string file     = dataFile;
   std::vector<std::string> filenames;
   filenames.emplace_back(dataFile);
   std::vector<std::unique_ptr<galois::graphs::FileParser<
@@ -193,7 +189,7 @@ int main(int argc, char* argv[]) {
           edgeDst.push_back(graph->getEdgeDst(itr));
         }
         std::vector<uint64_t> edgeDstDbg;
-        for(auto& e : graph->edges(lid)) {
+        for (auto& e : graph->edges(lid)) {
           edgeDstDbg.push_back(graph->getEdgeDst(e));
         }
         assert(edgeDst == edgeDstDbg);
@@ -227,17 +223,16 @@ int main(int argc, char* argv[]) {
   // sort the node info by token order
   // serilize it to file
   if (net.ID == 0) {
-    //compare with vertices
+    // compare with vertices
     assert(tokenAndEdges.size() == vertices.size());
     for (size_t i = 0; i < tokenAndEdges.size(); i++) {
       auto& tokenAndEdge = tokenAndEdges[i];
-      auto& vertex = vertices[tokenAndEdge.first];
+      auto& vertex       = vertices[tokenAndEdge.first];
       assert(vertex.id == tokenAndEdge.first);
       assert(vertex.edges.size() == tokenAndEdge.second.size());
       std::sort(vertex.edges.begin(), vertex.edges.end(),
-           [](const agile::workflow1::Edge& a, const agile::workflow1::Edge& b) {
-             return a.dst < b.dst;
-           });
+                [](const agile::workflow1::Edge& a,
+                   const agile::workflow1::Edge& b) { return a.dst < b.dst; });
       for (size_t j = 0; j < vertex.edges.size(); j++) {
         assert(vertex.edges[j].dst == tokenAndEdge.second[j]);
       }

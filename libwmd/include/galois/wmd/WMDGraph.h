@@ -1142,7 +1142,8 @@ public:
                       &addedData
 #endif
       ](size_t j) {
-                       dstGraph->getData(GIDtoLID[NodeData[j].id]) = NodeData[j];
+                       dstGraph->getData(GIDtoLID[NodeData[j].id]) =
+                           NodeData[j];
                      });
       NodeData.clear();
     }
