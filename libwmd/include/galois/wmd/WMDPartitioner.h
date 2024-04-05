@@ -267,10 +267,10 @@ public:
                   "] LS_CSR graph local nodes: ", base_DistGraph::numNodes);
     galois::gInfo("[", base_DistGraph::id,
                   "] LS_CSR graph master nodes: ", base_DistGraph::numOwned);
-    galois::gInfo("[", base_DistGraph::id, "] LS_CSR graph local edges: ",
-                  base_DistGraph::sizeEdges());
+    galois::gInfo("[", base_DistGraph::id,
+                  "] LS_CSR graph local edges: ", base_DistGraph::sizeEdges());
     assert(base_DistGraph::sizeEdges() == base_DistGraph::numEdges);
-    assert(base_DistGraph::graph.size() == base_DistGraph::numNodes);
+    assert(base_DistGraph::graph->size() == base_DistGraph::numNodes);
 
     bufGraph.resetAndFree();
 
