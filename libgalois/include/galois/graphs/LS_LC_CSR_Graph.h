@@ -77,19 +77,27 @@ private:
       std::tuple<>>;
 
   // forward-declarations of internal structs
-  struct VertexMetadata;
   using EdgeMetadata = VertexTopologyID;
+  struct VertexMetadata {
+    EdgeMetadata* begin = nullptr; // inclusive
+    EdgeMetadata* end   = nullptr; // exclusive
+
+    inline uint64_t degree() const { return end - begin; }
+  };
 
   VertexDataStore m_vertex_data;
   std::vector<VertexMetadata> m_vertices;
 
-  // m_edges[0] is the CSR with gaps, m_edges[1] is the update log.
-  LargeVector<EdgeMetadata> m_edges[2];
-  SpinLock m_edges_lock; // guards resizing of edges vectors
+  // m_edges is the CSR with gaps, m_edit_log is the update log.
   EdgeDataStore m_edge_data;
+
+  SpinLock m_edges_lock; // guards resizing of both edge vectors:
+  LargeVector<EdgeMetadata> m_edges;
+  LargeVector<EdgeMetadata> m_edit_log;
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
-  // m_holes is the number of holes in the log (m_edges[1])
+
+  // m_holes is the number of holes in the log (m_edit_log)
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
       ATOMIC_VAR_INIT(0);
 
@@ -123,11 +131,6 @@ private:
   void computePrefixSum() {
     m_pfx.computePrefixSum(m_vertices.size());
     m_prefix_valid.store(true, std::memory_order_release);
-  }
-
-  // returns a reference to the metadata for the pointed-to edge
-  inline EdgeMetadata& getEdgeMetadata(uint8_t buffer, uint64_t index) const {
-    return m_edges[buffer][index];
   }
 
 public:
@@ -218,14 +221,12 @@ public:
 
   inline EdgeIterator edge_begin(VertexTopologyID vertex) {
     auto const& vertex_meta = m_vertices[vertex];
-    return EdgeIterator(
-        vertex, &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin));
+    return EdgeIterator(vertex, vertex_meta.begin);
   }
 
   inline EdgeIterator edge_end(VertexTopologyID vertex) {
-    auto const& vertex_meta = m_vertices[vertex];
-    return EdgeIterator(vertex,
-                        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end));
+    VertexMetadata const& vertex_meta = m_vertices[vertex];
+    return EdgeIterator(vertex, vertex_meta.end);
   }
 
   inline EdgeRange edges(VertexTopologyID node) {
@@ -237,13 +238,7 @@ public:
    */
   void sortEdges(VertexTopologyID node) {
     auto& vertex_meta = m_vertices[node];
-
-    EdgeMetadata* start =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-
-    EdgeMetadata* end = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
-
-    std::sort(start, end);
+    std::sort(vertex_meta.begin, vertex_meta.end);
   }
 
   /*
@@ -253,11 +248,8 @@ public:
    */
   bool findEdgeSorted(VertexTopologyID src, VertexTopologyID dst) {
     auto const& vertex_meta = m_vertices[src];
-    EdgeMetadata* start =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-    EdgeMetadata* end = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end);
-
-    return std::binary_search(start, end, EdgeMetadata(dst));
+    return std::binary_search(vertex_meta.begin, vertex_meta.end,
+                              EdgeMetadata(dst));
   }
 
   template <bool sorted = false>
@@ -278,46 +270,44 @@ public:
   template <bool sorted = false>
   void addEdgesTopologyOnly(VertexTopologyID src,
                             const std::vector<VertexTopologyID> dsts) {
-    // Copies the edge list to the end of m_edges[1] together with the new
+    // Copies the edge list to the end of m_edit_log together with the new
     // edges.
 
     auto& vertex_meta = m_vertices[src];
     m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
 
     uint64_t const new_degree = vertex_meta.degree() + dsts.size();
-    uint64_t const new_begin =
+    uint64_t const new_begin_offset =
         m_edges_tail.fetch_add(new_degree, std::memory_order_relaxed);
-    uint64_t const new_end = new_begin + new_degree;
+    EdgeMetadata* const new_begin = m_edit_log.begin() + new_begin_offset;
+    EdgeMetadata* const new_end   = new_begin + new_degree;
 
-    if (m_edges[1].size() < new_end) {
+    while (m_edit_log.size() < new_begin_offset + new_degree) {
       m_edges_lock.lock();
       {
-        if (m_edges[1].size() < new_end)
-          m_edges[1].resize(std::max(m_edges[1].size() * 2, new_end));
+        if (m_edit_log.size() < new_begin_offset + new_degree) {
+          m_edit_log.resize(
+              std::max(m_edit_log.size() * 2, new_begin_offset + new_degree));
+        }
       }
       m_edges_lock.unlock();
     }
 
-    EdgeMetadata* log_dst = &getEdgeMetadata(1, new_begin);
+    EdgeMetadata* log_dst = new_begin;
     if constexpr (sorted) {
-      std::merge(dsts.begin(), dsts.end(),
-                 &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
-                 &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
+      std::merge(dsts.begin(), dsts.end(), vertex_meta.begin, vertex_meta.end,
                  log_dst);
     } else {
       // copy old edges
-      log_dst = std::copy(
-          &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
-          &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end), log_dst);
+      log_dst = std::copy(vertex_meta.begin, vertex_meta.end, log_dst);
 
       // insert new edges
       std::copy(dsts.begin(), dsts.end(), log_dst);
     }
 
     // update vertex metadata
-    vertex_meta.buffer = 1;
-    vertex_meta.begin  = new_begin;
-    vertex_meta.end    = new_end;
+    vertex_meta.begin = new_begin;
+    vertex_meta.end   = new_end;
 
     m_prefix_valid.store(false, std::memory_order_release);
   }
@@ -329,25 +319,26 @@ public:
   void compact() {
     using std::swap;
 
+    EdgeMetadata* const log_head = m_edit_log.begin();
+    EdgeMetadata* const log_tail =
+        log_head + m_edges_tail.load(std::memory_order_acquire);
+
     // move from buffer 0 to buffer 1
     galois::do_all(galois::iterate(vertices().begin(), vertices().end()),
                    [&](VertexTopologyID vertex_id) {
                      VertexMetadata& vertex_meta = m_vertices[vertex_id];
 
-                     if (vertex_meta.buffer == 0) {
+                     if (vertex_meta.begin < log_head ||
+                         vertex_meta.begin >= log_tail) {
                        this->addEdgesTopologyOnly<false>(vertex_id, {});
                      }
-
-                     // we are about to swap the buffers, so all vertices will
-                     // be in buffer 0
-                     vertex_meta.buffer = 0;
                    });
 
     // At this point, there are no more live edges in buffer 0.
     m_edges_lock.lock();
     {
-      m_edges[0].resize(0);
-      swap(m_edges[0], m_edges[1]);
+      m_edges.resize(0);
+      swap(m_edges, m_edit_log);
       // relaxed is fine because of locks held:
       m_edges_tail.store(0, std::memory_order_relaxed);
       m_holes.store(0, std::memory_order_relaxed);
@@ -368,7 +359,7 @@ public:
     m_edges_lock.lock();
     {
       estimate +=
-          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
+          (m_edges.size() + m_edges_tail.load(std::memory_order_relaxed)) *
           sizeof(EdgeMetadata);
     }
     m_edges_lock.unlock();
@@ -404,24 +395,6 @@ public:
       computePrefixSum();
     return m_pfx_sum_cache;
   }
-
-private:
-  struct VertexMetadata {
-    uint8_t buffer : 1;
-    uint64_t begin : 48; // inclusive
-    uint64_t end : 48;   // exclusive
-
-    VertexMetadata() : buffer(0), begin(0), end(0) {}
-
-    VertexMetadata(VertexMetadata const& other)
-        : buffer(other.buffer), begin(other.begin), end(other.end) {}
-
-    VertexMetadata(VertexMetadata&& other)
-        : buffer(std::move(other.buffer)), begin(std::move(other.begin)),
-          end(std::move(other.end)) {}
-
-    inline uint64_t degree() const { return end - begin; }
-  };
 
 public:
   class EdgeIterator
