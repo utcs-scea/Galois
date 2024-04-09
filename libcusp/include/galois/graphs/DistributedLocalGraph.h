@@ -477,6 +477,8 @@ protected:
 public:
   //! Type representing a node in this graph
   using GraphNode = typename GraphTy::VertexTopologyID;
+  //! Type representing an edge data in this graph
+  using EdgeType = EdgeTy;
   //! iterator type over edges
   using edge_iterator = typename GraphTy::EdgeIterator;
 

@@ -469,14 +469,14 @@ public:
     }
 
     galois::gInfo("[", base_DistGraph::id, "] Start building projected graph.");
-    newGraph->graph.allocateFrom(newGraph->numNodes, newGraph->numEdges);
+    newGraph->initGraph(newGraph->numNodes);
 
     galois::do_all(
         galois::iterate(uint64_t(0), uint64_t(newGraph->numNodes)),
         [&](auto& node) {
           NodeLID oldGraphLID =
               base_DistGraph::getLID(newGraph->localToGlobalVector[node]);
-          newGraph->graph.getData(node) = projection.ProjectNode(
+          newGraph->graph->getData(node) = projection.ProjectNode(
               *this, base_DistGraph::getData(oldGraphLID), oldGraphLID);
 
           uint64_t numEdges = newTopology[node].size();
@@ -488,9 +488,7 @@ public:
           for (NodeGID gid : newTopology[node]) {
             localDsts.emplace_back(newGraph->getLID(gid));
           }
-          newGraph->graph.addEdgesUnSort(true, node, localDsts.data(),
-                                         newEdgeData[node].data(), numEdges,
-                                         false);
+          newGraph->graph->addEdges(node, localDsts, newEdgeData[node]);
 
           newTopology[node].clear();
           newEdgeData[node].clear();
