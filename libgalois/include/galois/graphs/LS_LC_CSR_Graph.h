@@ -201,11 +201,10 @@ public:
     return m_edge_data[handle];
   }
 
-  inline EdgeTy& getEdgeData(edge_iterator ni) {
-    auto& r       = graph->getEdgeData(*ni);
-    return r;
+  template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
+  inline E& getEdgeData(EdgeIterator const& it) {
+    return m_edge_data[*it];
   }
-
   /*
    * Count the total number of edges in parallel.
    */
