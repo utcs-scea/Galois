@@ -270,7 +270,7 @@ public:
     galois::gInfo("[", base_DistGraph::id, "] LS_CSR graph local edges: ",
                   base_DistGraph::sizeEdges());
     assert(base_DistGraph::sizeEdges() == base_DistGraph::numEdges);
-    assert(base_DistGraph::graph.size() == base_DistGraph::numNodes);
+    assert(base_DistGraph::graph->size() == base_DistGraph::numNodes);
 
     bufGraph.resetAndFree();
 

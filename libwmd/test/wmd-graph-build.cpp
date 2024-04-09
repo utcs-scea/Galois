@@ -15,6 +15,7 @@
 
 #include "galois/DistGalois.h"
 #include "galois/graphs/GenericPartitioners.h"
+#include "galois/runtime/GraphUpdateManager.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -149,7 +150,7 @@ int main(int argc, char* argv[]) {
   auto& net = galois::runtime::getSystemNetworkInterface();
 
   if (argc == 3)
-    galois::setActiveThreads(atoi(argv[2]));
+    galois::setActiveThreads(atoi(argv[3]));
 
   if (net.ID == 0) {
     galois::gPrint("Testing building WMD graph from file.\n");
@@ -171,21 +172,41 @@ int main(int argc, char* argv[]) {
           10, filenames));
   Graph* graph = new Graph(parsers, net.ID, net.Num, true, false,
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
+  std::cout << "Graph created\n";
   assert(graph != nullptr);
+  //galois::runtime::evilPhase = galois::runtime::evilPhase + 1;
+  //galois::runtime::getHostBarrier().wait();
+  std::cout << "Graph created1\n";
+
+  std::string dynFile = argv[2] + std::to_string(net.ID) + ".txt";
+  std::cout << "Dynamic file: " << dynFile << "\n";
+  graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(dynFile, 100, graph);
+  GUM.start();
 
   std::unordered_map<std::uint64_t, Vrtx> vertices;
   getDataFromGraph(file, vertices);
+  for(uint64_t i=0; i<net.Num; i++) {
+    std::cout << "Host: " << i << std::endl;
+    std::string dyn = argv[2] + std::to_string(i) + ".txt";
+    getDataFromGraph(dyn, vertices);
+  }
+  std::cout << "Number of vertices: " << vertices.size() << "\n";
+
+
+  std::cout << "before stop " << net.ID << std::endl;
+  while(!GUM.stop()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  std::cout << "GUM stopped " << net.ID << std::endl;
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
   // compare it with other implementation to verify the correctness
   std::vector<std::pair<uint64_t, std::vector<uint64_t>>> tokenAndEdges;
   tokenAndEdges.resize(graph->numMasters());
-
   galois::do_all(
       galois::iterate(graph->masterNodesRange()),
       [&](size_t lid) {
         auto token = graph->getData(lid).id;
-
         std::vector<uint64_t> edgeDst;
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
@@ -201,6 +222,7 @@ int main(int argc, char* argv[]) {
         tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
       },
       galois::steal());
+  std::cout << "done do_all" << std::endl;
 
   // gather node info from other hosts
   if (net.ID != 0) { // send token and degree pairs to host 0
@@ -213,11 +235,9 @@ int main(int argc, char* argv[]) {
       do {
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
-
       std::vector<std::pair<uint64_t, std::vector<uint64_t>>>
           incomingtokenAndEdges;
       galois::runtime::gDeserialize(p->second, incomingtokenAndEdges);
-
       // combine data
       std::move(incomingtokenAndEdges.begin(), incomingtokenAndEdges.end(),
                 std::back_inserter(tokenAndEdges));
@@ -227,6 +247,7 @@ int main(int argc, char* argv[]) {
   // sort the node info by token order
   // serilize it to file
   if (net.ID == 0) {
+    std::cout << "printing to file" << std::endl;
     //compare with vertices
     assert(tokenAndEdges.size() == vertices.size());
     for (size_t i = 0; i < tokenAndEdges.size(); i++) {
@@ -234,6 +255,10 @@ int main(int argc, char* argv[]) {
       auto& vertex = vertices[tokenAndEdge.first];
       assert(vertex.id == tokenAndEdge.first);
       assert(vertex.edges.size() == tokenAndEdge.second.size());
+      if(vertex.edges.size() != tokenAndEdge.second.size()) {
+        std::cout << "vertex id: " << vertex.id << std::endl;
+        std::cout << "vertex edges size: " << vertex.edges.size() << " tokenAndEdge size: " << tokenAndEdge.second.size() << std::endl;
+      }
       std::sort(vertex.edges.begin(), vertex.edges.end(),
            [](const agile::workflow1::Edge& a, const agile::workflow1::Edge& b) {
              return a.dst < b.dst;
@@ -243,5 +268,6 @@ int main(int argc, char* argv[]) {
       }
     }
   }
+  std::cout << "done" <<  net.ID << std::endl;
   return 0;
 }
