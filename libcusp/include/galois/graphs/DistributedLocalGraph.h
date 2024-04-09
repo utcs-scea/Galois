@@ -590,6 +590,11 @@ public:
     return r;
   }
 
+  inline EdgeTy& getEdgeData(edge_iterator ni) {
+    auto& r       = graph->getEdgeData(*ni);
+    return r;
+  }
+
   /**
    * Gets edge destination of edge ni.
    *
