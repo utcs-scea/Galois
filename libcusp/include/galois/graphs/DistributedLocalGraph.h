@@ -591,7 +591,7 @@ public:
   }
 
   inline EdgeTy& getEdgeData(edge_iterator ni) {
-    auto& r       = graph->getEdgeData(*ni);
+    auto& r = graph->getEdgeData(*ni);
     return r;
   }
 
