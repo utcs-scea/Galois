@@ -70,10 +70,9 @@ private:
       std::conditional_t<HasVertexData, typename std::vector<VertexData>,
                          typename std::tuple<>>;
 
-  using EdgeDataMap = phmap::parallel_flat_hash_map_m<
-      EdgeHandle, EdgeData, boost::hash<EdgeHandle>, std::equal_to<EdgeHandle>>;
-
   // todo: should we use a galois spinlock here instead of a mutex?
+  using EdgeDataMap = phmap::parallel_flat_hash_map_m<EdgeHandle, EdgeData>;
+
   using EdgeDataStore =
       std::conditional_t<HasEdgeData, EdgeDataMap, std::tuple<>>;
 
@@ -156,12 +155,10 @@ public:
   }
 
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
-  inline void setEdgeData(EdgeHandle&& handle, E&& data) {
+  inline void setEdgeData(EdgeHandle handle, E data) {
     m_edge_data.lazy_emplace_l(
-        handle, [&data](EdgeData& v) { v = std::move(data); },
-        [&handle, &data](auto& cons) {
-          cons(std::move(handle), std::move(data));
-        });
+        handle, [&data](EdgeData& v) { v = data; },
+        [&handle, &data](auto& cons) { cons(handle, data); });
   }
 
   inline VertexTopologyID begin() const noexcept {
