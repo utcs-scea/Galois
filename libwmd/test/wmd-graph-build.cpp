@@ -15,6 +15,7 @@
 
 #include "galois/DistGalois.h"
 #include "galois/graphs/GenericPartitioners.h"
+#include "galois/runtime/GraphUpdateManager.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -125,18 +126,20 @@ void parser(std::string line,
   }
 }
 
-void getDataFromGraph(std::string& filename,
+void getDataFromGraph(std::vector<std::string>& files,
                       std::unordered_map<std::uint64_t, Vrtx>& vertices) {
   // read file line by line
-  std::string line;
-  std::ifstream myfile(filename);
-  if (myfile.is_open()) {
-    while (getline(myfile, line)) {
-      parser(line, vertices);
+  for (auto& file : files) {
+    std::string line;
+    std::ifstream myfile(file);
+    if (myfile.is_open()) {
+      while (getline(myfile, line)) {
+        parser(line, vertices);
+      }
+      myfile.close();
+    } else {
+      std::cout << "Unable to open file";
     }
-    myfile.close();
-  } else {
-    std::cout << "Unable to open file";
   }
 }
 
@@ -169,19 +172,37 @@ int main(int argc, char* argv[]) {
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
   assert(graph != nullptr);
 
-  std::unordered_map<std::uint64_t, Vrtx> vertices;
-  getDataFromGraph(file, vertices);
+  // Start Graph Update Manager
+  std::string dynFile = argv[2] + std::to_string(net.ID) + ".txt";
+  graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(
+      std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
+                                                 agile::workflow1::Edge>>(
+          10, filenames),
+      dynFile, 100, graph);
+  GUM.start();
 
-  // generate a file with sorted token of all nodes and its outgoing edge dst
-  // compare it with other implementation to verify the correctness
+  // wait for GUM to finish
+  while (!GUM.stop()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  // Validation code
+  std::unordered_map<std::uint64_t, Vrtx> vertices;
+  std::vector<std::string> files;
+  files.push_back(file);
+  for (uint32_t i = 0; i < net.Num; i++) {
+    std::string file = argv[2] + std::to_string(i) + ".txt";
+    files.push_back(file);
+  }
+  getDataFromGraph(files, vertices);
+
   std::vector<std::pair<uint64_t, std::vector<uint64_t>>> tokenAndEdges;
-  tokenAndEdges.resize(graph->numMasters());
+  tokenAndEdges.reserve(graph->numMasters());
 
   galois::do_all(
       galois::iterate(graph->masterNodesRange()),
       [&](size_t lid) {
         auto token = graph->getData(lid).id;
-
         std::vector<uint64_t> edgeDst;
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
@@ -197,7 +218,6 @@ int main(int argc, char* argv[]) {
         tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
       },
       galois::steal());
-
   // gather node info from other hosts
   if (net.ID != 0) { // send token and degree pairs to host 0
     galois::runtime::SendBuffer sendBuffer;
@@ -209,19 +229,18 @@ int main(int argc, char* argv[]) {
       do {
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
-
       std::vector<std::pair<uint64_t, std::vector<uint64_t>>>
           incomingtokenAndEdges;
       galois::runtime::gDeserialize(p->second, incomingtokenAndEdges);
-
       // combine data
       std::move(incomingtokenAndEdges.begin(), incomingtokenAndEdges.end(),
                 std::back_inserter(tokenAndEdges));
     }
   }
 
+  galois::runtime::getHostBarrier().wait();
+
   // sort the node info by token order
-  // serilize it to file
   if (net.ID == 0) {
     // compare with vertices
     assert(tokenAndEdges.size() == vertices.size());
