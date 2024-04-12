@@ -24,7 +24,8 @@ namespace galois {
 // TODO remove the need to hardcode this path
 //! Path to location of all gnn files
 static const std::string default_gnn_dataset_path =
-    "/home/hochan/inputs/Learning/";
+    //"/net/ohm/export/iss/inputs/Learning/";
+    " nope";
 
 //! Helper struct to maintain start/end/size of any particular range. Mostly
 //! used for mask ranges.
@@ -70,6 +71,9 @@ public:
         std::string("[") +
         std::to_string(galois::runtime::getSystemNetworkInterface().ID) +
         std::string("] ");
+
+    std::cout << "input directory:" << input_directory_ << ", "
+              << " data set name:" << dataset_name << "\n";
     // load partition
     partitioned_graph_ =
         LoadPartition(input_directory_, dataset_name, partition_scheme);
@@ -1657,6 +1661,15 @@ private:
     }
     GALOIS_LOG_VERBOSE("Partition loading: File to read is {}", input_file);
 
+    std::cout << "input file:" << input_file << "\n";
+    if (FILE* fp = fopen(input_file.c_str(), "r")) {
+      std::cout << "succeeded to read the input file:" << input_file << "\n"
+                << std::flush;
+      fclose(fp);
+    } else {
+      std::cout << "failed to read the input file:" << input_file << "\n"
+                << std::flush;
+    }
     // load partition
     switch (partition_scheme) {
     case galois::graphs::GNNPartitionScheme::kOEC:
@@ -2398,23 +2411,6 @@ private:
     num_correct_.reset();
     total_checked_.reset();
 
-#if 0
-    std::cout << "single accuracy print:\n";
-    for (int i = *begin_owned(); i < *end_owned(); ++i) {
-      if (!IsValidForPhase(i, GNNPhase::kBatch)) {
-        continue;
-      }
-      //std::cout << subgraph_->SIDToLID(i) << ", " << galois::MaxIndex(num_label_classes_, &predictions[i * num_label_classes_]) <<
-      std::cout << "accuracy:" << subgraph_->SIDToLID(i) << ", " <<
-      predictions[i * num_label_classes_] << ", " <<
-      predictions[i * num_label_classes_ + 1] << ", " <<
-      predictions[i * num_label_classes_ + 2] << ", " <<
-      predictions[i * num_label_classes_ + 3] << ", " <<
-      predictions[i * num_label_classes_ + 4] << "-> " <<
-      galois::MaxIndex(num_label_classes_, &predictions[i * num_label_classes_]) <<
-      " vs " << GetSingleClassLabel(i) << "\n";
-    }
-#endif
     galois::do_all(
         // will only loop over sampled nodes if sampling is on
         galois::iterate(begin_owned(), end_owned()),

@@ -999,7 +999,7 @@ void routeMonotonic(int netID, int edgeID, int threshold) {
           grid = yl * xGrid_1;
           for (j = 0; j <= segHeight; j++) {
             tmp              = max((float)0, h_edges[grid + x].red +
-                                    h_edges[grid + x].est_usage - hCapacity_lb);
+                                                 h_edges[grid + x].est_usage - hCapacity_lb);
             cost[j][i + 1]   = cost[j][i] + tmp;
             parent[j][i + 1] = SAMEY;
             grid += xGrid - 1;
@@ -1071,7 +1071,7 @@ void routeMonotonic(int netID, int edgeID, int threshold) {
           ind_i = i + 1;
           for (j = segHeight; j >= 0; j--) {
             tmp              = max((float)0, h_edges[grid + x].red +
-                                    h_edges[grid + x].est_usage - hCapacity_lb);
+                                                 h_edges[grid + x].est_usage - hCapacity_lb);
             cost[j][ind_i]   = cost[j][i] + tmp;
             parent[j][ind_i] = SAMEY;
             grid -= xGrid - 1;

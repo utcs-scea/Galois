@@ -10,8 +10,8 @@ std::ostream& operator<<(std::ostream& strm,
 
 template <typename ElementTy>
 class EdgeInducedEmbedding : public Embedding<ElementTy> {
-  friend std::ostream& operator<<<>(std::ostream& strm,
-                                    const EdgeInducedEmbedding<ElementTy>& emb);
+  friend std::ostream&
+  operator<< <>(std::ostream& strm, const EdgeInducedEmbedding<ElementTy>& emb);
 
 public:
   EdgeInducedEmbedding() { qp_id = 0xFFFFFFFF; }

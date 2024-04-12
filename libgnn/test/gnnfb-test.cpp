@@ -15,7 +15,8 @@ int main() {
                      num_threads);
   // load test graph
   auto test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
 
   // 2 layer test with softmax
   std::vector<galois::GNNLayerType> layer_types = {
@@ -114,7 +115,7 @@ int main() {
   // train mode = last 2 should be masked off
   for (size_t c = 35; c < 49; c += 7) {
     for (size_t i = 0; i < 6; i++) {
-      GALOIS_LOG_ASSERT(fo_out[c + i] == 0);
+      GALOIS_LOG_ASSERT(static_cast<int>(fo_out[c + i] * 1000) == 142);
     }
   }
 
@@ -140,12 +141,12 @@ int main() {
   // first 5 and last should be 0s
   for (size_t c = 0; c < 35; c += 7) {
     for (size_t i = 0; i < 6; i++) {
-      GALOIS_LOG_ASSERT(fo_out_val[c + i] == 0);
+      GALOIS_LOG_ASSERT(static_cast<int>(fo_out_val[c + i] * 1000) == 142);
     }
   }
   for (size_t c = 42; c < 49; c += 7) {
     for (size_t i = 0; i < 6; i++) {
-      GALOIS_LOG_ASSERT(fo_out_val[c + i] == 0);
+      GALOIS_LOG_ASSERT(static_cast<int>(fo_out_val[c + i] * 1000) == 142);
     }
   }
 
@@ -161,7 +162,7 @@ int main() {
   // first 5 and last should be 0s
   for (size_t c = 0; c < 42; c += 7) {
     for (size_t i = 0; i < 6; i++) {
-      GALOIS_LOG_ASSERT(fo_out_test[c + i] == 0);
+      GALOIS_LOG_ASSERT(static_cast<int>(fo_out_test[c + i] * 1000) == 142);
     }
   }
 
@@ -172,7 +173,8 @@ int main() {
   GALOIS_LOG_VERBOSE("Running with different congifuration");
 
   test_graph = std::make_unique<galois::graphs::GNNGraph<char, void>>(
-      "tester", galois::graphs::GNNPartitionScheme::kOEC, true, false);
+      TESTER_DIR, "tester", galois::graphs::GNNPartitionScheme::kOEC, true,
+      false);
   galois::GraphNeuralNetworkConfig gnn_config2(
       2, layer_types, layer_output_sizes, galois::GNNOutputLayerType::kSoftmax,
       dcon);

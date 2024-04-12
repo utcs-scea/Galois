@@ -203,7 +203,7 @@ inline void createLiterals(
   literals.insert(std::make_pair("1", std::make_pair(constOne, 0)));
 
   //	std::cout << std::endl << "############################## Literals
-  //##############################" << std::endl; 	for ( auto lit : literals )
+  // ##############################" << std::endl; 	for ( auto lit : literals )
   //{ 		std::cout << lit.first << " = " << toHex( lit.second.first, nWords )
   //<< " | " << supportToBin( lit.second.second ) << std::endl;
   //	}

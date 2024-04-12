@@ -28,7 +28,7 @@ void LonestarGnnStart(int argc, char** argv, const char* app, const char* desc,
   unsigned hostID = 0;
 #ifndef GALOIS_ENABLE_GPU
   numThreads = galois::setActiveThreads(numThreads); // number of threads on CPU
-  hostID = galois::runtime::getSystemNetworkInterface().ID;
+  hostID     = galois::runtime::getSystemNetworkInterface().ID;
 #endif
 
   if (hostID == 0) {

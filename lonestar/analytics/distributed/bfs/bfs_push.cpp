@@ -61,9 +61,9 @@ static cll::opt<uint32_t>
           cll::init(0));
 
 static cll::opt<unsigned>
-  rseed("rseed",
-        cll::desc("The random seed for choosing the hosts (default value 0)"),
-        cll::init(0));
+    rseed("rseed",
+          cll::desc("The random seed for choosing the hosts (default value 0)"),
+          cll::init(0));
 
 enum Exec { Sync, Async };
 
@@ -102,8 +102,7 @@ struct InitializeGraph {
   uint64_t local_src_node;
   Graph* graph;
 
-  InitializeGraph(uint64_t& _src_node, const uint32_t& _infinity,
-                  Graph* _graph)
+  InitializeGraph(uint64_t& _src_node, const uint32_t& _infinity, Graph* _graph)
       : local_infinity(_infinity), local_src_node(_src_node), graph(_graph) {}
 
   void static go(Graph& _graph) {
@@ -275,12 +274,12 @@ struct BFS {
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
-    //stack_capture->capture_stack_info();
+    // stack_capture->capture_stack_info();
     cyg_profile_func_stack(nullptr, nullptr);
 
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
-      //stack_capture->capture_stack_info();
+      // stack_capture->capture_stack_info();
       cyg_profile_func_stack(nullptr, nullptr);
 
       if (local_priority > snode.dist_current) {
@@ -295,10 +294,10 @@ struct BFS {
           uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
           if (old_dist > new_dist)
             bitset_dist_current.set(dst);
-          //stack_capture->capture_stack_info();
+          // stack_capture->capture_stack_info();
           cyg_profile_func_stack(nullptr, nullptr);
         }
-        //stack_capture->capture_stack_info();
+        // stack_capture->capture_stack_info();
         cyg_profile_func_stack(nullptr, nullptr);
       }
     }
@@ -436,8 +435,8 @@ int main(int argc, char** argv) {
     galois::runtime::reportParam(REGION_NAME, "Source Node ID", src_node);
   }
 
-  //Setup Seeding information
-  uint64_t* src_nodes = (uint64_t*) malloc(sizeof(uint64_t) * numRuns);
+  // Setup Seeding information
+  uint64_t* src_nodes = (uint64_t*)malloc(sizeof(uint64_t) * numRuns);
   std::mt19937 generator(rseed);
 
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
@@ -458,21 +457,18 @@ int main(int argc, char** argv) {
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
   galois::DGReduceMax<uint32_t> m;
 
-  //get the src_nodes of the runs
+  // get the src_nodes of the runs
   galois::StatTimer StatTimer_select("VertexSelection", REGION_NAME);
   StatTimer_select.start();
-  for(auto run = 0; run < numRuns; ++run)
-  {
+  for (auto run = 0; run < numRuns; ++run) {
     uint64_t degree = 0;
-    auto num_nodes = hg->globalSize();
-    uint64_t cand = 0;
-    while(degree < 1)
-    {
+    auto num_nodes  = hg->globalSize();
+    uint64_t cand   = 0;
+    while (degree < 1) {
       DGAccumulator_sum.reset();
       cand = generator() % num_nodes;
 
-      if(hg->isOwned(cand) || hg->isLocal(cand))
-      {
+      if (hg->isOwned(cand) || hg->isLocal(cand)) {
         auto lcand = hg->getLID(cand);
         DGAccumulator_sum += hg->localDegree(lcand);
       }
@@ -526,18 +522,20 @@ int main(int argc, char** argv) {
       writeOutput(outputLocation, "level", results.data(), results.size(),
                   globalIDs.data());
     }
-
   }
 
   StatTimer_total.stop();
-  galois::gPrint("[", net.ID, "] Max Stack Size ", stack_capture.get_max(), " bytes\n");
-
+  galois::gPrint("[", net.ID, "] Max Stack Size ", stack_capture.get_max(),
+                 " bytes\n");
 
   struct rusage r_usage;
-  getrusage(RUSAGE_SELF,&r_usage);
+  getrusage(RUSAGE_SELF, &r_usage);
   galois::gPrint("[", net.ID, "] Memory usage: ", r_usage.ru_maxrss, " KB\n");
   auto en = std::chrono::high_resolution_clock::now();
 
-  galois::gPrint("[", net.ID, "] E2ETime: ", std::chrono::duration_cast<std::chrono::nanoseconds>(en - st).count(), " ns\n");
+  galois::gPrint(
+      "[", net.ID, "] E2ETime: ",
+      std::chrono::duration_cast<std::chrono::nanoseconds>(en - st).count(),
+      " ns\n");
   return 0;
 }
