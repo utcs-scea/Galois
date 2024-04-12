@@ -157,8 +157,8 @@ public:
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
   inline void setEdgeData(EdgeHandle handle, E data) {
     m_edge_data.lazy_emplace_l(
-        handle, [&data](EdgeData& v) { v = data; },
-        [&handle, &data](auto& cons) { cons(handle, data); });
+        handle, [&](EdgeData& v) { v = data; },
+        [&](auto cons) { cons(handle, data); });
   }
 
   inline VertexTopologyID begin() const noexcept {
