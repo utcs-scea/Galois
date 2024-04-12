@@ -69,12 +69,13 @@ private:
   using VertexDataStore =
       std::conditional_t<HasVertexData, typename std::vector<VertexData>,
                          typename std::tuple<>>;
-  using EdgeDataStore = std::conditional_t<
-      HasEdgeData,
-      phmap::flat_hash_map<
-          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
-          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
-      std::tuple<>>;
+
+  using EdgeDataMap = phmap::parallel_flat_hash_map_m<
+      EdgeHandle, EdgeData, boost::hash<EdgeHandle>, std::equal_to<EdgeHandle>>;
+
+  // todo: should we use a galois spinlock here instead of a mutex?
+  using EdgeDataStore =
+      std::conditional_t<HasEdgeData, EdgeDataMap, std::tuple<>>;
 
   // forward-declarations of internal structs
   struct VertexMetadata;
@@ -155,8 +156,12 @@ public:
   }
 
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
-  void setEdgeData(EdgeHandle handle, E data) {
-    m_edge_data[handle] = data;
+  inline void setEdgeData(EdgeHandle&& handle, E&& data) {
+    m_edge_data.lazy_emplace_l(
+        handle, [&data](EdgeData& v) { v = std::move(data); },
+        [&handle, &data](auto& cons) {
+          cons(std::move(handle), std::move(data));
+        });
   }
 
   inline VertexTopologyID begin() const noexcept {
@@ -266,7 +271,8 @@ public:
     GALOIS_ASSERT(data.size() == dsts.size());
     this->addEdgesTopologyOnly<sorted>(src, dsts);
     for (size_t i = 0; i < dsts.size(); ++i) {
-      m_edge_data[std::make_pair(src, dsts[i])] = data[i];
+      auto key = std::make_pair(src, dsts[i]);
+      setEdgeData(key, data[i]);
     }
   }
 
