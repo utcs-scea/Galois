@@ -65,9 +65,8 @@ private:
     size_t const mmap_size =
         std::max(m_mappings.front().second * 2, m_capacity * sizeof(T));
 
-    m_data = static_cast<T*>(
-        mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
-             MAP_SHARED | MAP_HUGETLB | MAP_HUGE_2MB | MAP_POPULATE, m_fd, 0));
+    m_data = static_cast<T*>(mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
+                                  MAP_SHARED | MAP_POPULATE, m_fd, 0));
     if (m_data == MAP_FAILED)
       throw std::runtime_error(std::string("mmap failed: ") +
                                std::strerror(errno));
@@ -78,7 +77,7 @@ private:
 public:
   LargeVector(size_t initial_capacity)
       : m_capacity(0), m_size(0), m_data(nullptr),
-        m_fd(memfd_create("LargeVector", MFD_HUGETLB | MFD_HUGE_2MB)),
+        m_fd(memfd_create("LargeVector", 0)),
         m_mappings({std::make_pair(nullptr, 0)}) {
     if (m_fd == -1)
       throw std::runtime_error(std::string("creating memfd: ") +
