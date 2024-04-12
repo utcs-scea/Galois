@@ -1,4 +1,4 @@
-function(add_test_unit name)
+function(add_test_unit name test_options)
   set(test_name unit-${name})
 
   add_executable(${test_name} ${name}.cpp)
@@ -6,7 +6,9 @@ function(add_test_unit name)
 
   set(command_line "$<TARGET_FILE:${test_name}>")
 
-  add_test(NAME ${test_name} COMMAND ${command_line} ${Galois_SOURCE_DIR}/inputs/wmd/data.001.csv)
+  add_test(NAME ${test_name} COMMAND ${command_line} ${test_options})
 endfunction()
 
-add_test_unit(wmd-graph-build)
+add_test_unit(wmd-graph-build ${Galois_SOURCE_DIR}/inputs/wmd/data.001.csv)
+set(test_options "${Galois_SOURCE_DIR}/inputs/rmat10.el" "--numVertices" "987")
+add_test_unit(el-graph-build ${test_options})

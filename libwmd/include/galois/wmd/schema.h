@@ -175,6 +175,53 @@ private:
   std::vector<std::string> files_;
 };
 
+template <typename V, typename E>
+class ELParser : public FileParser<V, E> {
+public:
+  ELParser(std::vector<std::string> files) : csvFields_(2), files_(files) {}
+  ELParser(uint64_t csvFields, std::vector<std::string> files)
+      : csvFields_(csvFields), files_(files) {}
+
+  virtual const std::vector<std::string>& GetFiles() override { return files_; }
+  virtual ParsedGraphStructure<V, E> ParseLine(char* line,
+                                               uint64_t lineLength) override {
+    std::uint64_t src;
+    std::uint64_t dst;
+    line = elGetOne(line, src);
+    line = elGetOne(line, dst);
+    std::vector<E> edges;
+    E edge = {src, dst};
+    edges.emplace_back(edge);
+    return ParsedGraphStructure<V, E>(edges);
+  }
+
+  char* elGetOne(char* line, std::uint64_t& val) {
+    bool found = false;
+    val        = 0;
+    char c;
+    while ((c = *line++) != '\0' && isspace(c)) {
+    }
+    do {
+      if (isdigit(c)) {
+        found = true;
+        val *= 10;
+        val += (c - '0');
+      } else if (c == '_') {
+        continue;
+      } else {
+        break;
+      }
+    } while ((c = *line++) != '\0' && !isspace(c));
+    if (!found)
+      val = UINT64_MAX;
+    return line;
+  }
+
+private:
+  uint64_t csvFields_;
+  std::vector<std::string> files_;
+};
+
 } // namespace graphs
 } // namespace galois
 

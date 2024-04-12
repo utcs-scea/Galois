@@ -137,7 +137,7 @@ public:
       std::vector<std::unique_ptr<galois::graphs::FileParser<NodeTy, EdgeTy>>>&
           parsers,
       unsigned host, unsigned _numHosts, bool setupGluon = true,
-      bool doSort                             = false,
+      bool doSort = false, uint64_t numVertices = 0,
       galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS)
       : base_DistGraph(host, _numHosts) {
     galois::gInfo("[", base_DistGraph::id, "] Start DistGraph construction.");
@@ -175,6 +175,10 @@ public:
 
     // never read edge data from disk
     galois::graphs::WMDBufferedGraph<NodeTy, EdgeTy> bufGraph;
+    if constexpr (std::is_same<NodeTy, galois::graphs::ELVertex>::value) {
+      assert(numVertices != 0);
+      bufGraph.setSize(numVertices);
+    }
     bufGraph.loadPartialGraph(g, base_DistGraph::numGlobalEdges);
 
     edgesExchangeTimer.stop();
@@ -702,6 +706,7 @@ private:
       base_DistGraph::globalToLocalMap[base_DistGraph::localToGlobalVector[i]] =
           i;
     }
+
     base_DistGraph::numNodesWithEdges = base_DistGraph::numNodes;
     return incomingMirrors;
   }
