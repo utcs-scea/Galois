@@ -25,17 +25,20 @@ using namespace agile::workflow1;
 
 typedef galois::graphs::WMDGraph<Vertex, Edge, OECPolicy> Graph;
 
-struct Vrtx {
-  uint64_t id;
-  agile::workflow1::TYPES type;
-  std::vector<agile::workflow1::Edge> edges;
-
-  Vrtx(uint64_t id, agile::workflow1::TYPES type) : id(id), type(type) {}
-  Vrtx() : id(0), type(agile::workflow1::TYPES::NONE) {}
-};
+void insertEdge(
+    Edge edge,
+    std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
+        vertices) {
+  if (vertices.find(edge.src) != vertices.end()) {
+    vertices[edge.src].second.push_back(edge);
+  } else {
+    assert(false);
+  }
+}
 
 void parser(std::string line,
-            std::unordered_map<std::uint64_t, Vrtx>& vertices) {
+            std::unordered_map<std::uint64_t,
+                               std::pair<TYPES, std::vector<Edge>>>& vertices) {
   if (line.find("//") != std::string::npos ||
       line.find("#") != std::string::npos) {
     return;
@@ -79,22 +82,11 @@ void parser(std::string line,
       } else {
         assert(false);
       }
-      Vrtx vertex(id, vertexType);
-      vertices.insert({vertex.id, vertex});
+      vertices[id] =
+          std::pair<TYPES, std::vector<Edge>>(vertexType, std::vector<Edge>());
     } else {
       Edge edge(tokens);
-      Vrtx srcVertex;
-      if (vertices.find(edge.src) != vertices.end()) {
-        srcVertex = vertices[edge.src];
-        vertices[edge.src].edges.push_back(edge);
-      } else {
-        assert(false);
-      }
-      if (vertices.find(edge.src) != vertices.end()) {
-        vertices.insert({edge.src, srcVertex});
-      } else {
-        assert(false);
-      }
+      insertEdge(edge, vertices);
       // Inverse edge
       agile::workflow1::TYPES inverseEdgeType = agile::workflow1::TYPES::NONE;
       if (tokens[0] == "Sale") {
@@ -114,24 +106,15 @@ void parser(std::string line,
       inverseEdge.type                   = inverseEdgeType;
       std::swap(inverseEdge.src, inverseEdge.dst);
       std::swap(inverseEdge.src_type, inverseEdge.dst_type);
-      Vrtx dstVertex;
-      if (vertices.find(edge.dst) != vertices.end()) {
-        dstVertex = vertices[edge.dst];
-        vertices[edge.dst].edges.push_back(inverseEdge);
-      } else {
-        assert(false);
-      }
-      if (vertices.find(edge.dst) != vertices.end()) {
-        vertices.insert({edge.dst, dstVertex});
-      } else {
-        assert(false);
-      }
+      insertEdge(inverseEdge, vertices);
     }
   }
 }
 
-void getDataFromGraph(std::string& filename,
-                      std::unordered_map<std::uint64_t, Vrtx>& vertices) {
+void getDataFromGraph(
+    std::string& filename,
+    std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
+        vertices) {
   // read file line by line
   std::string line;
   std::ifstream myfile(filename);
@@ -174,7 +157,8 @@ int main(int argc, char* argv[]) {
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
   assert(graph != nullptr);
 
-  std::unordered_map<std::uint64_t, Vrtx> vertices;
+  std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>
+      vertices;
   if (net.ID == 0)
     getDataFromGraph(file, vertices);
 
@@ -234,13 +218,12 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < tokenAndEdges.size(); i++) {
       auto& tokenAndEdge = tokenAndEdges[i];
       auto& vertex       = vertices[tokenAndEdge.first];
-      assert(vertex.id == tokenAndEdge.first);
-      assert(vertex.edges.size() == tokenAndEdge.second.size());
-      std::sort(vertex.edges.begin(), vertex.edges.end(),
+      assert(vertex.second.size() == tokenAndEdge.second.size());
+      std::sort(vertex.second.begin(), vertex.second.end(),
                 [](const agile::workflow1::Edge& a,
                    const agile::workflow1::Edge& b) { return a.dst < b.dst; });
-      for (size_t j = 0; j < vertex.edges.size(); j++) {
-        assert(vertex.edges[j].dst == tokenAndEdge.second[j]);
+      for (size_t j = 0; j < vertex.second.size(); j++) {
+        assert(vertex.second[j].dst == tokenAndEdge.second[j]);
       }
     }
   }
