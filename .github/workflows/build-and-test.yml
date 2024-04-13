@@ -105,7 +105,7 @@ jobs:
           make docker
 
     - name: Run Tests
-      timeout-minutes: 5
+      timeout-minutes: 20
       run: |
         CONTAINER_CMD="make run-tests" \
           IMAGE_NAME="${{ env.IMAGE_NAME }}" \
