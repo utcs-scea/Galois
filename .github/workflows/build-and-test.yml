@@ -46,7 +46,6 @@ jobs:
       CONTAINER_BUILD_DIR: "/pando-galois/build"
       CONTAINER_WORK_DIR: "/pando-galois"
       GALOIS_CONTAINER_ENV: "-e=GALOIS_BUILD_TOOL=Ninja"
-      GALOIS_CONTAINER_FLAGS: "--cpus=8"
       INTERACTIVE: ""
     defaults:
       run:
