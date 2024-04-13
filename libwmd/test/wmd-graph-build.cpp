@@ -50,8 +50,10 @@ void parser(std::string line,
     while (std::getline(ss, token, ',')) {
       tokens.push_back(token);
     }
-    if (tokens.size() == 0) return;
-    if(tokens.size() != 10) exit(-1);
+    if (tokens.size() == 0)
+      return;
+    if (tokens.size() != 10)
+      exit(-1);
     bool isNode = tokens[0] == "Person" || tokens[0] == "ForumEvent" ||
                   tokens[0] == "Forum" || tokens[0] == "Publication" ||
                   tokens[0] == "Topic";
