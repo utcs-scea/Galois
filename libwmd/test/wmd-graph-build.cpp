@@ -50,10 +50,11 @@ void parser(std::string line,
     while (std::getline(ss, token, ',')) {
       tokens.push_back(token);
     }
+    if (tokens.size() == 9)
+      tokens.push_back("");
     if (tokens.size() == 0)
       return;
-    if (tokens.size() != 10)
-      exit(-1);
+    assert(tokens.size() == 10);
     bool isNode = tokens[0] == "Person" || tokens[0] == "ForumEvent" ||
                   tokens[0] == "Forum" || tokens[0] == "Publication" ||
                   tokens[0] == "Topic";
@@ -174,7 +175,8 @@ int main(int argc, char* argv[]) {
   assert(graph != nullptr);
 
   std::unordered_map<std::uint64_t, Vrtx> vertices;
-  getDataFromGraph(file, vertices);
+  if (net.ID == 0)
+    getDataFromGraph(file, vertices);
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
   // compare it with other implementation to verify the correctness
