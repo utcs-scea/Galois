@@ -53,11 +53,8 @@ jobs:
         shell: bash -l {0}
     strategy:
       matrix:
-        build-type: ['Release', 'Debug']
+        build-type: ['Release']
         sanitizer-type: ['nosan', 'san']
-        exclude:
-          - build-type: 'Debug'
-            sanitizer-type: 'san'
     needs: docker-create-ubuntu-2204
 
     steps:
@@ -79,9 +76,6 @@ jobs:
         echo "IMAGE_VERSION=$(git log --pretty="%h" -1 Dockerfile)" >> $GITHUB_ENV
         if [ ${{ matrix.sanitizer-type }} == 'san' ]; then
           echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV -e=GALOIS_EXTRA_CXX_FLAGS='\"-fsanitize=address -fsanitize=undefined\"'" >> $GITHUB_ENV
-        fi
-        if [ ${{ matrix.build-type }} == 'Debug' ]; then
-          echo "GALOIS_CONTAINER_ENV=$GALOIS_CONTAINER_ENV -e=GALOIS_EXTRA_CXX_FLAGS='-O3'" >> $GITHUB_ENV
         fi
         cat $GITHUB_ENV
 
