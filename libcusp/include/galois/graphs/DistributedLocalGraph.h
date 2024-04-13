@@ -867,7 +867,7 @@ public:
    */
   void deallocate() {
     galois::gDebug("Deallocating CSR in DistLocalGraph");
-    graph.deallocate();
+    graph->deallocate();
   }
 
   /**
