@@ -584,13 +584,15 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
-  inline EdgeTy& getEdgeData(GraphNode src, edge_iterator ni) {
+  inline typename std::enable_if<!std::is_void<EdgeTy>::value, edge_iterator>
+  getEdgeData(GraphNode src, edge_iterator ni) {
     GraphNode dst = getEdgeDst(ni);
     auto& r       = graph->getEdgeData(std::make_pair(src, getGID(dst)));
     return r;
   }
 
-  inline EdgeTy& getEdgeData(edge_iterator ni) {
+  inline typename std::enable_if<!std::is_void<EdgeTy>::value, edge_iterator>
+  getEdgeData(edge_iterator ni) {
     auto& r = graph->getEdgeData(*ni);
     return r;
   }
