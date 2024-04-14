@@ -10,6 +10,8 @@
  */
 #include "galois/wmd/graph.h"
 #include "galois/wmd/WMDPartitioner.h"
+#include "galois/shad/DataTypes.h"
+#include "galois/wmd/graphTypes.h"
 
 #include "galois/DistGalois.h"
 #include "galois/graphs/GenericPartitioners.h"
@@ -17,12 +19,114 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
 
 using namespace agile::workflow1;
 
-typedef galois::graphs::WMDGraph<agile::workflow1::Vertex,
-                                 agile::workflow1::Edge, OECPolicy>
-    Graph;
+typedef galois::graphs::WMDGraph<Vertex, Edge, OECPolicy> Graph;
+
+void insertEdge(
+    Edge edge,
+    std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
+        vertices) {
+  if (vertices.find(edge.src) != vertices.end()) {
+    vertices[edge.src].second.push_back(edge);
+  } else {
+    assert(false);
+  }
+}
+
+void parser(std::string line,
+            std::unordered_map<std::uint64_t,
+                               std::pair<TYPES, std::vector<Edge>>>& vertices) {
+  if (line.find("//") != std::string::npos ||
+      line.find("#") != std::string::npos) {
+    return;
+  } else if (line.find("/*") != std::string::npos ||
+             line.find("*/") != std::string::npos) {
+    return;
+  } else {
+    const char* ptr = line.c_str();
+    std::istringstream ss(ptr);
+    std::string token;
+    std::vector<std::string> tokens;
+    while (std::getline(ss, token, ',')) {
+      tokens.push_back(token);
+    }
+    if (tokens.size() == 9)
+      tokens.push_back("");
+    if (tokens.size() == 0)
+      return;
+    assert(tokens.size() == 10);
+    bool isNode = tokens[0] == "Person" || tokens[0] == "ForumEvent" ||
+                  tokens[0] == "Forum" || tokens[0] == "Publication" ||
+                  tokens[0] == "Topic";
+    if (isNode) {
+      uint64_t id                        = 0;
+      agile::workflow1::TYPES vertexType = agile::workflow1::TYPES::NONE;
+      if (tokens[0] == "Person") {
+        vertexType = agile::workflow1::TYPES::PERSON;
+        id         = std::stoull(tokens[1]);
+      } else if (tokens[0] == "ForumEvent") {
+        vertexType = agile::workflow1::TYPES::FORUMEVENT;
+        id         = std::stoull(tokens[4]);
+      } else if (tokens[0] == "Forum") {
+        vertexType = agile::workflow1::TYPES::FORUM;
+        id         = std::stoull(tokens[3]);
+      } else if (tokens[0] == "Publication") {
+        vertexType = agile::workflow1::TYPES::PUBLICATION;
+        id         = std::stoull(tokens[5]);
+      } else if (tokens[0] == "Topic") {
+        vertexType = agile::workflow1::TYPES::TOPIC;
+        id         = std::stoull(tokens[6]);
+      } else {
+        assert(false);
+      }
+      vertices[id] =
+          std::pair<TYPES, std::vector<Edge>>(vertexType, std::vector<Edge>());
+    } else {
+      Edge edge(tokens);
+      insertEdge(edge, vertices);
+      // Inverse edge
+      agile::workflow1::TYPES inverseEdgeType = agile::workflow1::TYPES::NONE;
+      if (tokens[0] == "Sale") {
+        inverseEdgeType = agile::workflow1::TYPES::PURCHASE;
+      } else if (tokens[0] == "Author") {
+        inverseEdgeType = agile::workflow1::TYPES::WRITTENBY;
+      } else if (tokens[0] == "Includes") {
+        inverseEdgeType = agile::workflow1::TYPES::INCLUDEDIN;
+      } else if (tokens[0] == "HasTopic") {
+        inverseEdgeType = agile::workflow1::TYPES::TOPICIN;
+      } else if (tokens[0] == "HasOrg") {
+        inverseEdgeType = agile::workflow1::TYPES::ORGIN;
+      } else {
+        assert(false);
+      }
+      agile::workflow1::Edge inverseEdge = edge;
+      inverseEdge.type                   = inverseEdgeType;
+      std::swap(inverseEdge.src, inverseEdge.dst);
+      std::swap(inverseEdge.src_type, inverseEdge.dst_type);
+      insertEdge(inverseEdge, vertices);
+    }
+  }
+}
+
+void getDataFromGraph(
+    std::string& filename,
+    std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
+        vertices) {
+  // read file line by line
+  std::string line;
+  std::ifstream myfile(filename);
+  if (myfile.is_open()) {
+    while (getline(myfile, line)) {
+      parser(line, vertices);
+    }
+    myfile.close();
+  } else {
+    std::cout << "Unable to open file";
+  }
+}
 
 int main(int argc, char* argv[]) {
   galois::DistMemSys G; // init galois memory
@@ -39,6 +143,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::string dataFile = argv[1];
+  std::string file     = dataFile;
   std::vector<std::string> filenames;
   filenames.emplace_back(dataFile);
   std::vector<std::unique_ptr<galois::graphs::FileParser<
@@ -51,6 +156,11 @@ int main(int argc, char* argv[]) {
   Graph* graph = new Graph(parsers, net.ID, net.Num, true, false,
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
   assert(graph != nullptr);
+
+  std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>
+      vertices;
+  if (net.ID == 0)
+    getDataFromGraph(file, vertices);
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
   // compare it with other implementation to verify the correctness
@@ -66,10 +176,14 @@ int main(int argc, char* argv[]) {
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
         for (; itr != end; itr++) {
-          edgeDst.push_back(graph->getEdgeData(itr).dst);
+          edgeDst.push_back(graph->getEdgeDst(itr));
         }
+        std::vector<uint64_t> edgeDstDbg;
+        for (auto& e : graph->edges(lid)) {
+          edgeDstDbg.push_back(graph->getEdgeDst(e));
+        }
+        assert(edgeDst == edgeDstDbg);
         std::sort(edgeDst.begin(), edgeDst.end());
-
         tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
       },
       galois::steal());
@@ -99,23 +213,19 @@ int main(int argc, char* argv[]) {
   // sort the node info by token order
   // serilize it to file
   if (net.ID == 0) {
-    std::sort(tokenAndEdges.begin(), tokenAndEdges.end(),
-              [](const std::pair<uint64_t, std::vector<uint64_t>>& a,
-                 const std::pair<uint64_t, std::vector<uint64_t>>& b) {
-                return a.first < b.first;
-              });
-
-    std::ofstream output;
-    output.open("wmd-graph-build-result.txt");
-
-    for (auto itr : tokenAndEdges) {
-      output << itr.first;
-      for (auto edge : itr.second) {
-        output << "," << edge;
+    // compare with vertices
+    assert(tokenAndEdges.size() == vertices.size());
+    for (size_t i = 0; i < tokenAndEdges.size(); i++) {
+      auto& tokenAndEdge = tokenAndEdges[i];
+      auto& vertex       = vertices[tokenAndEdge.first];
+      assert(vertex.second.size() == tokenAndEdge.second.size());
+      std::sort(vertex.second.begin(), vertex.second.end(),
+                [](const agile::workflow1::Edge& a,
+                   const agile::workflow1::Edge& b) { return a.dst < b.dst; });
+      for (size_t j = 0; j < vertex.second.size(); j++) {
+        assert(vertex.second[j].dst == tokenAndEdge.second[j]);
       }
-      output << "\n";
     }
-    output.close();
   }
   return 0;
 }

@@ -17,8 +17,8 @@
  * Documentation, or loss or inaccuracy of data of any kind.
  */
 
-#ifndef GALOIS_GRAPHS_LC_CSR_GRAPH_H
-#define GALOIS_GRAPHS_LC_CSR_GRAPH_H
+#ifndef GALOIS_GRAPHS_LS_LC_CSR_GRAPH_H
+#define GALOIS_GRAPHS_LS_LC_CSR_GRAPH_H
 
 #include <unordered_set>
 #include <iterator>
@@ -205,6 +205,10 @@ public:
     return m_edge_data[handle];
   }
 
+  template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
+  inline E& getEdgeData(EdgeIterator const& it) {
+    return m_edge_data[*it];
+  }
   /*
    * Count the total number of edges in parallel.
    */

@@ -1142,7 +1142,8 @@ public:
                       &addedData
 #endif
       ](size_t j) {
-                       dstGraph.getData(GIDtoLID[NodeData[j].id]) = NodeData[j];
+                       dstGraph->getData(GIDtoLID[NodeData[j].id]) =
+                           NodeData[j];
                      });
       NodeData.clear();
     }
@@ -1153,7 +1154,7 @@ public:
                     &addedData
 #endif
     ](size_t i) {
-                     dstGraph.getData(GIDtoLID[nodesToSend[hostID][i].id]) =
+                     dstGraph->getData(GIDtoLID[nodesToSend[hostID][i].id]) =
                          nodesToSend[hostID][i];
 #ifndef NDEBUG
                      addedData++;
@@ -1172,7 +1173,7 @@ public:
           if (i != hostID) {
             for (uint64_t j = 0; j < proxiesOnHosts[i].size(); j++) {
               auto& r =
-                  dstGraph.getData(globalToLocalMap[proxiesOnHosts[i][j]]);
+                  dstGraph->getData(globalToLocalMap[proxiesOnHosts[i][j]]);
               nodesToSend[i].push_back(r);
             };
           }
@@ -1216,7 +1217,7 @@ public:
           galois::iterate((size_t)0, IDofNodeRecv.size()),
           [this, &nodeRecv, &IDofNodeRecv, &dstGraph,
            &globalToLocalMap](size_t j) {
-            dstGraph.getData(globalToLocalMap[IDofNodeRecv[j]]) = nodeRecv[j];
+            dstGraph->getData(globalToLocalMap[IDofNodeRecv[j]]) = nodeRecv[j];
           },
           galois::steal());
       nodeRecv.clear();

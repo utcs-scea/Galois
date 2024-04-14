@@ -48,13 +48,13 @@
 #include <cstdint>
 #include <limits>
 #include <vector>
-#include <unordered_map>
+// #include <unordered_map>
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 
 #include "graphTypes.h"
-#include "galois/graphs/LS_LC_CSR_64_Graph.h"
+// #include "galois/graphs/LS_LC_CSR_Graph.h"
 #include "galois/shad/DataTypes.h"
 
 #define UINT shad::data_types::UINT

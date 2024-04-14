@@ -234,9 +234,7 @@ public:
     // Graph construction related calls
     base_DistGraph::beginMaster = 0;
     // Allocate and construct the graph
-    base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
-                                       base_DistGraph::numEdges);
-    base_DistGraph::graph.constructNodes();
+    base_DistGraph::initGraph(base_DistGraph::numNodes);
 
     // construct edges
     // not need to move edges from other host since all edges is already ready
@@ -250,10 +248,10 @@ public:
           for (auto dst : edgeDst) {
             dstData.emplace_back(base_DistGraph::globalToLocalMap[dst]);
           }
-          auto edgeData = bufGraph.edgeDataPtr(globalID);
-          base_DistGraph::graph.addEdgesUnSort(
-              true, (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
-              dstData.data(), edgeData, bufGraph.edgeNum(globalID), false);
+          std::vector<EdgeTy> edgeData(bufGraph.edgeNum(globalID));
+          base_DistGraph::graph->addEdges(
+              (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
+              dstData, edgeData);
         },
         galois::steal());
 
@@ -269,10 +267,10 @@ public:
                   "] LS_CSR graph local nodes: ", base_DistGraph::numNodes);
     galois::gInfo("[", base_DistGraph::id,
                   "] LS_CSR graph master nodes: ", base_DistGraph::numOwned);
-    galois::gInfo("[", base_DistGraph::id, "] LS_CSR graph local edges: ",
-                  base_DistGraph::graph.sizeEdges());
-    assert(base_DistGraph::graph.sizeEdges() == base_DistGraph::numEdges);
-    assert(base_DistGraph::graph.size() == base_DistGraph::numNodes);
+    galois::gInfo("[", base_DistGraph::id,
+                  "] LS_CSR graph local edges: ", base_DistGraph::sizeEdges());
+    assert(base_DistGraph::sizeEdges() == base_DistGraph::numEdges);
+    assert(base_DistGraph::graph->size() == base_DistGraph::numNodes);
 
     bufGraph.resetAndFree();
 
@@ -471,14 +469,14 @@ public:
     }
 
     galois::gInfo("[", base_DistGraph::id, "] Start building projected graph.");
-    newGraph->graph.allocateFrom(newGraph->numNodes, newGraph->numEdges);
+    newGraph->initGraph(newGraph->numNodes);
 
     galois::do_all(
         galois::iterate(uint64_t(0), uint64_t(newGraph->numNodes)),
         [&](auto& node) {
           NodeLID oldGraphLID =
               base_DistGraph::getLID(newGraph->localToGlobalVector[node]);
-          newGraph->graph.getData(node) = projection.ProjectNode(
+          newGraph->graph->getData(node) = projection.ProjectNode(
               *this, base_DistGraph::getData(oldGraphLID), oldGraphLID);
 
           uint64_t numEdges = newTopology[node].size();
@@ -490,9 +488,7 @@ public:
           for (NodeGID gid : newTopology[node]) {
             localDsts.emplace_back(newGraph->getLID(gid));
           }
-          newGraph->graph.addEdgesUnSort(true, node, localDsts.data(),
-                                         newEdgeData[node].data(), numEdges,
-                                         false);
+          newGraph->graph->addEdges(node, localDsts, newEdgeData[node]);
 
           newTopology[node].clear();
           newEdgeData[node].clear();
