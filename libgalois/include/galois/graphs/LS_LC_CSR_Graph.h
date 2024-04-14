@@ -337,18 +337,20 @@ public:
     using std::swap;
 
     // move from buffer 0 to buffer 1
-    galois::do_all(galois::iterate(vertices().begin(), vertices().end()),
-                   [&](VertexTopologyID vertex_id) {
-                     VertexMetadata& vertex_meta = m_vertices[vertex_id];
+    galois::do_all(
+        galois::iterate(vertices().begin(), vertices().end()),
+        [&](VertexTopologyID vertex_id) {
+          VertexMetadata& vertex_meta = m_vertices[vertex_id];
 
-                     if (vertex_meta.buffer == 0) {
-                       this->addEdgesTopologyOnly<false>(vertex_id, {});
-                     }
+          if (vertex_meta.buffer == 0) {
+            this->addEdgesTopologyOnly<false>(vertex_id, {});
+          }
 
-                     // we are about to swap the buffers, so all vertices will
-                     // be in buffer 0
-                     vertex_meta.buffer = 0;
-                   });
+          // we are about to swap the buffers, so all vertices will
+          // be in buffer 0
+          vertex_meta.buffer = 0;
+        },
+        galois::steal());
 
     // At this point, there are no more live edges in buffer 0.
     m_edges_lock.lock();
