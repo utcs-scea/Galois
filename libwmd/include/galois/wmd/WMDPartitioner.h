@@ -45,8 +45,8 @@ namespace graphs {
  * @todo fully document and clean up code
  * @warning not meant for public use + not fully documented yet
  */
-template <typename NodeTy, typename EdgeTy, typename Partitioner>
-class WMDGraph : public DistLocalGraph<NodeTy, EdgeTy> {
+template <typename NodeTy, typename EdgeTy, typename NodeData, typename EdgeData, typename Partitioner>
+class WMDGraph : public DistLocalGraph<NodeData, EdgeData> {
 
   //! size used to buffer edge sends during partitioning
   constexpr static unsigned edgePartitionSendBufSize = 8388608;
@@ -80,7 +80,7 @@ class WMDGraph : public DistLocalGraph<NodeTy, EdgeTy> {
   std::vector<std::vector<size_t>> mirrorEdges;
   std::unordered_map<uint64_t, uint64_t> localEdgeGIDToLID;
 
-  template <typename, typename, typename>
+  template <typename, typename, typename, typename, typename>
   friend class WMDGraph;
 
   virtual unsigned getHostIDImpl(uint64_t gid) const {
@@ -100,7 +100,7 @@ class WMDGraph : public DistLocalGraph<NodeTy, EdgeTy> {
 
 public:
   //! typedef for base DistGraph class
-  using base_DistGraph = DistLocalGraph<NodeTy, EdgeTy>;
+  using base_DistGraph = DistLocalGraph<NodeData, EdgeData>;
 
   /**
    * Returns edges owned by this graph (i.e. read).
@@ -252,19 +252,14 @@ public:
           for (auto dst : edgeDst) {
             dstData.emplace_back(base_DistGraph::globalToLocalMap[dst]);
           }
-          std::vector<EdgeTy> edgeData(bufGraph.edgeNum(globalID));
-          base_DistGraph::graph->addEdges(
-              (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
-              dstData, edgeData);
+          addEdgesHelper<EdgeData>(globalID - bufGraph.globalNodeOffset[base_DistGraph::id], dstData);
         },
         galois::steal());
 
     // move node data (include mirror nodes) from other hosts to graph in this
     // host
     galois::gDebug("[", base_DistGraph::id, "] add nodes data into graph.");
-    bufGraph.gatherNodes(g, base_DistGraph::graph, proxiesOnOtherHosts,
-                         base_DistGraph::numNodes,
-                         base_DistGraph::globalToLocalMap);
+    gatherNodes(bufGraph, g, proxiesOnOtherHosts);
 
     galois::gDebug("[", base_DistGraph::id, "] LS_CSR construction done.");
     galois::gInfo("[", base_DistGraph::id,
@@ -587,9 +582,7 @@ public:
       base_DistGraph::mirrorNodes[graphPartitioner->retrieveMaster(globalID)]
           .emplace_back(globalID);
     }
-
-    base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
-                                       base_DistGraph::numEdges);
+    base_DistGraph::initGraph(base_DistGraph::numNodes);
     uint64_t edgeCount = 0;
     for (uint64_t node = 0; node < base_DistGraph::numNodes; node++) {
       base_DistGraph::getData(node) = localNodes[node];
@@ -607,10 +600,10 @@ public:
         newEdgeData.emplace_back(edge.data);
       }
       edgeCount += numEdges;
-      base_DistGraph::graph.addEdgesUnSort(true, node, localDsts.data(),
-                                           newEdgeData.data(), numEdges, false);
+      base_DistGraph::graph->addEdges(node, localDsts,
+                                           newEdgeData);
     }
-    base_DistGraph::graph.getEdgePrefixSum();
+    base_DistGraph::graph->getEdgePrefixSum();
 
     base_DistGraph::determineThreadRanges();
     base_DistGraph::determineThreadRangesMaster();
@@ -622,6 +615,38 @@ private:
   WMDGraph(unsigned host, unsigned _numHosts)
       : base_DistGraph(host, _numHosts) {}
 
+  template<typename T>
+  typename std::enable_if<std::is_void<T>::value>::type
+   addEdgesHelper(uint64_t src, std::vector<uint64_t>& dstData) {
+            base_DistGraph::graph->addEdgesTopologyOnly(
+                src, dstData);
+      
+  }
+
+  template<typename T>
+  typename std::enable_if<!std::is_void<T>::value>::type
+   addEdgesHelper(uint64_t src, std::vector<uint64_t>& dstData) {
+            std::vector<EdgeData> edgeData(dstData.size());
+            base_DistGraph::graph.addEdges(
+                src, dstData, edgeData);
+  }
+
+  template <typename E = EdgeTy>
+  typename std::enable_if<std::is_same<E, agile::workflow1::Edge>::value, void>::type
+   gatherNodes(galois::graphs::WMDBufferedGraph<NodeTy, EdgeTy>& bufGraph,
+                    galois::graphs::WMDOfflineGraph<NodeTy, EdgeTy>& g,
+                      std::vector<std::vector<uint64_t>> proxiesOnOtherHosts) {
+    bufGraph.gatherNodes(g, base_DistGraph::graph, proxiesOnOtherHosts,
+                         base_DistGraph::numNodes,
+                         base_DistGraph::globalToLocalMap);
+  }
+
+  template <typename E = EdgeTy>
+  typename std::enable_if<!std::is_same<E, agile::workflow1::Edge>::value, void>::type
+   gatherNodes(galois::graphs::WMDBufferedGraph<NodeTy, EdgeTy>&,
+                    galois::graphs::WMDOfflineGraph<NodeTy, EdgeTy>& ,
+                      std::vector<std::vector<uint64_t>> ) {
+  }
   std::vector<std::vector<uint64_t>> edgeInspectionRound1(
       galois::graphs::WMDBufferedGraph<NodeTy, EdgeTy>& bufGraph) {
     std::vector<std::vector<uint64_t>> incomingMirrors(
@@ -888,9 +913,9 @@ private:
 };
 
 // make GRNAME visible to public
-template <typename NodeTy, typename EdgeTy, typename Partitioner>
+template <typename NodeTy, typename EdgeTy, typename NodeData, typename EdgeData, typename Partitioner>
 constexpr const char* const
-    galois::graphs::WMDGraph<NodeTy, EdgeTy, Partitioner>::GRNAME;
+    galois::graphs::WMDGraph<NodeTy, EdgeTy, NodeData, EdgeData, Partitioner>::GRNAME;
 
 } // end namespace graphs
 } // end namespace galois
