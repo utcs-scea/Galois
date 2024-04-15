@@ -4,21 +4,21 @@
 #include <galois/Timer.h>
 #include "galois/wmd/graphTypes.h"
 
-
-//Usage: call start() to start the ingestion of the file
-//       call stop() to stop the ingestion of the file
-//       call setBatchSize() to set the batch size
-//   Refer to wmd-graph-build for an example of how to use this class
+// Usage: call start() to start the ingestion of the file
+//        call stop() to stop the ingestion of the file
+//        call setBatchSize() to set the batch size
+//    Refer to wmd-graph-build for an example of how to use this class
 
 using namespace agile::workflow1;
-
 
 template <typename NodeData, typename EdgeData>
 class graphUpdateManager {
 public:
   using T              = galois::graphs::DistLocalGraph<NodeData, EdgeData>;
   graphUpdateManager() = default;
-  graphUpdateManager(std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> parser, std::string inputFile, int period, T* distGraphPtr) {
+  graphUpdateManager(
+      std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> parser,
+      std::string inputFile, int period, T* distGraphPtr) {
     periodForCheck = period;
     graphFile      = inputFile;
     graph          = distGraphPtr;
@@ -47,18 +47,20 @@ public:
   uint64_t getPeriod() { return periodForCheck; }
 
   bool stop() {
-    if(stopIngest) {
-      while(!checkThread.joinable());
+    if (stopIngest) {
+      while (!checkThread.joinable())
+        ;
       startIngest.join();
     }
     return stopIngest;
   }
-  bool stop2() { 
-      std::this_thread::sleep_for(std::chrono::milliseconds(10*periodForCheck));
-      stopCheck = true;
-      while(!checkThread.joinable()); 
-      checkThread.join();
-      return stopIngest;
+  bool stop2() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10 * periodForCheck));
+    stopCheck = true;
+    while (!checkThread.joinable())
+      ;
+    checkThread.join();
+    return stopIngest;
   }
 
 private:
@@ -68,13 +70,14 @@ private:
   std::string graphFile;
   T* graph;
   uint64_t batchSize = 10;
-  bool stopIngest = false;
-  bool stopCheck = false;
+  bool stopIngest    = false;
+  bool stopCheck     = false;
   std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> fileParser;
 
   template <typename N = NodeData, typename E = EdgeData>
   void processLine(const char* line, size_t len) {
-    galois::graphs::ParsedGraphStructure<N, E> value = fileParser->ParseLine(const_cast<char*>(line), len);
+    galois::graphs::ParsedGraphStructure<N, E> value =
+        fileParser->ParseLine(const_cast<char*>(line), len);
     for (auto& edge : value.edges) {
       std::vector<uint64_t> dsts;
       dsts.push_back(edge.dst);
@@ -98,7 +101,7 @@ private:
     while ((std::getline(inputFile, line))) {
       processLine(line.c_str(), line.size());
       lineNumber++;
-      if(lineNumber == batchSize) {
+      if (lineNumber == batchSize) {
         std::this_thread::sleep_for(std::chrono::milliseconds(periodForCheck));
         lineNumber = 0;
       }
@@ -114,17 +117,18 @@ private:
     // check for messages
     auto& net = galois::runtime::getSystemNetworkInterface();
     while (!stopCheck) {
-        auto m = net.recieveTagged(galois::runtime::evilPhase);
-        if(m.has_value()) {
+      auto m = net.recieveTagged(galois::runtime::evilPhase);
+      if (m.has_value()) {
         uint64_t src_node;
         galois::runtime::gDeserialize(m->second, src_node);
-            std::vector<uint64_t> edge_dsts;
-            galois::runtime::gDeserialize(m->second, edge_dsts);
-            std::vector<E> edge_data;
-            galois::runtime::gDeserialize(m->second, edge_data);
-            graph->addEdges(src_node, edge_dsts, edge_data);
+        std::vector<uint64_t> edge_dsts;
+        galois::runtime::gDeserialize(m->second, edge_dsts);
+        std::vector<E> edge_data;
+        galois::runtime::gDeserialize(m->second, edge_data);
+        graph->addEdges(src_node, edge_dsts, edge_data);
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(periodForCheck/(batchSize)));
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(periodForCheck / (batchSize)));
     }
   }
 };
