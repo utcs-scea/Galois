@@ -84,6 +84,16 @@ int main() {
     GALOIS_ASSERT(g.getEdgeDst(handle) == g.getEdgeData(handle));
   }
 
+  // check for_each_edge
+  {
+    uint64_t current_edge = 1;
+    g.for_each_edge(0, [&current_edge](uint64_t dst) {
+      GALOIS_ASSERT(dst == current_edge);
+      current_edge++;
+    });
+    GALOIS_ASSERT(current_edge == 4);
+  }
+
   uint64_t eight = g.addVertexTopologyOnly();
   GALOIS_ASSERT(eight == 8);
 
