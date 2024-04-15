@@ -114,7 +114,7 @@ private:
       std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
 
   void resetPrefixSum() {
-    m_pfx_sum_cache.resize(m_vertices.size());
+    m_pfx_sum_cache.resize(m_vertices.size() + 1);
     m_pfx.src = &m_vertices[0];
     m_pfx.dst = &m_pfx_sum_cache[0];
   }
