@@ -116,5 +116,14 @@ int main() {
   // ...
   GALOIS_ASSERT(g[8] == 7);
 
+  uint64_t num_vertices = (1 << 22) + 67;
+  galois::graphs::LS_LC_CSR_Graph<void, void> big(num_vertices);
+  for (uint64_t i = 0; i < num_vertices; ++i) {
+    big.addEdgesTopologyOnly(i, {(i + 1) % num_vertices});
+  }
+  for (uint64_t i = 0; i < num_vertices; ++i) {
+    GALOIS_ASSERT(big[i] == i + 1);
+  }
+
   return 0;
 }
