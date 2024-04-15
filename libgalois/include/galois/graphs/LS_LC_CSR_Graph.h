@@ -97,31 +97,19 @@ private:
    * Prefix Sum utilities
    */
   std::vector<uint64_t> m_pfx_sum_cache;
-  static uint64_t transmute(const VertexMetadata& vertex_meta) {
-    return vertex_meta.degree();
-  }
-  static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
-    return p.degree() + l;
-  }
-  static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
-    return f + s;
-  }
-  PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
-            CacheLinePaddedArr>
-      m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
   alignas(hardware_destructive_interference_size)
       std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
 
-  void resetPrefixSum() {
-    m_pfx_sum_cache.resize(m_vertices.size());
-    m_pfx.src = &m_vertices[0];
-    m_pfx.dst = &m_pfx_sum_cache[0];
-  }
+  void resetPrefixSum() { m_pfx_sum_cache.resize(m_vertices.size()); }
 
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
-    m_pfx.computePrefixSum(m_vertices.size());
+    // todo: switch to parallel prefix sum when `galois::PrefixSum` is fixed
+    std::transform_inclusive_scan(
+        m_vertices.begin(), m_vertices.end(), m_pfx_sum_cache.begin(),
+        std::plus<uint64_t>(),
+        [](VertexMetadata const& v) { return v.degree(); }, 0ul);
     m_prefix_valid.store(true, std::memory_order_release);
   }
 
