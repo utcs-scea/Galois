@@ -188,7 +188,8 @@ public:
     galois::gInfo("[", base_DistGraph::id, "] Starting edge inspection.");
     galois::StatTimer inspectionTimer("EdgeInspection", GRNAME);
     inspectionTimer.start();
-    base_DistGraph::numGlobalNodes = g.size();
+    base_DistGraph::numGlobalNodes = bufGraph.globalNodeOffset[base_DistGraph::numHosts - 1] +
+                                   bufGraph.localNodeSize[base_DistGraph::numHosts - 1];
     base_DistGraph::numGlobalEdges = g.sizeEdges();
 
     // galois::gstl::Vector<uint64_t> prefixSumOfEdges;
