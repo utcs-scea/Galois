@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
   if (argc > 1)
     iter = atoi(argv[1]);
   else
-    iter = 16 * 1024;
+    iter = 16;
   if (argc > 2)
     numThreads = atoi(argv[2]);
   else
@@ -68,12 +68,7 @@ int main(int argc, char** argv) {
   gethostname(bname, sizeof(bname));
   using namespace galois;
 
-  std::cout << "Host"
-            << ","
-            << "Lock Name"
-            << ","
-            << "numThreads"
-            << ","
+  std::cout << "Host" << "," << "Lock Name" << "," << "numThreads" << ","
             << "Time (us)" << std::endl;
 
   // using PTS   = PerThreadStorage<unsigned>;
@@ -82,7 +77,7 @@ int main(int argc, char** argv) {
       sizeof(std::pair<uint64_t, uint64_t>) * (1 << 30));
   auto dst = (uint64_t*)malloc(sizeof(uint64_t) * (1 << 30));
 
-  for (uint64_t i = 0; i < (1 << 30); i++)
+  for (uint64_t i = 0; i < (1 << 20); i++)
     src[i] = {0, 1};
 
   using PSUM = PrefixSum<std::pair<uint64_t, uint64_t>, uint64_t, transmute,
@@ -93,7 +88,7 @@ int main(int argc, char** argv) {
   test<PSUM>(prefix, 50, dst);
   test<PSUM>(prefix, 1000, dst);
   test<PSUM>(prefix, 40000, dst);
-  test<PSUM>(prefix, (1 << 30), dst);
+  test<PSUM>(prefix, (1 << 20), dst);
   free(src);
   free(dst);
 

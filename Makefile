@@ -119,6 +119,8 @@ run-tests:
 	@ctest --test-dir build -R wmd --verbose
 	@ctest --test-dir build -R large-vec --verbose
 	@ctest --test-dir build -R compile-lscsr --verbose
+	@ctest --test-dir build -R prefixsum --verbose
+	@ctest --test-dir build -R wfl --verbose
 
 # this command is slow since hooks are not stored in the container image
 # this is mostly for CI use
