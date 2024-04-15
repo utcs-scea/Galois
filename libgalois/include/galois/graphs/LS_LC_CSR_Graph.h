@@ -249,6 +249,20 @@ public:
   }
 
   /*
+   * Iterates over the outgoing edges, calling the callback with the
+   * VertexTopologyID of each edge.
+   */
+  template <typename Callback>
+  void for_each_edge(VertexTopologyID vertex, Callback const& callback) {
+    auto const& vertex_meta = m_vertices[vertex];
+    EdgeMetadata const* begin =
+        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+    for (uint64_t i = 0; i < vertex_meta.degree(); ++i) {
+      callback(static_cast<VertexTopologyID>(*begin++));
+    }
+  }
+
+  /*
    * Sort the outgoing edges for the given vertex.
    */
   void sortEdges(VertexTopologyID node) {
