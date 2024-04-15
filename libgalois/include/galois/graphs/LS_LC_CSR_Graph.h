@@ -69,12 +69,12 @@ private:
   using VertexDataStore =
       std::conditional_t<HasVertexData, typename std::vector<VertexData>,
                          typename std::tuple<>>;
-  using EdgeDataStore = std::conditional_t<
-      HasEdgeData,
-      phmap::flat_hash_map<
-          std::pair<VertexTopologyID, VertexTopologyID>, EdgeData,
-          boost::hash<std::pair<VertexTopologyID, VertexTopologyID>>>,
-      std::tuple<>>;
+
+  // todo: should we use a galois spinlock here instead of a mutex?
+  using EdgeDataMap = phmap::parallel_flat_hash_map_m<EdgeHandle, EdgeData>;
+
+  using EdgeDataStore =
+      std::conditional_t<HasEdgeData, EdgeDataMap, std::tuple<>>;
 
   // forward-declarations of internal structs
   struct VertexMetadata;
@@ -97,31 +97,19 @@ private:
    * Prefix Sum utilities
    */
   std::vector<uint64_t> m_pfx_sum_cache;
-  static uint64_t transmute(const VertexMetadata& vertex_meta) {
-    return vertex_meta.degree();
-  }
-  static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
-    return p.degree() + l;
-  }
-  static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
-    return f + s;
-  }
-  PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
-            CacheLinePaddedArr>
-      m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
   alignas(hardware_destructive_interference_size)
       std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
 
-  void resetPrefixSum() {
-    m_pfx_sum_cache.resize(m_vertices.size());
-    m_pfx.src = &m_vertices[0];
-    m_pfx.dst = &m_pfx_sum_cache[0];
-  }
+  void resetPrefixSum() { m_pfx_sum_cache.resize(m_vertices.size()); }
 
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
-    m_pfx.computePrefixSum(m_vertices.size());
+    // todo: switch to parallel prefix sum when `galois::PrefixSum` is fixed
+    std::transform_inclusive_scan(
+        m_vertices.begin(), m_vertices.end(), m_pfx_sum_cache.begin(),
+        std::plus<uint64_t>(),
+        [](VertexMetadata const& v) { return v.degree(); }, 0ul);
     m_prefix_valid.store(true, std::memory_order_release);
   }
 
@@ -155,8 +143,10 @@ public:
   }
 
   template <typename E = EdgeData, typename = std::enable_if<HasEdgeData>>
-  void setEdgeData(EdgeHandle handle, E data) {
-    m_edge_data[handle] = data;
+  inline void setEdgeData(EdgeHandle handle, E data) {
+    m_edge_data.lazy_emplace_l(
+        handle, [&](auto& v) { v.second = data; },
+        [&](auto const& cons) { cons(handle, data); });
   }
 
   inline VertexTopologyID begin() const noexcept {
@@ -270,7 +260,8 @@ public:
     GALOIS_ASSERT(data.size() == dsts.size());
     this->addEdgesTopologyOnly<sorted>(src, dsts);
     for (size_t i = 0; i < dsts.size(); ++i) {
-      m_edge_data[std::make_pair(src, dsts[i])] = data[i];
+      auto key = std::make_pair(src, dsts[i]);
+      setEdgeData(key, data[i]);
     }
   }
 
@@ -334,18 +325,20 @@ public:
     using std::swap;
 
     // move from buffer 0 to buffer 1
-    galois::do_all(galois::iterate(vertices().begin(), vertices().end()),
-                   [&](VertexTopologyID vertex_id) {
-                     VertexMetadata& vertex_meta = m_vertices[vertex_id];
+    galois::do_all(
+        galois::iterate(vertices().begin(), vertices().end()),
+        [&](VertexTopologyID vertex_id) {
+          VertexMetadata& vertex_meta = m_vertices[vertex_id];
 
-                     if (vertex_meta.buffer == 0) {
-                       this->addEdgesTopologyOnly<false>(vertex_id, {});
-                     }
+          if (vertex_meta.buffer == 0) {
+            this->addEdgesTopologyOnly<false>(vertex_id, {});
+          }
 
-                     // we are about to swap the buffers, so all vertices will
-                     // be in buffer 0
-                     vertex_meta.buffer = 0;
-                   });
+          // we are about to swap the buffers, so all vertices will
+          // be in buffer 0
+          vertex_meta.buffer = 0;
+        },
+        galois::steal());
 
     // At this point, there are no more live edges in buffer 0.
     m_edges_lock.lock();

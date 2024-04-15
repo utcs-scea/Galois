@@ -1049,7 +1049,7 @@ public
   }
 
   uint64_t getDegree(GraphNode N) {
-    uint64_t ret;
+    uint64_t ret = 0;
     for (auto& edge : out_edges(N)) {
       ret++;
     }

@@ -15,6 +15,7 @@
 
 #include "galois/DistGalois.h"
 #include "galois/graphs/GenericPartitioners.h"
+#include "galois/runtime/GraphUpdateManager.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -176,12 +177,10 @@ int main(int argc, char* argv[]) {
   // compare it with other implementation to verify the correctness
   std::vector<std::pair<uint64_t, std::vector<uint64_t>>> tokenAndEdges;
   tokenAndEdges.resize(graph->numMasters());
-
   galois::do_all(
       galois::iterate(graph->masterNodesRange()),
       [&](size_t lid) {
         auto token = graph->getData(lid).id;
-
         std::vector<uint64_t> edgeDst;
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
@@ -197,7 +196,6 @@ int main(int argc, char* argv[]) {
         tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
       },
       galois::steal());
-
   // gather node info from other hosts
   if (net.ID != 0) { // send token and degree pairs to host 0
     galois::runtime::SendBuffer sendBuffer;
@@ -209,19 +207,14 @@ int main(int argc, char* argv[]) {
       do {
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
-
       std::vector<std::pair<uint64_t, std::vector<uint64_t>>>
           incomingtokenAndEdges;
       galois::runtime::gDeserialize(p->second, incomingtokenAndEdges);
-
       // combine data
       std::move(incomingtokenAndEdges.begin(), incomingtokenAndEdges.end(),
                 std::back_inserter(tokenAndEdges));
     }
   }
-
-  // sort the node info by token order
-  // serilize it to file
   if (net.ID == 0) {
     // compare with vertices
     assert(tokenAndEdges.size() == vertices.size());
