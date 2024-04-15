@@ -217,7 +217,7 @@ if(NOT HAVE_HUGEPAGES AND GALOIS_STRICT_CONFIG)
   message(FATAL_ERROR "Need huge pages")
 endif()
 
-find_package(Boost 1.58.0 REQUIRED COMPONENTS serialization iostreams)
+find_package(Boost 1.58.0 REQUIRED COMPONENTS serialization iostreams program_options)
 
 find_package(LLVM REQUIRED CONFIG)
 if("${LLVM_PACKAGE_VERSION}" VERSION_LESS "7")
