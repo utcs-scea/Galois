@@ -416,9 +416,9 @@ public:
 
 private:
   struct VertexMetadata {
-    uint8_t buffer : 1;
-    uint64_t begin : 48; // inclusive
-    uint64_t end : 48;   // exclusive
+    uint8_t buffer;
+    uint64_t begin; // inclusive
+    uint64_t end;   // exclusive
 
     VertexMetadata() : buffer(0), begin(0), end(0) {}
 
@@ -431,6 +431,8 @@ private:
 
     inline uint64_t degree() const { return end - begin; }
   };
+
+  static_assert(sizeof(VertexMetadata) == 24);
 
 public:
   class EdgeIterator
