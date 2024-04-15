@@ -194,7 +194,7 @@ int main(int argc, char* argv[]) {
         std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
                                                    agile::workflow1::Edge>>(
             10, filenames),
-        dynFile, 100, graph);
+        dynamicFile, 100, graph);
     GUM.start();
     // wait for GUM to finish
     while (!GUM.stop()) {
@@ -250,8 +250,8 @@ int main(int argc, char* argv[]) {
     getDataFromGraph(file, vertices);
     if (dynFile != "") {
       for (uint32_t i = 0; i < net.Num; i++) {
-        std::string dynFile = argv[2] + std::to_string(i) + ".txt";
-        getDataFromGraph(dynFile, vertices);
+        std::string dynamicFile = dynFile + std::to_string(i) + ".txt";
+        getDataFromGraph(dynamicFile, vertices);
       }
     }
     // compare with vertices
