@@ -6,7 +6,7 @@ function(add_test_unit name)
 
   set(command_line "$<TARGET_FILE:${test_name}>")
 
-  add_test(NAME ${test_name} COMMAND ${command_line} ${Galois_SOURCE_DIR}/inputs/wmd/static ${Galois_SOURCE_DIR}/inputs/wmd/dynamic)
+  add_test(NAME ${test_name} COMMAND ${command_line} ${Galois_SOURCE_DIR}/inputs/wmd/static.csv ${Galois_SOURCE_DIR}/inputs/wmd/dynamic)
 endfunction()
 
 add_test_unit(wmd-graph-build)
