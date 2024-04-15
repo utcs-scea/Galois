@@ -21,6 +21,9 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
+#include <boost/program_options.hpp>
+
+namespace po = boost::program_options;
 
 using namespace agile::workflow1;
 
@@ -130,11 +133,35 @@ void getDataFromGraph(
 }
 
 int main(int argc, char* argv[]) {
+  std::string dataFile;
+  std::string dynFile;
+  int threads;
+  po::options_description desc("Allowed options");
+  desc.add_options()("help", "print help info")(
+      "staticFile", po::value<std::string>(&dataFile)->required(),
+      "Input file for initial static graph")(
+      "dynFile", po::value<std::string>(&dynFile)->default_value(""),
+      "Input file for dynamic graph")(
+      "threads", po::value<int>(&threads)->default_value(1),
+      "Number of threads");
+
+  po::variables_map vm;
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+  } catch (const std::exception& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
+  }
+
+  if (vm.count("help")) {
+    std::cout << desc << "\n";
+    return 1;
+  }
+
   galois::DistMemSys G; // init galois memory
   auto& net = galois::runtime::getSystemNetworkInterface();
-
-  if (argc == 3)
-    galois::setActiveThreads(atoi(argv[2]));
+  galois::setActiveThreads(threads);
 
   if (net.ID == 0) {
     galois::gPrint("Testing building WMD graph from file.\n");
@@ -143,8 +170,7 @@ int main(int argc, char* argv[]) {
                    "\n");
   }
 
-  std::string dataFile = argv[1];
-  std::string file     = dataFile;
+  std::string file = dataFile;
   std::vector<std::string> filenames;
   filenames.emplace_back(dataFile);
   std::vector<std::unique_ptr<galois::graphs::FileParser<
@@ -161,20 +187,22 @@ int main(int argc, char* argv[]) {
   std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>
       vertices;
 
-  std::string dynFile = argv[2] + std::to_string(net.ID) + ".txt";
+  if (dynFile != "") {
+    std::string dynamicFile = dynFile + std::to_string(net.ID) + ".txt";
 
-  graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(
-      std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
-                                                 agile::workflow1::Edge>>(
-          10, filenames),
-      dynFile, 100, graph);
-  GUM.start();
-  // wait for GUM to finish
-  while (!GUM.stop()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(
+        std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
+                                                   agile::workflow1::Edge>>(
+            10, filenames),
+        dynFile, 100, graph);
+    GUM.start();
+    // wait for GUM to finish
+    while (!GUM.stop()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    galois::runtime::getHostBarrier().wait();
+    GUM.stop2();
   }
-  galois::runtime::getHostBarrier().wait();
-  GUM.stop2();
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
   // compare it with other implementation to verify the correctness
@@ -220,9 +248,11 @@ int main(int argc, char* argv[]) {
   }
   if (net.ID == 0) {
     getDataFromGraph(file, vertices);
-    for (uint32_t i = 0; i < net.Num; i++) {
-      std::string dynFile = argv[2] + std::to_string(i) + ".txt";
-      getDataFromGraph(dynFile, vertices);
+    if (dynFile != "") {
+      for (uint32_t i = 0; i < net.Num; i++) {
+        std::string dynFile = argv[2] + std::to_string(i) + ".txt";
+        getDataFromGraph(dynFile, vertices);
+      }
     }
     // compare with vertices
     assert(tokenAndEdges.size() == vertices.size());
