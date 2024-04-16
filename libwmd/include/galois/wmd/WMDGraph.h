@@ -80,7 +80,7 @@ protected:
   // uint64_t numEdges;  // num of global edges
 
   // local feilds (different on each hosts)
-  std::vector<uint64_t> localNodeSize; // number of local nodes in each hosts
+  std::vector<uint32_t> localNodeSize; // number of local nodes in each hosts
   uint64_t localEdgeSize;              // number of local edges in this host
 
   // TODO: it may be possible to optimize these vectors by numa aware data
@@ -804,15 +804,23 @@ private:
       }
       prefixSum[i] = offset;
     }
-
+    using map = phmap::parallel_flat_hash_map_m<uint64_t, uint64_t>;
     // parallel insert
-    galois::do_all(galois::iterate((size_t)0, (size_t)activeThreads),
-                   [&](size_t h) {
-                     for (auto& kv : perThreadGIDtoLID[h]) {
-                       GIDtoLID[kv.first] = kv.second + prefixSum[h];
-                       LIDtoGID[kv.second + prefixSum[h]] = kv.first;
-                     }
-                   });
+    galois::do_all(
+        galois::iterate((size_t)0, (size_t)activeThreads), [&](size_t h) {
+          for (auto& kv : perThreadGIDtoLID[h]) {
+            GIDtoLID.lazy_emplace_l(
+                kv.first, [&](map::value_type&) {},
+                [&](const map::constructor& ctor) {
+                  ctor(std::pair(kv.first, kv.second + prefixSum[h]));
+                });
+            LIDtoGID.lazy_emplace_l(
+                kv.second + prefixSum[h], [&](map::value_type&) {},
+                [&](const map::constructor& ctor) {
+                  ctor(std::pair(kv.second + prefixSum[h], kv.first));
+                });
+          }
+        });
 
     std::vector<std::vector<std::vector<EdgeDataType>>> edgesToSend(
         numHosts, std::vector<std::vector<EdgeDataType>>());
