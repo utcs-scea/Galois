@@ -446,14 +446,14 @@ private:
     uint64_t end;   // exclusive
     uint8_t buffer;
 
-    VertexMetadata() : buffer(0), begin(0), end(0) {}
+    VertexMetadata() : begin(0), end(0), buffer(0) {}
 
     VertexMetadata(VertexMetadata const& other)
-        : buffer(other.buffer), begin(other.begin), end(other.end) {}
+        : begin(other.begin), end(other.end), buffer(other.buffer) {}
 
     VertexMetadata(VertexMetadata&& other)
-        : buffer(std::move(other.buffer)), begin(std::move(other.begin)),
-          end(std::move(other.end)) {}
+        : begin(std::move(other.begin)), end(std::move(other.end)),
+          buffer(std::move(other.buffer)) {}
 
     inline uint64_t degree() const { return end - begin; }
   };
