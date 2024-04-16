@@ -216,7 +216,7 @@ public:
     proxiesOnOtherHosts.resize(_numHosts);
 
     // send off mirror proxies that exist on this host to other hosts
-    communicateProxyInfo(presentProxies, proxiesOnOtherHosts);
+    communicateProxyInfo(presentProxies, &proxiesOnOtherHosts);
 
     base_DistGraph::numEdges = bufGraph.sizeLocalEdges();
     // assumption: we keep all edges since mirror edges are not supported
@@ -712,9 +712,9 @@ private:
    * @param presentProxies Bitset marking which proxies are present on this host
    * @param proxiesOnOtherHosts Vector to deserialize received bitsets into
    */
-  void
-  communicateProxyInfo(std::vector<std::vector<uint64_t>> presentProxies,
-                       std::vector<std::vector<uint64_t>> proxiesOnOtherHosts) {
+  void communicateProxyInfo(
+      std::vector<std::vector<uint64_t>> presentProxies,
+      std::vector<std::vector<uint64_t>>* proxiesOnOtherHosts) {
     auto& net = galois::runtime::getSystemNetworkInterface();
     // Send proxies on this host to other hosts
     for (unsigned h = 0; h < base_DistGraph::numHosts; ++h) {
@@ -734,7 +734,7 @@ private:
       uint32_t sendingHost = p->first;
       // deserialize proxiesOnOtherHosts
       galois::runtime::gDeserialize(p->second,
-                                    proxiesOnOtherHosts[sendingHost]);
+                                    (*proxiesOnOtherHosts)[sendingHost]);
     }
 
     base_DistGraph::increment_evilPhase();
