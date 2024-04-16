@@ -226,6 +226,14 @@ public:
     return EdgeRange(edge_begin(node), edge_end(node));
   }
 
+  void for_each_edge(VertexTopologyID src,
+                     std::function<void(uint64_t const&)> callback) {
+    auto const& vertex_meta = m_vertices[src];
+    auto const* begin = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
+    for (uint64_t i = 0; i < vertex_meta.degree(); ++i)
+      callback(*begin++);
+  }
+
   /*
    * Iterates over the outgoing edges, calling the callback with the
    * VertexTopologyID of each edge.
@@ -291,7 +299,8 @@ public:
     // edges.
 
     auto& vertex_meta = m_vertices[src];
-    m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
+    if (vertex_meta.buffer == 1)
+      m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
 
     uint64_t const new_degree = vertex_meta.degree() + dsts.size();
     uint64_t const new_begin =
@@ -391,6 +400,11 @@ public:
     return estimate;
   }
 
+  // Returns the number of bytes used for the log.
+  inline size_t getLogMemoryUsageBytes() {
+    return m_edges_tail.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
+  }
+
   // Returns the number of bytes used for holes in the log.
   inline size_t getLogHolesMemoryUsageBytes() {
     return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
@@ -418,9 +432,9 @@ public:
 
 private:
   struct VertexMetadata {
-    uint8_t buffer : 1;
-    uint64_t begin : 48; // inclusive
-    uint64_t end : 48;   // exclusive
+    uint64_t begin; // inclusive
+    uint64_t end;   // exclusive
+    uint8_t buffer;
 
     VertexMetadata() : buffer(0), begin(0), end(0) {}
 
