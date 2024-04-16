@@ -26,7 +26,6 @@
 #include <atomic>
 #include <new>
 #include <type_traits>
-#include <numeric>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
@@ -98,19 +97,31 @@ private:
    * Prefix Sum utilities
    */
   std::vector<uint64_t> m_pfx_sum_cache;
+  static uint64_t transmute(const VertexMetadata& vertex_meta) {
+    return vertex_meta.degree();
+  }
+  static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
+    return p.degree() + l;
+  }
+  static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
+    return f + s;
+  }
+  PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
+            CacheLinePaddedArr>
+      m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
   alignas(hardware_destructive_interference_size)
       std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
 
-  void resetPrefixSum() { m_pfx_sum_cache.resize(m_vertices.size()); }
+  void resetPrefixSum() {
+    m_pfx_sum_cache.resize(m_vertices.size());
+    m_pfx.src = &m_vertices[0];
+    m_pfx.dst = &m_pfx_sum_cache[0];
+  }
 
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
-    // todo: switch to parallel prefix sum when `galois::PrefixSum` is fixed
-    std::transform_inclusive_scan(
-        m_vertices.begin(), m_vertices.end(), m_pfx_sum_cache.begin(),
-        std::plus<uint64_t>(),
-        [](VertexMetadata const& v) { return v.degree(); }, 0ul);
+    m_pfx.computePrefixSum(m_vertices.size());
     m_prefix_valid.store(true, std::memory_order_release);
   }
 
@@ -225,28 +236,6 @@ public:
 
   inline EdgeRange edges(VertexTopologyID node) {
     return EdgeRange(edge_begin(node), edge_end(node));
-  }
-
-  void for_each_edge(VertexTopologyID src,
-                     std::function<void(uint64_t const&)> callback) {
-    auto const& vertex_meta = m_vertices[src];
-    auto const* begin = &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-    for (uint64_t i = 0; i < vertex_meta.degree(); ++i)
-      callback(*begin++);
-  }
-
-  /*
-   * Iterates over the outgoing edges, calling the callback with the
-   * VertexTopologyID of each edge.
-   */
-  template <typename Callback>
-  void for_each_edge(VertexTopologyID vertex, Callback const& callback) {
-    auto const& vertex_meta = m_vertices[vertex];
-    EdgeMetadata const* begin =
-        &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin);
-    for (uint64_t i = 0; i < vertex_meta.degree(); ++i) {
-      callback(static_cast<VertexTopologyID>(*begin++));
-    }
   }
 
   /*
