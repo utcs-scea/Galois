@@ -20,47 +20,53 @@
 #include <fstream>
 #include <unordered_map>
 
+struct NodeData {
+  uint32_t dist_current;
+};
 
-typedef galois::graphs::WMDGraph<galois::graphs::ELVertex, galois::graphs::ELEdge, OECPolicy> Graph;
+typedef galois::graphs::WMDGraph<
+    galois::graphs::ELVertex, galois::graphs::ELEdge, NodeData, void, OECPolicy>
+    Graph;
 
 const char* elGetOne(const char* line, std::uint64_t& val) {
-    bool found = false;
-    val = 0;
-    char c;
-    while ((c = *line++) != '\0' && isspace(c)) {}
-    do {
-      if (isdigit(c)) {
-        found = true;
-        val *= 10;
-        val += (c - '0');
-      } else if (c == '_') {
-        continue;
-      } else {
-        break;
-      }
-    } while ((c = *line++) != '\0' && !isspace(c));
-    if (!found)
-      val = UINT64_MAX;
-    return line;
+  bool found = false;
+  val        = 0;
+  char c;
+  while ((c = *line++) != '\0' && isspace(c)) {
   }
+  do {
+    if (isdigit(c)) {
+      found = true;
+      val *= 10;
+      val += (c - '0');
+    } else if (c == '_') {
+      continue;
+    } else {
+      break;
+    }
+  } while ((c = *line++) != '\0' && !isspace(c));
+  if (!found)
+    val = UINT64_MAX;
+  return line;
+}
 
-  void parser(const char* line,
-            std::unordered_map<std::uint64_t, std::vector<uint64_t>>& vertices) {
-          uint64_t src, dst;
-      line = elGetOne(line, src);
-      line = elGetOne(line, dst);
-      if(vertices.find(src) == vertices.end()) {
-          std::vector<uint64_t> edges;
-          vertices.insert(std::make_pair(src, std::vector<uint64_t>{dst}));
-      } else {
-          vertices[src].push_back(dst);
-      }
+void parser(
+    const char* line,
+    std::unordered_map<std::uint64_t, std::vector<uint64_t>>& vertices) {
+  uint64_t src, dst;
+  line = elGetOne(line, src);
+  line = elGetOne(line, dst);
+  if (vertices.find(src) == vertices.end()) {
+    std::vector<uint64_t> edges;
+    vertices.insert(std::make_pair(src, std::vector<uint64_t>{dst}));
+  } else {
+    vertices[src].push_back(dst);
+  }
+}
 
-            }
-
-
-void getELDataFromGraph(std::string& filename,
-                     std::unordered_map<std::uint64_t, std::vector<uint64_t>>& vertices) {
+void getELDataFromGraph(
+    std::string& filename,
+    std::unordered_map<std::uint64_t, std::vector<uint64_t>>& vertices) {
   // read file line by line
   std::string line;
   std::ifstream myfile(filename);
@@ -82,10 +88,9 @@ int main(int argc, char* argv[]) {
   if (argc == 5)
     galois::setActiveThreads(atoi(argv[4]));
 
-
   if (std::strcmp(argv[2], "--numVertices") != 0) {
-        std::cerr << "Usage: " << argv[2] << " --numVertices <value>" << std::endl;
-        return 1;
+    std::cerr << "Usage: " << argv[2] << " --numVertices <value>" << std::endl;
+    return 1;
   }
 
   uint64_t numVertices = std::stoull(argv[3]);
@@ -109,7 +114,8 @@ int main(int argc, char* argv[]) {
       parsers;
   parsers.emplace_back(
       std::make_unique<galois::graphs::ELParser<galois::graphs::ELVertex,
-                                                 galois::graphs::ELEdge>>(filenames));
+                                                galois::graphs::ELEdge>>(
+          filenames));
   Graph* graph = new Graph(parsers, net.ID, net.Num, true, false, numVertices,
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
   assert(graph != nullptr);
@@ -126,15 +132,15 @@ int main(int argc, char* argv[]) {
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
         for (; itr != end; itr++) {
-          edgeDst.push_back(graph->getEdgeDst(itr));
+          edgeDst.push_back(graph->getGID(graph->getEdgeDst(itr)));
         }
         std::vector<uint64_t> edgeDstDbg;
         for (auto& e : graph->edges(lid)) {
-          edgeDstDbg.push_back(graph->getEdgeDst(e));
+          edgeDstDbg.push_back(graph->getGID(graph->getEdgeDst(e)));
         }
         assert(edgeDst == edgeDstDbg);
         std::sort(edgeDst.begin(), edgeDst.end());
-          tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
+        tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
       },
       galois::steal());
 
@@ -168,6 +174,8 @@ int main(int argc, char* argv[]) {
       assert(vertex.size() == tokenAndEdge.second.size());
       std::sort(vertex.begin(), vertex.end());
       for (size_t j = 0; j < vertex.size(); j++) {
+        std::cout << "src " << tokenAndEdge.first << " " << vertex[j]
+                  << " tokenAndEdge: " << tokenAndEdge.second[j] << std::endl;
         assert(vertex[j] == tokenAndEdge.second[j]);
       }
     }
