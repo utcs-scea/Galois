@@ -1,3 +1,2 @@
 *.csv filter=lfs diff=lfs merge=lfs -text
 inputs/wmd/data.001.csv filter=lfs diff=lfs merge=lfs -text
-inputs/wmd/static filter=lfs diff=lfs merge=lfs -text

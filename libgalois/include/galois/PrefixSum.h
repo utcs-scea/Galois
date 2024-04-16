@@ -183,9 +183,18 @@ public:
    */
   void computePrefixSum(uint64_t ns) {
     galois::on_each([&](unsigned tid, unsigned numThreads) {
-      this->parallel_pfxsum_op(ns, tid, numThreads);
+      if (numThreads == 1) {
+        computePrefixSumSerially(ns);
+      } else {
+        this->parallel_pfxsum_op(ns, tid, numThreads);
+      }
     });
     this->lock.reset();
+  }
+
+  void computePrefixSumSerially(uint64_t ns) {
+    serial_pfxsum<A, B, transmute, scan_op, std::monostate, empty, empty, Arr>(
+        src, dst, ns, std::monostate());
   }
 
   const char* name() {

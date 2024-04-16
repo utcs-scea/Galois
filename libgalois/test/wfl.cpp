@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
   if (argc > 1)
     iter = atoi(argv[1]);
   else
-    iter = 16 * 1024;
+    iter = 16;
   if (argc > 2)
     numThreads = atoi(argv[2]);
   else
