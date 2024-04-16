@@ -110,8 +110,7 @@ private:
             CacheLinePaddedArr>
       m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
-  alignas(hardware_destructive_interference_size)
-      std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
+  bool m_prefix_valid = false;
 
   void resetPrefixSum() {
     m_pfx_sum_cache.resize(m_vertices.size());
@@ -122,7 +121,7 @@ private:
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
     m_pfx.computePrefixSum(m_vertices.size());
-    m_prefix_valid.store(true, std::memory_order_release);
+    m_prefix_valid = true;
   }
 
   // returns a reference to the metadata for the pointed-to edge
@@ -341,7 +340,7 @@ public:
     vertex_meta.begin  = new_begin;
     vertex_meta.end    = new_end;
 
-    m_prefix_valid.store(false, std::memory_order_release);
+    m_prefix_valid = false;
   }
 
   // Performs the compaction algorithm by copying any vertices left in buffer 0
@@ -423,13 +422,13 @@ public:
    * array
    */
   uint64_t operator[](uint64_t n) {
-    if (!m_prefix_valid.load(std::memory_order_acquire))
+    if (!m_prefix_valid)
       computePrefixSum();
     return m_pfx_sum_cache[n];
   }
 
   std::vector<uint64_t> const& getEdgePrefixSum() {
-    if (!m_prefix_valid.load(std::memory_order_acquire))
+    if (!m_prefix_valid)
       computePrefixSum();
     return m_pfx_sum_cache;
   }
