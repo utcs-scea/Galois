@@ -18,9 +18,8 @@ public:
   graphUpdateManager() = default;
   graphUpdateManager(
       std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> parser,
-      std::string inputFile, int period, T* distGraphPtr) {
+      int period, T* distGraphPtr) {
     periodForCheck = period;
-    graphFile      = inputFile;
     graph          = distGraphPtr;
     fileParser     = std::move(parser);
   }
@@ -78,35 +77,44 @@ private:
   void processLine(const char* line, size_t len) {
     galois::graphs::ParsedGraphStructure<N, E> value =
         fileParser->ParseLine(const_cast<char*>(line), len);
-    for (auto& edge : value.edges) {
-      std::vector<uint64_t> dsts;
-      dsts.push_back(edge.dst);
-      std::vector<E> data;
-      data.push_back(edge);
-      graph->addEdges(edge.src, dsts, data);
+    if (value.isNode)
+      graph->addVertex(value.node);
+    else {
+      for (auto& edge : value.edges) {
+        std::vector<uint64_t> dsts;
+        dsts.push_back(edge.dst);
+        std::vector<E> data;
+        data.push_back(edge);
+        graph->addEdges(edge.src, dsts, data);
+      }
     }
   }
 
   template <typename N = NodeData, typename E = EdgeData>
   void ingestFile() {
-    std::ifstream inputFile(graphFile);
-    if (!inputFile.is_open()) {
-      std::cerr << "Error opening file: " << graphFile << "\n";
-      return;
-    }
-
-    // Read each line from the stringstream
-    std::string line;
-    uint64_t lineNumber = 0;
-    while ((std::getline(inputFile, line))) {
-      processLine(line.c_str(), line.size());
-      lineNumber++;
-      if (lineNumber == batchSize) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(periodForCheck));
-        lineNumber = 0;
+    std::vector<std::string> files = fileParser->GetFiles();
+    for (auto& file : files) {
+      std::ifstream inputFile(file);
+      if (!inputFile.is_open()) {
+        std::cerr << "Error opening file: " << graphFile << "\n";
+        return;
       }
+
+      // Read each line from the stringstream
+      std::string line;
+      uint64_t lineNumber = 0;
+      while ((std::getline(inputFile, line))) {
+        processLine(line.c_str(), line.size());
+        lineNumber++;
+        if (lineNumber == batchSize) {
+          galois::runtime::getHostBarrier().wait();
+          std::this_thread::sleep_for(
+              std::chrono::milliseconds(periodForCheck));
+          lineNumber = 0;
+        }
+      }
+      inputFile.close();
     }
-    inputFile.close();
     auto& net = galois::runtime::getSystemNetworkInterface();
     net.flush();
     stopIngest = true;
@@ -119,13 +127,22 @@ private:
     while (!stopCheck) {
       auto m = net.recieveTagged(galois::runtime::evilPhase);
       if (m.has_value()) {
-        uint64_t src_node;
-        galois::runtime::gDeserialize(m->second, src_node);
-        std::vector<uint64_t> edge_dsts;
-        galois::runtime::gDeserialize(m->second, edge_dsts);
-        std::vector<E> edge_data;
-        galois::runtime::gDeserialize(m->second, edge_data);
-        graph->addEdges(src_node, edge_dsts, edge_data);
+        typename T::Task task;
+        galois::runtime::gDeserialize(m->second, task);
+        if (task == T::Task::ADD_VERTEX) {
+          std::vector<N> node;
+          galois::runtime::gDeserialize(m->second, node);
+          for (auto d : node)
+            graph->addVertex(d);
+        } else if (task == T::Task::ADD_EDGES) {
+          uint64_t src_node;
+          galois::runtime::gDeserialize(m->second, src_node);
+          std::vector<uint64_t> edge_dsts;
+          galois::runtime::gDeserialize(m->second, edge_dsts);
+          std::vector<E> edge_data;
+          galois::runtime::gDeserialize(m->second, edge_data);
+          graph->addEdges(src_node, edge_dsts, edge_data);
+        }
       }
       std::this_thread::sleep_for(
           std::chrono::milliseconds(periodForCheck / (batchSize)));
