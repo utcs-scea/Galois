@@ -110,12 +110,13 @@ private:
             CacheLinePaddedArr>
       m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
-  bool m_prefix_valid = false;
+  bool m_prefix_valid;
 
   void resetPrefixSum() {
     m_pfx_sum_cache.resize(m_vertices.size());
-    m_pfx.src = &m_vertices[0];
-    m_pfx.dst = &m_pfx_sum_cache[0];
+    m_pfx.src      = &m_vertices[0];
+    m_pfx.dst      = &m_pfx_sum_cache[0];
+    m_prefix_valid = false;
   }
 
   // Compute the prefix sum using the two level method
