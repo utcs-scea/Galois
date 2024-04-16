@@ -97,7 +97,7 @@ public:
    * @param gid GID of node to get master of
    * @returns Host ID of host that read the node specified by the GID.
    */
-  uint32_t retrieveMaster(uint32_t gid) const {
+  uint32_t retrieveMaster(uint64_t gid) const {
     if (hash == false) {
       for (auto h = 0U; h < _numHosts; ++h) {
         uint64_t start, end;
@@ -207,7 +207,7 @@ public:
    * @param gid GID to get master of
    * @returns Master of specified GID, -1, unsigned, if not found
    */
-  uint32_t retrieveMaster(uint32_t gid) const {
+  uint32_t retrieveMaster(uint64_t gid) const {
     if (_status != 0) {
       // use map if not a locally read node, else use vector
       if (getHostReader(gid) != _hostID) {
