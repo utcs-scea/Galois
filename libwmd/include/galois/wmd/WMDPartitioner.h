@@ -249,6 +249,7 @@ public:
             dstData.emplace_back(base_DistGraph::globalToLocalMap[dst]);
           }
           std::vector<EdgeTy> edgeData(bufGraph.edgeNum(globalID));
+          edgeData = bufGraph.edgeLocalData(globalID);
           base_DistGraph::graph->addEdges(
               (globalID - bufGraph.globalNodeOffset[base_DistGraph::id]),
               dstData, edgeData);
