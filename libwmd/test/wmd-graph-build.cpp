@@ -216,11 +216,11 @@ int main(int argc, char* argv[]) {
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
         for (; itr != end; itr++) {
-          edgeDst.push_back(graph->getEdgeDst(itr));
+          edgeDst.push_back(graph->getGID(graph->getEdgeDst(itr)));
         }
         std::vector<uint64_t> edgeDstDbg;
         for (auto& e : graph->edges(lid)) {
-          edgeDstDbg.push_back(graph->getEdgeDst(e));
+          edgeDstDbg.push_back(graph->getGID(graph->getEdgeDst(e)));
         }
         assert(edgeDst == edgeDstDbg);
         std::sort(edgeDst.begin(), edgeDst.end());

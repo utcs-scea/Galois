@@ -586,7 +586,7 @@ public:
    */
   inline EdgeTy& getEdgeData(GraphNode src, edge_iterator ni) {
     GraphNode dst = getEdgeDst(ni);
-    auto& r       = graph->getEdgeData(std::make_pair(src, getGID(dst)));
+    auto& r       = graph->getEdgeData(std::make_pair(src, dst));
     return r;
   }
 
@@ -601,9 +601,7 @@ public:
    * @param ni edge id to get destination of
    * @returns Local ID of destination of edge ni
    */
-  GraphNode getEdgeDst(edge_iterator ni) {
-    return getGID(graph->getEdgeDst(*ni));
-  }
+  GraphNode getEdgeDst(edge_iterator ni) { return graph->getEdgeDst(*ni); }
 
   /**
    * Gets the first edge of some node.
