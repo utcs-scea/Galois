@@ -97,20 +97,38 @@ private:
    * Prefix Sum utilities
    */
   std::vector<uint64_t> m_pfx_sum_cache;
+  static uint64_t transmute(const VertexMetadata& vertex_meta) {
+    return vertex_meta.degree();
+  }
+  static uint64_t scan_op(const VertexMetadata& p, const uint64_t& l) {
+    return p.degree() + l;
+  }
+  static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
+    return f + s;
+  }
+  PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
+            CacheLinePaddedArr>
+      m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
-  alignas(hardware_destructive_interference_size)
-      std::atomic<bool> m_prefix_valid = ATOMIC_VAR_INIT(false);
+  bool m_prefix_valid;
 
-  void resetPrefixSum() { m_pfx_sum_cache.resize(m_vertices.size()); }
+  void resetPrefixSum() {
+    m_pfx_sum_cache.resize(m_vertices.size());
+    m_pfx.src      = &m_vertices[0];
+    m_pfx.dst      = &m_pfx_sum_cache[0];
+    m_prefix_valid = false;
+  }
 
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
-    // todo: switch to parallel prefix sum when `galois::PrefixSum` is fixed
-    std::transform_inclusive_scan(
-        m_vertices.begin(), m_vertices.end(), m_pfx_sum_cache.begin(),
-        std::plus<uint64_t>(),
-        [](VertexMetadata const& v) { return v.degree(); }, 0ul);
-    m_prefix_valid.store(true, std::memory_order_release);
+    constexpr uint64_t PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD =
+        static_cast<uint64_t>(1) << 30;
+    if (m_vertices.size() > PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD) {
+      m_pfx.computePrefixSumSerially(m_vertices.size());
+    } else {
+      m_pfx.computePrefixSum(m_vertices.size());
+    }
+    m_prefix_valid = true;
   }
 
   // returns a reference to the metadata for the pointed-to edge
@@ -168,12 +186,21 @@ public:
     return m_vertices.size() - 1;
   }
 
+  /**
+   * Adds multiple vertices to the graph. The new vertices will be assigned
+   * consecutive topology IDs, and the lowest new ID is returned.
+   */
+  VertexTopologyID addVerticesTopologyOnly(size_t count) {
+    VertexTopologyID const start = m_vertices.size();
+    m_vertices.resize(start + count);
+    return start;
+  }
+
   // Adds multiple vertices to the graph. The new vertices will be assigned
   // consecutive topology IDs, and the lowest new ID is returned.
   template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   VertexTopologyID addVertices(std::vector<V> data) {
-    VertexTopologyID const start = m_vertices.size();
-    m_vertices.resize(m_vertices.size() + data.size());
+    auto const start = addVerticesTopologyOnly(data.size());
     m_vertex_data.resize(m_vertices.size());
     resetPrefixSum();
     galois::do_all(
@@ -291,7 +318,8 @@ public:
     // edges.
 
     auto& vertex_meta = m_vertices[src];
-    m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
+    if (vertex_meta.buffer == 1)
+      m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
 
     uint64_t const new_degree = vertex_meta.degree() + dsts.size();
     uint64_t const new_begin =
@@ -328,7 +356,7 @@ public:
     vertex_meta.begin  = new_begin;
     vertex_meta.end    = new_end;
 
-    m_prefix_valid.store(false, std::memory_order_release);
+    m_prefix_valid = false;
   }
 
   // Performs the compaction algorithm by copying any vertices left in buffer 0
@@ -391,6 +419,11 @@ public:
     return estimate;
   }
 
+  // Returns the number of bytes used for the log.
+  inline size_t getLogMemoryUsageBytes() {
+    return m_edges_tail.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
+  }
+
   // Returns the number of bytes used for holes in the log.
   inline size_t getLogHolesMemoryUsageBytes() {
     return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
@@ -405,31 +438,31 @@ public:
    * array
    */
   uint64_t operator[](uint64_t n) {
-    if (!m_prefix_valid.load(std::memory_order_acquire))
+    if (!m_prefix_valid)
       computePrefixSum();
     return m_pfx_sum_cache[n];
   }
 
   std::vector<uint64_t> const& getEdgePrefixSum() {
-    if (!m_prefix_valid.load(std::memory_order_acquire))
+    if (!m_prefix_valid)
       computePrefixSum();
     return m_pfx_sum_cache;
   }
 
 private:
   struct VertexMetadata {
-    uint8_t buffer : 1;
-    uint64_t begin : 48; // inclusive
-    uint64_t end : 48;   // exclusive
+    uint64_t begin; // inclusive
+    uint64_t end;   // exclusive
+    uint8_t buffer;
 
-    VertexMetadata() : buffer(0), begin(0), end(0) {}
+    VertexMetadata() : begin(0), end(0), buffer(0) {}
 
     VertexMetadata(VertexMetadata const& other)
-        : buffer(other.buffer), begin(other.begin), end(other.end) {}
+        : begin(other.begin), end(other.end), buffer(other.buffer) {}
 
     VertexMetadata(VertexMetadata&& other)
-        : buffer(std::move(other.buffer)), begin(std::move(other.begin)),
-          end(std::move(other.end)) {}
+        : begin(std::move(other.begin)), end(std::move(other.end)),
+          buffer(std::move(other.buffer)) {}
 
     inline uint64_t degree() const { return end - begin; }
   };

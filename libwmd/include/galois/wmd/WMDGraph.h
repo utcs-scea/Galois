@@ -1331,6 +1331,23 @@ public:
    *
    * @param globalNodeID the global node id of the node to get the edge
    * for
+   * @returns a vector of edge data
+   */
+  std::vector<EdgeDataType> edgeLocalData(uint64_t globalNodeID) {
+    std::vector<EdgeDataType> edgeData;
+    auto end = offsets[globalNodeID - globalNodeOffset[hostID] + 1];
+    for (auto itr = offsets[globalNodeID - globalNodeOffset[hostID]];
+         itr != end; ++itr) {
+      edgeData.push_back(edges[itr]);
+    }
+    return edgeData;
+  }
+
+  /**
+   * Get the data of edges of the node
+   *
+   * @param globalNodeID the global node id of the node to get the edge
+   * for
    * @returns a pointer to the first edges of the node in the buffer
    */
   EdgeDataType* edgeDataPtr(uint64_t globalNodeID) {
