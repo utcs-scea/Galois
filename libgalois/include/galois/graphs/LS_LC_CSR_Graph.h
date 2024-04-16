@@ -186,12 +186,21 @@ public:
     return m_vertices.size() - 1;
   }
 
+  /**
+   * Adds multiple vertices to the graph. The new vertices will be assigned
+   * consecutive topology IDs, and the lowest new ID is returned.
+   */
+  VertexTopologyID addVerticesTopologyOnly(size_t count) {
+    VertexTopologyID const start = m_vertices.size();
+    m_vertices.resize(start + count);
+    return start;
+  }
+
   // Adds multiple vertices to the graph. The new vertices will be assigned
   // consecutive topology IDs, and the lowest new ID is returned.
   template <typename V = VertexData, typename = std::enable_if<HasVertexData>>
   VertexTopologyID addVertices(std::vector<V> data) {
-    VertexTopologyID const start = m_vertices.size();
-    m_vertices.resize(m_vertices.size() + data.size());
+    auto const start = addVerticesTopologyOnly(data.size());
     m_vertex_data.resize(m_vertices.size());
     resetPrefixSum();
     galois::do_all(
