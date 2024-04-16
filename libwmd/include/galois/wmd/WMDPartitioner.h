@@ -585,8 +585,7 @@ public:
           .emplace_back(globalID);
     }
 
-    base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
-                                       base_DistGraph::numEdges);
+    base_DistGraph::initGraph(base_DistGraph::numNodes);
     uint64_t edgeCount = 0;
     for (uint64_t node = 0; node < base_DistGraph::numNodes; node++) {
       base_DistGraph::getData(node) = localNodes[node];
@@ -604,10 +603,9 @@ public:
         newEdgeData.emplace_back(edge.data);
       }
       edgeCount += numEdges;
-      base_DistGraph::graph.addEdgesUnSort(true, node, localDsts.data(),
-                                           newEdgeData.data(), numEdges, false);
+      base_DistGraph::graph->addEdges(node, localDsts, newEdgeData);
     }
-    base_DistGraph::graph.getEdgePrefixSum();
+    base_DistGraph::graph->getEdgePrefixSum();
 
     base_DistGraph::determineThreadRanges();
     base_DistGraph::determineThreadRangesMaster();
