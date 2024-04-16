@@ -26,6 +26,7 @@
 #include <atomic>
 #include <new>
 #include <type_traits>
+#include <numeric>
 
 #include <boost/range/iterator_range_core.hpp>
 #include <boost/range/counting_range.hpp>
