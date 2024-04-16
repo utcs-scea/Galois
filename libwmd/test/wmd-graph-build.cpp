@@ -191,12 +191,13 @@ int main(int argc, char* argv[]) {
 
   if (dynFile != "") {
     std::string dynamicFile = dynFile + std::to_string(net.ID) + ".txt";
-
+    std::vector<std::string> filenames;
+    filenames.emplace_back(dynamicFile);
     graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(
         std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
                                                    agile::workflow1::Edge>>(
             10, filenames),
-        dynamicFile, 100, graph);
+        100, graph);
     GUM.start();
     // wait for GUM to finish
     while (!GUM.stop()) {
