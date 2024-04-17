@@ -122,6 +122,7 @@ private:
 
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
+    resetPrefixSum();
     constexpr uint64_t PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD =
         static_cast<uint64_t>(1) << 30;
     if (m_vertices.size() > PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD) {
