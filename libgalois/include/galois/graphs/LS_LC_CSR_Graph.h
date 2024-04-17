@@ -89,9 +89,6 @@ private:
   EdgeDataStore m_edge_data;
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
-  // m_holes is the number of holes in the log (m_edges[1])
-  alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
-      ATOMIC_VAR_INIT(0);
 
   /*
    * Prefix Sum utilities
@@ -387,10 +384,7 @@ public:
     // Copies the edge list to the end of m_edges[1] together with the new
     // edges.
 
-    auto& vertex_meta = m_vertices[src];
-    if (vertex_meta.buffer == 1)
-      m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
-
+    auto& vertex_meta         = m_vertices[src];
     uint64_t const new_degree = vertex_meta.degree() + dsts.size();
     uint64_t const new_begin =
         m_edges_tail.fetch_add(new_degree, std::memory_order_relaxed);
@@ -469,7 +463,6 @@ public:
     m_edges[1].resize(0);
 
     m_edges_tail   = 0;
-    m_holes        = 0;
     m_prefix_valid = false;
   }
 
@@ -484,11 +477,6 @@ public:
   // Returns the number of bytes used for the log.
   inline size_t getLogMemoryUsageBytes() {
     return m_edges_tail.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
-  }
-
-  // Returns the number of bytes used for holes in the log.
-  inline size_t getLogHolesMemoryUsageBytes() {
-    return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
   }
 
   /**
