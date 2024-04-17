@@ -65,7 +65,8 @@ private:
     size_t const mmap_size =
         std::max(m_mappings.front().second * 2, m_capacity * sizeof(T));
 
-    m_data = static_cast<T*>(mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0));
+    m_data = static_cast<T*>(
+        mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0));
     if (m_data == MAP_FAILED)
       throw std::runtime_error(std::string("mmap failed: ") +
                                std::strerror(errno));
