@@ -408,25 +408,8 @@ public:
     Compaction policy utilities.
   */
 
-  // Returns an estimated memory usage in bytes for the entire data structure.
-  inline size_t getMemoryUsageBytes() {
-    size_t estimate = m_vertices.size() * sizeof(VertexMetadata);
-    if constexpr (HasVertexData) {
-      estimate += m_vertices.size() * sizeof(VertexData);
-    }
-    m_edges_lock.lock();
-    {
-      estimate +=
-          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
-          sizeof(EdgeMetadata);
-    }
-    m_edges_lock.unlock();
-    if constexpr (HasEdgeData) {
-      estimate += m_edge_data.size() *
-                  (sizeof(EdgeData) +
-                   sizeof(std::pair<VertexTopologyID, VertexTopologyID>));
-    }
-    return estimate;
+  inline size_t getCSRMemoryUsageBytes() {
+    return m_edges[0].size() * sizeof(EdgeMetadata);
   }
 
   // Returns the number of bytes used for the log.
