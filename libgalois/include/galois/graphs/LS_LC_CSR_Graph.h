@@ -437,6 +437,7 @@ public:
                    });
 
     LargeVector<EdgeMetadata> new_edges(prefix_sum.back());
+    GALOIS_ASSERT(new_edges.size() == prefix_sum.back());
 
     galois::do_all(
         galois::iterate(0ul, m_vertices.size()),

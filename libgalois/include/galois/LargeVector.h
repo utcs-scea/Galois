@@ -75,14 +75,14 @@ private:
   }
 
 public:
-  LargeVector(size_t initial_capacity)
+  LargeVector(size_t initial_size)
       : m_capacity(0), m_size(0), m_data(nullptr),
         m_fd(memfd_create("LargeVector", 0)),
         m_mappings({std::make_pair(nullptr, 0)}) {
     if (m_fd == -1)
       throw std::runtime_error(std::string("creating memfd: ") +
                                std::strerror(errno));
-    ensure_capacity(initial_capacity);
+    resize(initial_size);
   }
 
   LargeVector() : LargeVector(1) {}
@@ -98,20 +98,13 @@ public:
     assert(other.m_mappings.empty());
   }
 
-  LargeVector& operator=(LargeVector<T>&& other) {
-    m_capacity = std::move(other.m_capacity);
-    m_size     = std::move(other.m_size);
-    m_data     = std::move(other.m_data);
-    m_fd       = std::move(other.m_fd);
-    m_mappings = std::move(other.m_mappings);
-
-    other.m_capacity = 0;
-    other.m_size     = 0;
-    other.m_data     = nullptr;
-    other.m_fd       = -1;
-    assert(other.m_mappings.empty());
-
-    return *this;
+  friend void swap(LargeVector& first, LargeVector& second) {
+    using std::swap;
+    swap(first.m_capacity, second.m_capacity);
+    swap(first.m_size, second.m_size);
+    swap(first.m_data, second.m_data);
+    swap(first.m_fd, second.m_fd);
+    swap(first.m_mappings, second.m_mappings);
   }
 
   ~LargeVector() {
