@@ -313,30 +313,31 @@ public:
       return;
     // <prefix sum, degree>
     std::vector<uint64_t> pfx_sum(edges.size());
-    std::vector<uint64_t> degrees(edges.size());
     galois::do_all(
         galois::iterate(0ul, edges.size()),
         [&](size_t idx) {
-          auto const vertex_id = edges[idx].first;
-          auto const degree    = getDegree(vertex_id);
-          degrees[idx]         = degree;
-          pfx_sum[idx]         = degree + edges[idx].second.size();
+          auto const vertex_id  = edges[idx].first;
+          auto const old_degree = getDegree(vertex_id);
+          pfx_sum[idx]          = old_degree + edges[idx].second.size();
         },
-        galois::loopname("ComputePrefixSumOnBatch"));
+        galois::loopname("ComputeVertexDegrees"));
+
+    for (size_t i = 1; i < pfx_sum.size(); ++i)
+      pfx_sum[i] += pfx_sum[i - 1];
 
     auto const num_new_edges = pfx_sum.back();
-    auto const start         = m_edges_tail.fetch_add(num_new_edges);
-    if (m_edges[1].size() < start + num_new_edges) {
+    auto const start =
+        m_edges_tail.fetch_add(num_new_edges, std::memory_order_relaxed);
+    if (m_edges[1].size() < start + num_new_edges)
       m_edges[1].resize(std::max(m_edges[1].size() * 2, start + num_new_edges));
-    }
 
     galois::do_all(
         galois::iterate(0ul, edges.size()),
         [&](size_t idx) {
           auto const& [src, dsts] = edges[idx];
-          auto const& vertex_meta = m_vertices[src];
-          auto const new_begin    = start + pfx_sum[idx];
-          auto const new_end      = new_begin + degrees[idx];
+          auto const new_begin    = (idx) ? (start + pfx_sum[idx - 1]) : start;
+          auto const new_end      = start + pfx_sum[idx];
+          auto& vertex_meta       = m_vertices[src];
           EdgeMetadata* log_dst   = &getEdgeMetadata(1, new_begin);
           if constexpr (sorted) {
             std::merge(dsts.begin(), dsts.end(),
@@ -354,9 +355,9 @@ public:
           }
 
           // update vertex metadata
-          m_vertices[src].buffer = 1;
-          m_vertices[src].begin  = new_begin;
-          m_vertices[src].end    = new_end;
+          vertex_meta.buffer = 1;
+          vertex_meta.begin  = new_begin;
+          vertex_meta.end    = new_end;
         },
         galois::steal(), galois::loopname("CopyEdgesToLog"));
 

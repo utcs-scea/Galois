@@ -136,7 +136,7 @@ int main() {
   GALOIS_ASSERT(g[1] == 3);
   GALOIS_ASSERT(g[2] == 3);
   // ...
-  GALOIS_ASSERT(g[8] == 7);
+  GALOIS_ASSERT(g[four + 4] == 23);
 
   uint64_t num_vertices = (1 << 22) + 67;
   galois::graphs::LS_LC_CSR_Graph<void, void> big(num_vertices);
