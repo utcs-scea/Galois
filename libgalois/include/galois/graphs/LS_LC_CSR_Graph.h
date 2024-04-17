@@ -314,7 +314,6 @@ public:
     // <prefix sum, degree>
     std::vector<uint64_t> pfx_sum(edges.size());
     std::vector<uint64_t> degrees(edges.size());
-    auto const initial_num_vertices = m_vertices.size();
     galois::do_all(
         galois::iterate(0ul, edges.size()),
         [&](size_t idx) {
@@ -336,8 +335,8 @@ public:
         [&](size_t idx) {
           auto const& [src, dsts] = edges[idx];
           auto const& vertex_meta = m_vertices[src];
-          auto const new_begin    = start + pfx_sum[idx].first;
-          auto const new_end      = new_begin + pfx_sum[idx].second;
+          auto const new_begin    = start + pfx_sum[idx];
+          auto const new_end      = new_begin + degrees[idx];
           EdgeMetadata* log_dst   = &getEdgeMetadata(1, new_begin);
           if constexpr (sorted) {
             std::merge(dsts.begin(), dsts.end(),
