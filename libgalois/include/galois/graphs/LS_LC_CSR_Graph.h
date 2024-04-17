@@ -308,6 +308,74 @@ public:
     }
   }
 
+  template <bool sorted = false>
+  void addBatchTopologyOnly(
+      std::vector<std::pair<VertexTopologyID, std::vector<VertexTopologyID>>>
+          edges) {
+    if (m_vertices.empty() || edges.empty())
+      return;
+    // <prefix sum, degree>
+    std::vector<std::pair<uint64_t, uint64_t>> pfx_sum(edges.size());
+    auto const initial_num_vertices = m_vertices.size();
+    galois::do_all(
+        galois::iterate(0ul, edges.size()),
+        [&](size_t idx) {
+          auto const vertex_id = edges[idx].first;
+          auto const degree =
+              vertex_id < initial_num_vertices ? getDegree(vertex_id) : 0ul;
+          pfx_sum[idx].second = degree;
+          pfx_sum[idx].first  = degree + edges[idx].second.size();
+        },
+        galois::loopname("ComputePrefixSumOnBatch"));
+
+    uint64_t max_topology_id =
+        std::max(initial_num_vertices - 1, edges.front().first);
+    for (size_t i = 1; i < pfx_sum.size(); ++i) {
+      pfx_sum[i].first += pfx_sum[i - 1].first;
+      max_topology_id = std::max(max_topology_id, edges[i].first);
+    }
+    // in case this batch adds new vertices (noop otherwise):
+    m_vertices.resize(max_topology_id + 1);
+
+    auto const num_new_edges = pfx_sum.back().first;
+    auto const start         = m_edges_tail.fetch_add(pfx_sum.back().first);
+    if (m_edges[1].size() < start + num_new_edges) {
+      m_edges[1].resize(std::max(m_edges[1].size() * 2, start + num_new_edges));
+    }
+
+    galois::do_all(
+        galois::iterate(0ul, edges.size()),
+        [&](size_t idx) {
+          auto const& [src, dsts] = edges[idx];
+          auto const& vertex_meta = m_vertices[src];
+          auto const new_begin    = start + pfx_sum[idx].first;
+          auto const new_end      = new_begin + pfx_sum[idx].second;
+          EdgeMetadata* log_dst   = &getEdgeMetadata(1, new_begin);
+          if constexpr (sorted) {
+            std::merge(dsts.begin(), dsts.end(),
+                       &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+                       &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
+                       log_dst);
+          } else {
+            // copy old edges
+            log_dst = std::copy(
+                &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+                &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end), log_dst);
+
+            // insert new edges
+            std::copy(dsts.begin(), dsts.end(), log_dst);
+          }
+
+          // update vertex metadata
+          m_vertices[src].buffer = 1;
+          m_vertices[src].begin  = new_begin;
+          m_vertices[src].end    = new_end;
+        },
+        galois::steal(), galois::loopname("CopyEdgesToLog"));
+
+    m_prefix_valid = false;
+  }
+
   /*
    * Adds outgoing edges from the given src to all dsts. If `sorted`, assume
    * both `dsts` and the existing edge array is sorted ascending, and maintain
