@@ -312,30 +312,21 @@ public:
     if (m_vertices.empty() || edges.empty())
       return;
     // <prefix sum, degree>
-    std::vector<std::pair<uint64_t, uint64_t>> pfx_sum(edges.size());
+    std::vector<uint64_t> pfx_sum(edges.size());
+    std::vector<uint64_t> degrees(edges.size());
     auto const initial_num_vertices = m_vertices.size();
     galois::do_all(
         galois::iterate(0ul, edges.size()),
         [&](size_t idx) {
           auto const vertex_id = edges[idx].first;
-          auto const degree =
-              vertex_id < initial_num_vertices ? getDegree(vertex_id) : 0ul;
-          pfx_sum[idx].second = degree;
-          pfx_sum[idx].first  = degree + edges[idx].second.size();
+          auto const degree    = getDegree(vertex_id);
+          degrees[idx]         = degree;
+          pfx_sum[idx]         = degree + edges[idx].second.size();
         },
         galois::loopname("ComputePrefixSumOnBatch"));
 
-    uint64_t max_topology_id =
-        std::max(initial_num_vertices - 1, edges.front().first);
-    for (size_t i = 1; i < pfx_sum.size(); ++i) {
-      pfx_sum[i].first += pfx_sum[i - 1].first;
-      max_topology_id = std::max(max_topology_id, edges[i].first);
-    }
-    // in case this batch adds new vertices (noop otherwise):
-    m_vertices.resize(max_topology_id + 1);
-
-    auto const num_new_edges = pfx_sum.back().first;
-    auto const start         = m_edges_tail.fetch_add(pfx_sum.back().first);
+    auto const num_new_edges = pfx_sum.back();
+    auto const start         = m_edges_tail.fetch_add(num_new_edges);
     if (m_edges[1].size() < start + num_new_edges) {
       m_edges[1].resize(std::max(m_edges[1].size() * 2, start + num_new_edges));
     }
