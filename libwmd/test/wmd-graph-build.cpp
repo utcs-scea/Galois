@@ -42,7 +42,8 @@ void insertEdge(
 
 void parser(std::string line,
             std::unordered_map<std::uint64_t,
-                               std::pair<TYPES, std::vector<Edge>>>& vertices) {
+                               std::pair<TYPES, std::vector<Edge>>>& vertices,
+            bool dynamic = false, bool readNodes = true) {
   if (line.find("//") != std::string::npos ||
       line.find("#") != std::string::npos) {
     return;
@@ -65,7 +66,7 @@ void parser(std::string line,
     bool isNode = tokens[0] == "Person" || tokens[0] == "ForumEvent" ||
                   tokens[0] == "Forum" || tokens[0] == "Publication" ||
                   tokens[0] == "Topic";
-    if (isNode) {
+    if ((isNode && !dynamic) || (isNode && readNodes)) {
       uint64_t id                        = 0;
       agile::workflow1::TYPES vertexType = agile::workflow1::TYPES::NONE;
       if (tokens[0] == "Person") {
@@ -88,7 +89,7 @@ void parser(std::string line,
       }
       vertices[id] =
           std::pair<TYPES, std::vector<Edge>>(vertexType, std::vector<Edge>());
-    } else {
+    } else if ((!isNode && !dynamic) || (!isNode && !readNodes)) {
       Edge edge(tokens);
       insertEdge(edge, vertices);
       // Inverse edge
@@ -118,13 +119,14 @@ void parser(std::string line,
 void getDataFromGraph(
     std::string& filename,
     std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
-        vertices) {
+        vertices,
+    bool dynamic = false, bool readNodes = true) {
   // read file line by line
   std::string line;
   std::ifstream myfile(filename);
   if (myfile.is_open()) {
     while (getline(myfile, line)) {
-      parser(line, vertices);
+      parser(line, vertices, dynamic, readNodes);
     }
     myfile.close();
   } else {
@@ -189,12 +191,13 @@ int main(int argc, char* argv[]) {
 
   if (dynFile != "") {
     std::string dynamicFile = dynFile + std::to_string(net.ID) + ".txt";
-
+    std::vector<std::string> filenames;
+    filenames.emplace_back(dynamicFile);
     graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(
         std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
                                                    agile::workflow1::Edge>>(
             10, filenames),
-        dynamicFile, 100, graph);
+        100, graph);
     GUM.start();
     // wait for GUM to finish
     while (!GUM.stop()) {
@@ -249,9 +252,14 @@ int main(int argc, char* argv[]) {
   if (net.ID == 0) {
     getDataFromGraph(file, vertices);
     if (dynFile != "") {
+      // Read vertices only first, and then only edges
       for (uint32_t i = 0; i < net.Num; i++) {
         std::string dynamicFile = dynFile + std::to_string(i) + ".txt";
-        getDataFromGraph(dynamicFile, vertices);
+        getDataFromGraph(dynamicFile, vertices, true, true);
+      }
+      for (uint32_t i = 0; i < net.Num; i++) {
+        std::string dynamicFile = dynFile + std::to_string(i) + ".txt";
+        getDataFromGraph(dynamicFile, vertices, true, false);
       }
     }
     // compare with vertices

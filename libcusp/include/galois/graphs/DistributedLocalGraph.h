@@ -962,9 +962,11 @@ public:
         localToGlobalVector.push_back(src);
         globalToLocalMap[src] = localToGlobalVector.size() - 1;
         numNodes++;
+      } else {
       }
       numOwned++;
     } else {
+      assert(globalToLocalMap.find(src) != globalToLocalMap.end());
       uint64_t srcLID = globalToLocalMap[src];
       if (edge_begin(srcLID) == edge_end(srcLID)) {
         numNodesWithEdges++;
@@ -995,13 +997,16 @@ public:
   }
 
   template <typename T>
-  void addVertex(uint64_t token, T data) {
+  void addVertex(T data) {
+    uint64_t token     = data.id;
     uint64_t belongsTo = getHostID(token);
+    std::vector<T> dataVec;
+    dataVec.push_back(data);
     if (belongsTo == id) {
       updateVariables(true, token);
-      // graph->setData(getLID(token), data);
+      graph->addVertices(dataVec);
     } else {
-      sendModifyRequest(belongsTo, ADD_VERTEX, token, data);
+      sendModifyRequest(belongsTo, ADD_VERTEX, dataVec);
     }
   }
 
@@ -1029,8 +1034,9 @@ public:
         lids.push_back(getLID(dsts[i]));
       }
       graph->addEdges(getLID(src), lids, data);
+
     } else {
-      sendModifyRequest(belongsTo, src, dsts, data);
+      sendModifyRequest(belongsTo, ADD_EDGES, src, dsts, data);
     }
   }
 
