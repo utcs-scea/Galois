@@ -11,10 +11,10 @@
 
 using namespace agile::workflow1;
 
-template <typename NodeData, typename EdgeData>
+template <typename NodeData, typename EdgeData, typename NodeTy, typename EdgeTy, typename OECPolicy>
 class graphUpdateManager {
 public:
-  using T              = galois::graphs::DistLocalGraph<NodeData, EdgeData>;
+  using T              = galois::graphs::WMDGraph<NodeData, EdgeData, NodeTy, EdgeTy, OECPolicy>;
   graphUpdateManager() = default;
   graphUpdateManager(
       std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> parser,
@@ -78,19 +78,16 @@ private:
     galois::graphs::ParsedGraphStructure<N, E> value =
         fileParser->ParseLine(const_cast<char*>(line), len);
     if (value.isNode)
-      graph->addVertex(value.node);
+      graph->addVertexTopologyOnly(value.node.id);
     else {
       for (auto& edge : value.edges) {
         std::vector<uint64_t> dsts;
         dsts.push_back(edge.dst);
-        std::vector<E> data;
-        data.push_back(edge);
-        graph->addEdges(edge.src, dsts, data);
+        graph->addEdgesTopologyOnly(edge.src, dsts);
       }
     }
   }
 
-  template <typename N = NodeData, typename E = EdgeData>
   void ingestFile() {
     std::vector<std::string> files = fileParser->GetFiles();
     for (auto& file : files) {
@@ -129,19 +126,16 @@ private:
       if (m.has_value()) {
         typename T::Task task;
         galois::runtime::gDeserialize(m->second, task);
-        if (task == T::Task::ADD_VERTEX) {
-          std::vector<N> node;
-          galois::runtime::gDeserialize(m->second, node);
-          for (auto d : node)
-            graph->addVertex(d);
-        } else if (task == T::Task::ADD_EDGES) {
+        if (task == T::Task::ADD_VERTEX_TOPOLOGY_ONLY) {
+          uint64_t token;
+          galois::runtime::gDeserialize(m->second, token);
+          graph->addVertexTopologyOnly(token);
+        } else if (task == T::Task::ADD_EDGES_TOPOLOGY_ONLY) {
           uint64_t src_node;
           galois::runtime::gDeserialize(m->second, src_node);
           std::vector<uint64_t> edge_dsts;
           galois::runtime::gDeserialize(m->second, edge_dsts);
-          std::vector<E> edge_data;
-          galois::runtime::gDeserialize(m->second, edge_data);
-          graph->addEdges(src_node, edge_dsts, edge_data);
+          graph->addEdgesTopologyOnly(src_node, edge_dsts);
         }
       }
       std::this_thread::sleep_for(

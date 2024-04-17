@@ -986,11 +986,11 @@ public:
   }
 
   /** Topology Modifications **/
-  void addVertexTopologyOnly(uint32_t token) {
+  void addVertexTopologyOnly(uint64_t token) {
     uint64_t belongsTo = getHostID(token);
     if (belongsTo == id) {
       updateVariables(true, token);
-      // graph->addVertexTopologyOnly();
+      graph->addVertexTopologyOnly();
     } else {
       sendModifyRequest(belongsTo, ADD_VERTEX_TOPOLOGY_ONLY, token);
     }
