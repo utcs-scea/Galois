@@ -106,6 +106,7 @@ private:
   static uint64_t combiner(const uint64_t& f, const uint64_t& s) {
     return f + s;
   }
+  // todo(meyer): there is currently a memory leak in prefix sum :/
   PrefixSum<VertexMetadata, uint64_t, transmute, scan_op, combiner,
             CacheLinePaddedArr>
       m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
@@ -366,32 +367,41 @@ public:
   void compact() {
     using std::swap;
 
-    // move from buffer 0 to buffer 1
+    if (m_vertices.empty())
+      return;
+
+    auto const& prefix_sum = getEdgePrefixSum();
+    std::vector<VertexMetadata> new_vertices(m_vertices.size());
+    new_vertices[0].buffer = 0;
+    new_vertices[0].begin  = 0;
+    new_vertices[0].end    = prefix_sum[0];
+    galois::do_all(galois::iterate(1ul, m_vertices.size()),
+                   [&](VertexTopologyID vertex_id) {
+                     new_vertices[vertex_id].buffer = 0;
+                     new_vertices[vertex_id].begin  = prefix_sum[vertex_id - 1];
+                     new_vertices[vertex_id].end    = prefix_sum[vertex_id];
+                   });
+
+    LargeVector<EdgeMetadata> new_edges(prefix_sum.back());
+
     galois::do_all(
-        galois::iterate(vertices().begin(), vertices().end()),
+        galois::iterate(0ul, m_vertices.size()),
         [&](VertexTopologyID vertex_id) {
-          VertexMetadata& vertex_meta = m_vertices[vertex_id];
-
-          if (vertex_meta.buffer == 0) {
-            this->addEdgesTopologyOnly<false>(vertex_id, {});
-          }
-
-          // we are about to swap the buffers, so all vertices will
-          // be in buffer 0
-          vertex_meta.buffer = 0;
+          auto const& m_vertex_meta   = m_vertices[vertex_id];
+          auto const& new_vertex_meta = new_vertices[vertex_id];
+          std::copy(&getEdgeMetadata(m_vertex_meta.buffer, m_vertex_meta.begin),
+                    &getEdgeMetadata(m_vertex_meta.buffer, m_vertex_meta.end),
+                    &new_edges[new_vertex_meta.begin]);
         },
         galois::steal());
 
-    // At this point, there are no more live edges in buffer 0.
-    m_edges_lock.lock();
-    {
-      m_edges[0].resize(0);
-      swap(m_edges[0], m_edges[1]);
-      // relaxed is fine because of locks held:
-      m_edges_tail.store(0, std::memory_order_relaxed);
-      m_holes.store(0, std::memory_order_relaxed);
-    }
-    m_edges_lock.unlock();
+    swap(m_vertices, new_vertices);
+    swap(m_edges[0], new_edges);
+    m_edges[1].resize(0);
+
+    m_edges_tail   = 0;
+    m_holes        = 0;
+    m_prefix_valid = false;
   }
 
   /*
