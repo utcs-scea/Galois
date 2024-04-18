@@ -71,6 +71,8 @@ private:
       throw std::runtime_error(std::string("mmap failed: ") +
                                std::strerror(errno));
 
+    madvise(m_data, file_size, MADV_WILLNEED | MADV_HUGEPAGE);
+
     m_mappings.push_front(std::make_pair(m_data, mmap_size));
   }
 
@@ -138,13 +140,13 @@ public:
   }
 
   void resize(size_t count) {
-    for (T* ii = begin() + count; ii < end(); ++ii)
-      ii->~T();
+    // galois::do_all(galois::iterate(begin() + count, end()),
+    //                [](T* ii) { ii->~T(); });
 
     ensure_capacity(count);
 
-    for (T* ii = end(); ii < begin() + count; ++ii)
-      new (ii) T();
+    // galois::do_all(galois::iterate(end(), begin() + count),
+    //                [](T* ii) { new (ii) T(); });
 
     m_size = count;
   }
