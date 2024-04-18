@@ -756,7 +756,9 @@ protected:
    */
   inline void determineThreadRangesMaster() {
     // make sure this hasn't been called before
-    assert(masterRanges.size() == 0);
+    if (masterRanges.size() != 0) {
+      masterRanges.clear();
+    }
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -782,7 +784,9 @@ protected:
    */
   inline void determineThreadRangesWithEdges() {
     // make sure not called before
-    assert(withEdgeRanges.size() == 0);
+    if (withEdgeRanges.size() != 0) {
+      withEdgeRanges.clear();
+    }
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -804,7 +808,8 @@ protected:
    * over the graph in different ways.
    */
   void initializeSpecificRanges() {
-    assert(specificRanges.size() == 0);
+    if (specificRanges.size() != 0)
+      specificRanges.clear();
 
     // TODO/FIXME assertion likely not safe if a host gets no nodes
     // make sure the thread ranges have already been calculated
@@ -951,6 +956,13 @@ public:
         host, galois::runtime::evilPhase, std::move(b));
   }
 
+  void updateRanges() {
+    determineThreadRanges();
+    determineThreadRangesMaster();
+    determineThreadRangesWithEdges();
+    initializeSpecificRanges();
+  }
+
   // Assumptions:
   //  1. A vertex is added before any edges are added to it
   //  2. No support for deleting edges/vertices yet
@@ -976,9 +988,15 @@ public:
           localToGlobalVector.push_back(token);
           globalToLocalMap[token] = localToGlobalVector.size() - 1;
           numNodes++;
+          numNodesWithEdges++;
+          graph->addVertexTopologyOnly();
         }
         if (!isOwned(token)) {
           mirrorNodes[getHostID(token)].push_back(token);
+        } else {
+          if (edge_begin(srcLID) == edge_end(srcLID)) {
+            numNodesWithEdges++;
+          }
         }
       }
       numEdges += dsts.value().size();

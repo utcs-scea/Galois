@@ -11,10 +11,12 @@
 
 using namespace agile::workflow1;
 
-template <typename NodeData, typename EdgeData, typename NodeTy, typename EdgeTy, typename OECPolicy>
+template <typename NodeData, typename EdgeData, typename NodeTy,
+          typename EdgeTy, typename OECPolicy>
 class graphUpdateManager {
 public:
-  using T              = galois::graphs::WMDGraph<NodeData, EdgeData, NodeTy, EdgeTy, OECPolicy>;
+  using T =
+      galois::graphs::WMDGraph<NodeData, EdgeData, NodeTy, EdgeTy, OECPolicy>;
   graphUpdateManager() = default;
   graphUpdateManager(
       std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> parser,
@@ -104,12 +106,15 @@ private:
         processLine(line.c_str(), line.size());
         lineNumber++;
         if (lineNumber == batchSize) {
+          graph->updateRanges();
           galois::runtime::getHostBarrier().wait();
           std::this_thread::sleep_for(
               std::chrono::milliseconds(periodForCheck));
           lineNumber = 0;
         }
       }
+      if (lineNumber > 0)
+        graph->updateRanges();
       inputFile.close();
     }
     auto& net = galois::runtime::getSystemNetworkInterface();
