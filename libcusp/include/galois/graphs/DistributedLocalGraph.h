@@ -804,7 +804,7 @@ protected:
    * over the graph in different ways.
    */
   void initializeSpecificRanges() {
-    if (specificRanges.size() == 0)
+    if (specificRanges.size() != 0)
       specificRanges.clear();
 
     // TODO/FIXME assertion likely not safe if a host gets no nodes
