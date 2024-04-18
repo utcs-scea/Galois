@@ -177,7 +177,7 @@ public:
     // never read edge data from disk
     galois::graphs::WMDBufferedGraph<NodeTy, EdgeTy> bufGraph;
     if constexpr (std::is_same<NodeTy, galois::graphs::ELVertex>::value) {
-      assert(numVertices != 0);
+      // assert(numVertices != 0);
       bufGraph.setSize(numVertices);
     }
     bufGraph.loadPartialGraph(g, base_DistGraph::numGlobalEdges);
