@@ -353,7 +353,6 @@ private:
       net.sendTagged(x, galois::runtime::evilPhase, std::move(b));
     }
 
-    std::vector<std::vector<size_t>> delta_masters(numHosts);
     // receive the mirror nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -363,35 +362,21 @@ private:
       do {
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
-
-      galois::runtime::gDeserialize(p->second, delta_masters[x]);
-      for (size_t i = 0; i < delta_masters[x].size(); ++i) {
-        (*masterNodes)[x].push_back(delta_masters[x][i]);
+      std::vector<size_t> delta_masters;
+      galois::runtime::gDeserialize(p->second, delta_masters);
+      for (size_t i = 0; i < delta_masters.size(); ++i) {
+        (*masterNodes)[p->first].push_back(delta_masters[i]);
       }
     }
     incrementEvilPhase();
   }
 
   void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
-    for (size_t i = 0; i < delta_mirrors.size(); ++i) {
-      for (size_t j = 0; j < delta_mirrors[i].size(); ++j)
-        std::cout << "mirror  " << delta_mirrors[i][j] << " host " << id
-                  << " i " << i << "\n";
-    }
-    std::vector<uint32_t> curr_mirrors_sizes(numHosts);
     std::vector<uint32_t> curr_masters_sizes(numHosts);
     for (uint32_t h = 0; h < numHosts; ++h) {
-      curr_mirrors_sizes[h] = (*mirrorNodes)[h].size();
       curr_masters_sizes[h] = (*masterNodes)[h].size();
     }
     exchangeDeltaMirrors(delta_mirrors);
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-      for (size_t i = 0; i < delta_mirrors[x].size(); ++i) {
-        (*mirrorNodes)[x].push_back(delta_mirrors[x][i]);
-      }
-    }
 
     // convert the global ids stored in the master/mirror nodes arrays to local
     // ids
@@ -406,9 +391,9 @@ private:
     }
 
     for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
+      size_t start = (*mirrorNodes)[h].size() - delta_mirrors[h].size();
       galois::do_all(
-          galois::iterate(size_t{curr_mirrors_sizes[h]},
-                          (*mirrorNodes)[h].size()),
+          galois::iterate(start, (*mirrorNodes)[h].size()),
           [&](size_t n) {
             (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
           },
