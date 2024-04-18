@@ -77,7 +77,7 @@ public:
   virtual ~FileParser() {}
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
                                                uint64_t lineLength) = 0;
-  virtual std::vector<V> GetDstData(std::vector<E>& edges) = 0;
+  virtual std::vector<V> GetDstData(std::vector<E>& edges)          = 0;
   static std::vector<std::string> SplitLine(const char* line,
                                             uint64_t lineLength, char delim,
                                             uint64_t numTokens) {
