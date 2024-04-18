@@ -58,6 +58,7 @@ public:
     stopCheck = true;
     while (!checkThread.joinable())
       ;
+    graph->updateRanges();
     checkThread.join();
     return stopIngest;
   }
@@ -85,7 +86,8 @@ private:
         dsts.push_back(edge.dst);
         std::vector<E> data;
         data.push_back(edge);
-        graph->addEdges(edge.src, dsts, data);
+        std::vector<N> dstData = fileParser->GetDstData(value.edges);
+        graph->addEdges(edge.src, dsts, data, dstData);
       }
     }
   }
@@ -110,6 +112,7 @@ private:
           galois::runtime::getHostBarrier().wait();
           std::this_thread::sleep_for(
               std::chrono::milliseconds(periodForCheck));
+          graph->updateRanges();
           lineNumber = 0;
         }
       }
@@ -141,7 +144,9 @@ private:
           galois::runtime::gDeserialize(m->second, edge_dsts);
           std::vector<E> edge_data;
           galois::runtime::gDeserialize(m->second, edge_data);
-          graph->addEdges(src_node, edge_dsts, edge_data);
+          std::vector<N> dst_data;
+          galois::runtime::gDeserialize(m->second, dst_data);
+          graph->addEdges(src_node, edge_dsts, edge_data, dst_data);
         }
       }
       std::this_thread::sleep_for(
