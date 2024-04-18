@@ -1029,7 +1029,6 @@ public:
     uint64_t belongsTo = getHostID(src);
     if (belongsTo == id) {
       updateVariables(false, src, dsts);
-      updateVariables(false, src, dsts);
       std::vector<uint64_t> lids;
       for (uint32_t i = 0; i < dsts.size(); i++) {
         lids.push_back(getLID(dsts[i]));
