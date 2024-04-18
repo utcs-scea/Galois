@@ -505,21 +505,11 @@ public:
   }
 
   void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
-    std::vector<uint32_t> curr_mirrors_sizes(numHosts);
     std::vector<uint32_t> curr_masters_sizes(numHosts);
     for (uint32_t h = 0; h < numHosts; ++h) {
-      curr_mirrors_sizes[h] = (*mirrorNodes)[h].size();
       curr_masters_sizes[h] = (*masterNodes)[h].size();
     }
     exchangeDeltaMirrors(delta_mirrors);
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-      for (size_t i = 0; i < delta_mirrors[x].size(); ++i) {
-        (*mirrorNodes)[x].push_back(delta_mirrors[x][i]);
-      }
-    }
-
     // convert the global ids stored in the master/mirror nodes arrays to local
     // ids
     for (uint32_t h = 0; h < masterNodes->size(); ++h) {
@@ -533,8 +523,9 @@ public:
     }
 
     for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
+      size_t start = (*mirrorNodes)[h].size() - delta_mirrors[h].size();
       galois::do_all(
-          galois::iterate(size_t{curr_mirrors_sizes[h]},
+          galois::iterate(start,
                           (*mirrorNodes)[h].size()),
           [&](size_t n) {
             (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
