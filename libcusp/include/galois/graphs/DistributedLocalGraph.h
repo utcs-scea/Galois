@@ -994,7 +994,7 @@ public:
         if (!isOwned(token)) {
           mirrorNodes[getHostID(token)].push_back(token);
         } else {
-          if (edge_begin(srcLID) == edge_end(srcLID)) {
+          if (edge_begin(getLID(token)) == edge_end(getLID(token))) {
             numNodesWithEdges++;
           }
         }

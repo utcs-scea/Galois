@@ -60,6 +60,7 @@ public:
     stopCheck = true;
     while (!checkThread.joinable())
       ;
+    graph->updateRanges();
     checkThread.join();
     return stopIngest;
   }

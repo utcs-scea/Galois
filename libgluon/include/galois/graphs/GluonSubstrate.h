@@ -288,7 +288,6 @@ private:
       std::vector<size_t> delta_masters;
       galois::runtime::gDeserialize(p->second, delta_masters);
       for (size_t i = 0; i < delta_masters.size(); ++i) {
-        std::cout << "DELTA MASTERS " << id << " " << delta_masters[i] << " from " << p->first << std::endl;
         (*masterNodes)[p->first].push_back(delta_masters[i]);
       }
     }
