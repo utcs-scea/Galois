@@ -293,58 +293,6 @@ private:
     incrementEvilPhase();
   }
 
-  void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
-    std::vector<uint32_t> curr_mirrors_sizes(numHosts);
-    std::vector<uint32_t> curr_masters_sizes(numHosts);
-    for (uint32_t h = 0; h < numHosts; ++h) {
-      curr_mirrors_sizes[h] = (*mirrorNodes)[h].size();
-      curr_masters_sizes[h] = (*masterNodes)[h].size();
-    }
-    exchangeDeltaMirrors(delta_mirrors);
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-      for (size_t i = 0; i < delta_mirrors[x].size(); ++i) {
-        (*mirrorNodes)[x].push_back(delta_mirrors[x][i]);
-      }
-    }
-
-    // convert the global ids stored in the master/mirror nodes arrays to local
-    // ids
-    for (uint32_t h = 0; h < masterNodes->size(); ++h) {
-      galois::do_all(
-          galois::iterate(size_t{curr_masters_sizes[h]},
-                          (*masterNodes)[h].size()),
-          [&](size_t n) {
-            (*masterNodes)[h][n] = userGraph.getLID((*masterNodes)[h][n]);
-          },
-          galois::no_stats());
-    }
-
-    for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
-      galois::do_all(
-          galois::iterate(size_t{curr_mirrors_sizes[h]},
-                          (*mirrorNodes)[h].size()),
-          [&](size_t n) {
-            (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
-          },
-          galois::no_stats());
-    }
-
-    maxSharedSize = 0;
-    for (auto x = 0U; x < masterNodes->size(); ++x) {
-      assert(x < mirrorNodes->size());
-      if (x == id)
-        continue;
-      if ((*masterNodes)[x].size() > maxSharedSize) {
-        maxSharedSize = (*masterNodes)[x].size();
-      }
-      if ((*mirrorNodes)[x].size() > maxSharedSize) {
-        maxSharedSize = (*mirrorNodes)[x].size();
-      }
-    }
-  }
-
   /**
    * Sets up the communication between the different hosts that contain
    * different parts of the graph by exchanging master/mirror information.
@@ -554,6 +502,58 @@ public:
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
+  }
+
+  void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
+    std::vector<uint32_t> curr_mirrors_sizes(numHosts);
+    std::vector<uint32_t> curr_masters_sizes(numHosts);
+    for (uint32_t h = 0; h < numHosts; ++h) {
+      curr_mirrors_sizes[h] = (*mirrorNodes)[h].size();
+      curr_masters_sizes[h] = (*masterNodes)[h].size();
+    }
+    exchangeDeltaMirrors(delta_mirrors);
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+      for (size_t i = 0; i < delta_mirrors[x].size(); ++i) {
+        (*mirrorNodes)[x].push_back(delta_mirrors[x][i]);
+      }
+    }
+
+    // convert the global ids stored in the master/mirror nodes arrays to local
+    // ids
+    for (uint32_t h = 0; h < masterNodes->size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{curr_masters_sizes[h]},
+                          (*masterNodes)[h].size()),
+          [&](size_t n) {
+            (*masterNodes)[h][n] = userGraph.getLID((*masterNodes)[h][n]);
+          },
+          galois::no_stats());
+    }
+
+    for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{curr_mirrors_sizes[h]},
+                          (*mirrorNodes)[h].size()),
+          [&](size_t n) {
+            (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
+          },
+          galois::no_stats());
+    }
+
+    maxSharedSize = 0;
+    for (auto x = 0U; x < masterNodes->size(); ++x) {
+      assert(x < mirrorNodes->size());
+      if (x == id)
+        continue;
+      if ((*masterNodes)[x].size() > maxSharedSize) {
+        maxSharedSize = (*masterNodes)[x].size();
+      }
+      if ((*mirrorNodes)[x].size() > maxSharedSize) {
+        maxSharedSize = (*mirrorNodes)[x].size();
+      }
+    }
   }
 
   void RevertHandshakeToRealGraph() {
