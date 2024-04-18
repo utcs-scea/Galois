@@ -754,7 +754,7 @@ protected:
    */
   inline void determineThreadRangesMaster() {
     // make sure this hasn't been called before
-    if(masterRanges.size() != 0)
+    if (masterRanges.size() != 0)
       masterRanges.clear();
 
     // first check if we even need to do any work; if already calculated,
@@ -781,7 +781,7 @@ protected:
    */
   inline void determineThreadRangesWithEdges() {
     // make sure not called before
-    if(withEdgeRanges.size() != 0)
+    if (withEdgeRanges.size() != 0)
       withEdgeRanges.clear();
 
     // first check if we even need to do any work; if already calculated,
@@ -804,7 +804,7 @@ protected:
    * over the graph in different ways.
    */
   void initializeSpecificRanges() {
-    if(specificRanges.size() == 0)
+    if (specificRanges.size() == 0)
       specificRanges.clear();
 
     // TODO/FIXME assertion likely not safe if a host gets no nodes
@@ -965,7 +965,7 @@ public:
   //  3. Only works for OEC
   void
   updateVariables(bool isVertex, uint64_t src,
-                  std::optional<std::vector<uint64_t>> dsts = std::nullopt,
+                  std::optional<std::vector<uint64_t>> dsts  = std::nullopt,
                   std::optional<std::vector<NodeTy>> dstData = std::nullopt) {
 
     if (isVertex) {
@@ -996,7 +996,7 @@ public:
         if (!isOwned(token)) {
           mirrorNodes[getHostID(token)].push_back(token);
         } else {
-          if(edge_begin(getLID(token)) == edge_end(getLID(token))) {
+          if (edge_begin(getLID(token)) == edge_end(getLID(token))) {
             numNodesWithEdges++;
           }
         }
