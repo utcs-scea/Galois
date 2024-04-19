@@ -503,9 +503,6 @@ public:
         "GraphCommSetupTime", RNAME);
     Tgraph_construct_comm.start();
     setupCommunication();
-    for(uint32_t i = 0; i < mirrorNodes->size(); i++) {
-      std::cout << "MIRROR NODES SIZE " << i << " " << (*mirrorNodes)[i].size() << std::endl;
-    }
     Tgraph_construct_comm.stop();
   }
 
@@ -527,7 +524,6 @@ public:
     std::vector<uint32_t> curr_masters_sizes(numHosts);
     for (uint32_t h = 0; h < numHosts; ++h) {
       curr_masters_sizes[h] = (*masterNodes)[h].size();
-      std::cout << "Current Mirror Size " << h << " " << (*mirrorNodes)[h].size() << std::endl;
     }
     exchangeDeltaMirrors(delta_mirrors);
 
@@ -538,7 +534,6 @@ public:
           galois::iterate(size_t(curr_masters_sizes[h]), 
                           (*masterNodes)[h].size()),
           [&](size_t n) {
-            std::cout << "inserting master node " << (*masterNodes)[h][n] << " lid " << userGraph.getLID((*masterNodes)[h][n]) << " i " << h << " id " << id << std::endl;
             (*masterNodes)[h][n] = userGraph.getLID((*masterNodes)[h][n]);
           },
           galois::no_stats());
@@ -546,7 +541,6 @@ public:
 
     for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
       size_t start = (*mirrorNodes)[h].size() - delta_mirrors[h].size();
-      std::cout << "start " << start << " " << (*mirrorNodes)[h].size() << " " << delta_mirrors[h].size() << " host " << id << std::endl;
       galois::do_all(
           galois::iterate(start,
                           (*mirrorNodes)[h].size()),
