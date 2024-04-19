@@ -134,7 +134,7 @@ private:
       } while (!p);
       std::vector<E> recvEdges;
       galois::runtime::gDeserialize(p->second, recvEdges);
-      numEdges += processEdges(recvEdges); 
+      processEdges(recvEdges); 
     }
     galois::runtime::evilPhase++;
   }
