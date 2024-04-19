@@ -613,6 +613,6 @@ public:
   };
 };
 
-}; // namespace galois::graphs
+} // namespace galois::graphs
 
 #endif
