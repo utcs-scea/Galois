@@ -74,6 +74,7 @@ template <typename V, typename E>
 class FileParser {
 public:
   virtual const std::vector<std::string>& GetFiles()                = 0;
+  virtual ~FileParser() {}
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
                                                uint64_t lineLength) = 0;
   static std::vector<std::string> SplitLine(const char* line,
@@ -106,6 +107,7 @@ public:
   WMDParser(std::vector<std::string> files) : csvFields_(10), files_(files) {}
   WMDParser(uint64_t csvFields, std::vector<std::string> files)
       : csvFields_(csvFields), files_(files) {}
+  virtual ~WMDParser() override {}
 
   virtual const std::vector<std::string>& GetFiles() override { return files_; }
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
@@ -181,6 +183,7 @@ public:
   ELParser(std::vector<std::string> files) : csvFields_(2), files_(files) {}
   ELParser(uint64_t csvFields, std::vector<std::string> files)
       : csvFields_(csvFields), files_(files) {}
+  virtual ~ELParser() override {}
 
   virtual const std::vector<std::string>& GetFiles() override { return files_; }
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,

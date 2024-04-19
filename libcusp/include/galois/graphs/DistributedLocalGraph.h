@@ -989,14 +989,11 @@ public:
           globalToLocalMap[token] = localToGlobalVector.size() - 1;
           numNodes++;
           numNodesWithEdges++;
+          mirrorNodes[getHostID(token)].push_back(token);
           graph->addVertexTopologyOnly();
         }
-        if (!isOwned(token)) {
-          mirrorNodes[getHostID(token)].push_back(token);
-        } else {
-          if (edge_begin(getLID(token)) == edge_end(getLID(token))) {
-            numNodesWithEdges++;
-          }
+        if ((isOwned(token)) && (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
+          numNodesWithEdges++;
         }
       }
       numEdges += dsts.value().size();
@@ -1006,73 +1003,44 @@ public:
   /** Topology Modifications **/
   void addVertexTopologyOnly(uint64_t token) {
     uint64_t belongsTo = getHostID(token);
-    if (belongsTo == id) {
-      updateVariables(true, token);
-      graph->addVertexTopologyOnly();
-    } else {
-      sendModifyRequest(belongsTo, ADD_VERTEX_TOPOLOGY_ONLY, token);
-    }
+    updateVariables(true, token);
+    graph->addVertexTopologyOnly();
   }
 
   template <typename T>
   void addVertex(uint64_t token, T data) {
-    uint64_t belongsTo = getHostID(token);
-    if (belongsTo == id) {
-      updateVariables(true, token);
-      // graph->setData(getLID(token), data);
-    } else {
-      sendModifyRequest(belongsTo, ADD_VERTEX, token, data);
-    }
+    updateVariables(true, token);
+    // graph->setData(getLID(token), data);
   }
 
   void addEdgesTopologyOnly(uint64_t src, std::vector<uint64_t> dsts) {
-    uint64_t belongsTo = getHostID(src);
-    if (belongsTo == id) {
-      updateVariables(false, src, dsts);
-      std::vector<uint64_t> lids;
-      for (uint32_t i = 0; i < dsts.size(); i++) {
-        lids.push_back(getLID(dsts[i]));
-      }
-      graph->addEdgesTopologyOnly(getLID(src), lids);
-    } else {
-      sendModifyRequest(belongsTo, ADD_EDGES_TOPOLOGY_ONLY, src, dsts);
+    updateVariables(false, src, dsts);
+    std::vector<uint64_t> lids;
+    for (uint32_t i = 0; i < dsts.size(); i++) {
+      lids.push_back(getLID(dsts[i]));
     }
+    graph->addEdgesTopologyOnly(getLID(src), lids);
   }
 
   void addEdges(uint64_t src, std::vector<uint64_t> dsts,
                 std::vector<EdgeTy> data) {
-    uint64_t belongsTo = getHostID(src);
-    if (belongsTo == id) {
-      updateVariables(false, src, dsts);
-      std::vector<uint64_t> lids;
-      for (uint32_t i = 0; i < dsts.size(); i++) {
-        lids.push_back(getLID(dsts[i]));
-      }
-      graph->addEdges(getLID(src), lids, data);
-    } else {
-      sendModifyRequest(belongsTo, src, dsts, data);
+    updateVariables(false, src, dsts);
+    std::vector<uint64_t> lids;
+    for (uint32_t i = 0; i < dsts.size(); i++) {
+      lids.push_back(getLID(dsts[i]));
     }
+    graph->addEdges(getLID(src), lids, data);
   }
 
   void deleteVertex(uint64_t src) {
-    uint64_t belongsTo = getHostID(src);
-    if (belongsTo == id) {
-      // TODO(Divija): Uncomment when we have the graph API
-      // graph.deleteVertex(getLID(src));
-    } else {
-      sendModifyRequest(belongsTo, DELETE_VERTEX, src);
-    }
+    // TODO(Divija): Uncomment when we have the graph API
+    // graph.deleteVertex(getLID(src));
   }
 
   void deleteEdges(uint64_t src, std::vector<edge_iterator> edges) {
     // TODO:Remove dst tokens from local map?
-    uint64_t belongsTo = getHostID(src);
-    if (belongsTo == id) {
-      // TODO(Divija): Uncomment when we have the graph API
-      // return graph.deleteEdges(getLID(src), edges);
-    } else {
-      sendModifyRequest(belongsTo, DELETE_EDGES, src, edges);
-    }
+    // TODO(Divija): Uncomment when we have the graph API
+    // return graph.deleteEdges(getLID(src), edges);
   }
 };
 
