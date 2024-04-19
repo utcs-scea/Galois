@@ -335,19 +335,24 @@ public:
     if (m_vertices.empty() || edges.empty())
       return;
     std::vector<uint64_t> pfx_sum(edges.size());
+    galois::GAccumulator<uint64_t> old_degree_total;
+    old_degree_total.reset();
     galois::do_all(
         galois::iterate(0ul, edges.size()),
         [&](size_t idx) {
           auto const vertex_id  = edges[idx].first;
           auto const old_degree = getDegree(vertex_id);
-          pfx_sum[idx]          = old_degree + edges[idx].second.size();
+          old_degree_total += old_degree;
+          pfx_sum[idx] = old_degree + edges[idx].second.size();
         },
         galois::loopname("ComputeVertexDegrees"));
 
     for (size_t i = 1; i < pfx_sum.size(); ++i)
       pfx_sum[i] += pfx_sum[i - 1];
-
     auto const num_new_edges = pfx_sum.back();
+    std::cout << "old degrees total: " << old_degree_total.reduce()
+              << ", new degrees total: " << num_new_edges << std::endl;
+
     auto const start =
         m_edges_tail.fetch_add(num_new_edges, std::memory_order_relaxed);
     if (m_edges[1].size() < start + num_new_edges)
