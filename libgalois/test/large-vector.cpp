@@ -40,20 +40,17 @@ int main() {
   }
 
   {
-    static uint64_t num_constructed = 0, num_destructed = 0;
     class Object {
       uint8_t dummy;
 
     public:
-      Object() { ++num_constructed; }
-      ~Object() { ++num_destructed; }
+      Object() = delete;
+      ~Object() = delete;
     };
     static_assert(sizeof(Object) > 0);
 
     const size_t max_cap = (1 << 22);
     galois::LargeVector<Object> the_vector(max_cap);
-    // constructor should not actually fill the vector
-    GALOIS_ASSERT(num_constructed == 0);
 
     // entire vector should be mapped, even if it is empty
     const Object* addr = &the_vector[max_cap];
@@ -61,13 +58,9 @@ int main() {
 
     the_vector.resize(max_cap);
 
-    GALOIS_ASSERT(num_constructed == max_cap);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
 
-    // resize should not call destructor
-    GALOIS_ASSERT(num_destructed == 0);
     the_vector.resize(0);
-    GALOIS_ASSERT(num_destructed == 0);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
 
     // this should not actually allocate memory!
