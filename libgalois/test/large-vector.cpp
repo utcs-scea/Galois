@@ -64,10 +64,10 @@ int main() {
     GALOIS_ASSERT(num_constructed == max_cap);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
 
-    // resize should call the destructor, but vector should stay mapped
+    // resize should not call destructor
     GALOIS_ASSERT(num_destructed == 0);
     the_vector.resize(0);
-    GALOIS_ASSERT(num_destructed == max_cap);
+    GALOIS_ASSERT(num_destructed == 0);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
 
     // this should not actually allocate memory!
