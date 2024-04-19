@@ -44,7 +44,7 @@ int main() {
       uint8_t dummy;
 
     public:
-      Object() = delete;
+      Object()  = delete;
       ~Object() = delete;
     };
     static_assert(sizeof(Object) > 0);
