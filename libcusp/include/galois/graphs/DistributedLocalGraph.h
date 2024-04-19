@@ -754,7 +754,8 @@ protected:
    */
   inline void determineThreadRangesMaster() {
     // make sure this hasn't been called before
-    assert(masterRanges.size() == 0);
+    if (masterRanges.size() != 0)
+      masterRanges.clear();
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -780,7 +781,8 @@ protected:
    */
   inline void determineThreadRangesWithEdges() {
     // make sure not called before
-    assert(withEdgeRanges.size() == 0);
+    if (withEdgeRanges.size() != 0)
+      withEdgeRanges.clear();
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -802,7 +804,8 @@ protected:
    * over the graph in different ways.
    */
   void initializeSpecificRanges() {
-    assert(specificRanges.size() == 0);
+    if (specificRanges.size() != 0)
+      specificRanges.clear();
 
     // TODO/FIXME assertion likely not safe if a host gets no nodes
     // make sure the thread ranges have already been calculated
@@ -949,20 +952,27 @@ public:
         host, galois::runtime::evilPhase, std::move(b));
   }
 
+  void updateRanges() {
+    determineThreadRanges();
+    determineThreadRangesMaster();
+    determineThreadRangesWithEdges();
+    initializeSpecificRanges();
+  }
+
   // Assumptions:
   //  1. A vertex is added before any edges are added to it
   //  2. No support for deleting edges/vertices yet
   //  3. Only works for OEC
   void
   updateVariables(bool isVertex, uint64_t src,
-                  std::optional<std::vector<uint64_t>> dsts = std::nullopt) {
+                  std::optional<std::vector<uint64_t>> dsts  = std::nullopt,
+                  std::optional<std::vector<NodeTy>> dstData = std::nullopt) {
 
     if (isVertex) {
       if (globalToLocalMap.find(src) == globalToLocalMap.end()) {
         localToGlobalVector.push_back(src);
         globalToLocalMap[src] = localToGlobalVector.size() - 1;
         numNodes++;
-      } else {
       }
       numOwned++;
     } else {
@@ -971,14 +981,24 @@ public:
       if (edge_begin(srcLID) == edge_end(srcLID)) {
         numNodesWithEdges++;
       }
+      uint32_t i = 0;
       for (auto token : dsts.value()) {
         if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
           localToGlobalVector.push_back(token);
           globalToLocalMap[token] = localToGlobalVector.size() - 1;
           numNodes++;
+          numNodesWithEdges++;
+          std::vector<NodeTy> data;
+          data.push_back(dstData.value()[i]);
+          graph->addVertices(data);
         }
+        i++;
         if (!isOwned(token)) {
           mirrorNodes[getHostID(token)].push_back(token);
+        } else {
+          if (edge_begin(getLID(token)) == edge_end(getLID(token))) {
+            numNodesWithEdges++;
+          }
         }
       }
       numEdges += dsts.value().size();
@@ -990,7 +1010,7 @@ public:
     uint64_t belongsTo = getHostID(token);
     if (belongsTo == id) {
       updateVariables(true, token);
-      // graph->addVertexTopologyOnly();
+      graph->addVertexTopologyOnly();
     } else {
       sendModifyRequest(belongsTo, ADD_VERTEX_TOPOLOGY_ONLY, token);
     }
@@ -1025,18 +1045,17 @@ public:
   }
 
   void addEdges(uint64_t src, std::vector<uint64_t> dsts,
-                std::vector<EdgeTy> data) {
+                std::vector<EdgeTy> data, std::vector<NodeTy> dstData) {
     uint64_t belongsTo = getHostID(src);
     if (belongsTo == id) {
-      updateVariables(false, src, dsts);
+      updateVariables(false, src, dsts, dstData);
       std::vector<uint64_t> lids;
       for (uint32_t i = 0; i < dsts.size(); i++) {
         lids.push_back(getLID(dsts[i]));
       }
       graph->addEdges(getLID(src), lids, data);
-
     } else {
-      sendModifyRequest(belongsTo, ADD_EDGES, src, dsts, data);
+      sendModifyRequest(belongsTo, ADD_EDGES, src, dsts, data, dstData);
     }
   }
 
