@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <atomic>
 #include <new>
+#include <vector>
 #include <type_traits>
 
 #include <boost/range/iterator_range_core.hpp>
@@ -320,7 +321,7 @@ public:
   template <bool sorted = false>
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
-    GALOIS_ASSERT(data.size() == dsts.size());
+    GALOIS_ASSERT(data.size() == dsts.size(), "Data size mismatch");
     this->addEdgesTopologyOnly<sorted>(src, dsts);
     for (size_t i = 0; i < dsts.size(); ++i) {
       auto key = std::make_pair(src, dsts[i]);
@@ -334,18 +335,33 @@ public:
           edges) {
     if (m_vertices.empty() || edges.empty())
       return;
+
     std::vector<uint64_t> pfx_sum(edges.size());
+    galois::GReduceMax<uint64_t> max_vertex_id;
+    max_vertex_id.reset();
     galois::GAccumulator<uint64_t> old_degree_total;
     old_degree_total.reset();
     galois::do_all(
         galois::iterate(0ul, edges.size()),
         [&](size_t idx) {
-          auto const vertex_id  = edges[idx].first;
-          auto const old_degree = getDegree(vertex_id);
+          auto const vertex_id = edges[idx].first;
+          max_vertex_id.update(vertex_id);
+          auto const old_degree =
+              vertex_id < m_vertices.size() ? getDegree(vertex_id) : 0;
           old_degree_total += old_degree;
           pfx_sum[idx] = old_degree + edges[idx].second.size();
         },
         galois::loopname("ComputeVertexDegrees"));
+
+    uint64_t const prev_num_vertices = m_vertices.size();
+    m_vertices.resize(std::max(max_vertex_id.reduce() + 1, m_vertices.size()));
+    galois::do_all(galois::iterate(m_vertices.begin() + prev_num_vertices,
+                                   m_vertices.end()),
+                   [&](VertexMetadata& vertex_meta) {
+                     vertex_meta.buffer = 0;
+                     vertex_meta.begin  = 0;
+                     vertex_meta.end    = 0;
+                   });
 
     for (size_t i = 1; i < pfx_sum.size(); ++i)
       pfx_sum[i] += pfx_sum[i - 1];
