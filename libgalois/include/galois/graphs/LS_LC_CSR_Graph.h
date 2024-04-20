@@ -336,6 +336,16 @@ public:
     if (edges.empty())
       return;
 
+    static constexpr size_t PARALLEL_VERTEX_SORT_THRESHOLD = (1ul << 16);
+    if (edges.size() >= PARALLEL_VERTEX_SORT_THRESHOLD) {
+      galois::ParallelSTL::sort(
+          edges.begin(), edges.end(),
+          [](auto const& a, auto const& b) { return a.first < b.first; });
+    } else {
+      std::sort(edges.begin(), edges.end(),
+                [](auto const& a, auto const& b) { return a.first < b.first; });
+    }
+
     std::vector<uint64_t> pfx_sum(edges.size());
     galois::GReduceMax<uint64_t> max_vertex_id;
     max_vertex_id.reset();
