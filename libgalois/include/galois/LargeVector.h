@@ -139,6 +139,10 @@ public:
     m_data[--m_size].~T();
   }
 
+  /**
+   * Note: unlike std::vector, resize does not call constructors or
+   * destructors.
+   */
   void resize(size_t count) {
     // galois::do_all(galois::iterate(begin() + count, end()),
     //                [](T* ii) { ii->~T(); });
@@ -150,6 +154,8 @@ public:
 
     m_size = count;
   }
+
+  bool empty() { return m_size == 0; }
 
   inline T* begin() { return m_data; }
   inline T* end() { return m_data + m_size; }

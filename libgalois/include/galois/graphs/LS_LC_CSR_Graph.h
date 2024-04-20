@@ -82,7 +82,7 @@ private:
   using EdgeMetadata = VertexTopologyID;
 
   VertexDataStore m_vertex_data;
-  std::vector<VertexMetadata> m_vertices;
+  LargeVector<VertexMetadata> m_vertices;
 
   // m_edges[0] is the CSR with gaps, m_edges[1] is the update log.
   LargeVector<EdgeMetadata> m_edges[2];
@@ -333,7 +333,7 @@ public:
   void addBatchTopologyOnly(
       std::vector<std::pair<VertexTopologyID, std::vector<VertexTopologyID>>>
           edges) {
-    if (m_vertices.empty() || edges.empty())
+    if (edges.empty())
       return;
 
     std::vector<uint64_t> pfx_sum(edges.size());
@@ -570,7 +570,7 @@ private:
     uint64_t end;   // exclusive
     uint8_t buffer;
 
-    VertexMetadata() {}
+    VertexMetadata() = delete;
 
     VertexMetadata(VertexMetadata const& other)
         : begin(other.begin), end(other.end), buffer(other.buffer) {}
