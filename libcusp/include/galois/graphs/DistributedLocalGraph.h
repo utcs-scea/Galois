@@ -994,7 +994,8 @@ public:
           mirrorNodes[getHostID(token)].push_back(token);
         }
         i++;
-        if (isOwned(token) && (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
+        if (isOwned(token) &&
+            (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
           numNodesWithEdges++;
         }
       }
@@ -1010,7 +1011,7 @@ public:
 
   template <typename T>
   void addVertex(T data) {
-    uint64_t token     = data.id;
+    uint64_t token = data.id;
     std::vector<T> dataVec;
     dataVec.push_back(data);
     updateVariables(true, token);
