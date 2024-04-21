@@ -253,13 +253,12 @@ private:
     }
     incrementEvilPhase();
 
-//    assert(userGraph.globalSize() == global_total_owned_nodes);
+    //    assert(userGraph.globalSize() == global_total_owned_nodes);
     // report stats
     if (net.ID == 0) {
       reportProxyStats(global_total_mirror_nodes, global_total_owned_nodes);
     }
   }
-
 
   // Delta mirrors proxy communication
   void exchangeDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
@@ -363,7 +362,6 @@ private:
         maxSharedSize = (*mirrorNodes)[x].size();
       }
     }
-
 
     original_max_shared_size_ = maxSharedSize;
 
@@ -507,20 +505,22 @@ public:
   }
 
   void printMirrors() {
-    for(uint32_t i = 0; i < mirrorNodes->size(); i++) {
-      for(uint32_t j = 0; j < (*mirrorNodes)[i].size(); j++) {
-        std::cout << "MIRROR NODES " << i << " " << j << " " << (*mirrorNodes)[i][j] << " host " << id << std::endl;
+    for (uint32_t i = 0; i < mirrorNodes->size(); i++) {
+      for (uint32_t j = 0; j < (*mirrorNodes)[i].size(); j++) {
+        std::cout << "MIRROR NODES " << i << " " << j << " "
+                  << (*mirrorNodes)[i][j] << " host " << id << std::endl;
       }
     }
-    for(uint32_t i = 0; i < masterNodes->size(); i++) {
-      for(uint32_t j = 0; j < (*masterNodes)[i].size(); j++) {
-        std::cout << "MASTER NODES " << i << " " << j << " " << (*masterNodes)[i][j] << " host " << id << std::endl;
+    for (uint32_t i = 0; i < masterNodes->size(); i++) {
+      for (uint32_t j = 0; j < (*masterNodes)[i].size(); j++) {
+        std::cout << "MASTER NODES " << i << " " << j << " "
+                  << (*masterNodes)[i][j] << " host " << id << std::endl;
       }
     }
   }
 
   void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
-    //std::vector<uint32_t> curr_mirrors_sizes(numHosts);
+    // std::vector<uint32_t> curr_mirrors_sizes(numHosts);
     std::vector<uint32_t> curr_masters_sizes(numHosts);
     for (uint32_t h = 0; h < numHosts; ++h) {
       curr_masters_sizes[h] = (*masterNodes)[h].size();
@@ -531,7 +531,7 @@ public:
     // ids
     for (uint32_t h = 0; h < masterNodes->size(); ++h) {
       galois::do_all(
-          galois::iterate(size_t(curr_masters_sizes[h]), 
+          galois::iterate(size_t(curr_masters_sizes[h]),
                           (*masterNodes)[h].size()),
           [&](size_t n) {
             (*masterNodes)[h][n] = userGraph.getLID((*masterNodes)[h][n]);
@@ -542,8 +542,7 @@ public:
     for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
       size_t start = (*mirrorNodes)[h].size() - delta_mirrors[h].size();
       galois::do_all(
-          galois::iterate(start,
-                          (*mirrorNodes)[h].size()),
+          galois::iterate(start, (*mirrorNodes)[h].size()),
           [&](size_t n) {
             (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
           },

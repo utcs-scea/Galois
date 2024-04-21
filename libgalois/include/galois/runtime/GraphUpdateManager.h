@@ -58,13 +58,13 @@ private:
   std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> fileParser;
 
   void processNodes(std::vector<NodeData>& nodes) {
-    for(auto& node : nodes) {
+    for (auto& node : nodes) {
       graph->addVertexTopologyOnly(node.id);
     }
   }
 
   void processEdges(std::vector<EdgeData>& edges) {
-    for(auto& edge : edges) {
+    for (auto& edge : edges) {
       std::vector<uint64_t> dsts;
       dsts.push_back(edge.dst);
       graph->addEdgesTopologyOnly(edge.src, dsts);
@@ -72,69 +72,70 @@ private:
   }
 
   template <typename N = NodeData, typename E = EdgeData>
-  void processUpdates(std::vector<galois::graphs::ParsedGraphStructure<N, E>>& updateVector) {
+  void processUpdates(
+      std::vector<galois::graphs::ParsedGraphStructure<N, E>>& updateVector) {
     std::vector<std::vector<EdgeData>> updateEdges;
     std::vector<std::vector<NodeData>> updateNodes;
     auto& net = galois::runtime::getSystemNetworkInterface();
     updateNodes.resize(net.Num);
     updateEdges.resize(net.Num);
     uint64_t numEdges = 0;
-    for(auto& update : updateVector) {
-        if(update.isNode) {
-          if(graph->isOwned(update.node.id)) {
-            graph->addVertexTopologyOnly(update.node.id);
-          } else {
-            updateNodes[graph->getHostID(update.node.id)].push_back(update.node);
-          }
+    for (auto& update : updateVector) {
+      if (update.isNode) {
+        if (graph->isOwned(update.node.id)) {
+          graph->addVertexTopologyOnly(update.node.id);
         } else {
-          for(auto& edge : update.edges) {
-            if(graph->isOwned(edge.src)) {
-              std::vector<E> edges;
-              edges.push_back(edge);
-              processEdges(edges);
-            } else {
-              updateEdges[graph->getHostID(edge.src)].push_back(edge);
-            }
+          updateNodes[graph->getHostID(update.node.id)].push_back(update.node);
+        }
+      } else {
+        for (auto& edge : update.edges) {
+          if (graph->isOwned(edge.src)) {
+            std::vector<E> edges;
+            edges.push_back(edge);
+            processEdges(edges);
+          } else {
+            updateEdges[graph->getHostID(edge.src)].push_back(edge);
           }
         }
+      }
     }
 
-    //send updates to other hosts
-    for(uint32_t i = 0; i < net.Num; i++) {
-      if(i == net.ID) {
+    // send updates to other hosts
+    for (uint32_t i = 0; i < net.Num; i++) {
+      if (i == net.ID) {
         continue;
       }
       galois::runtime::SendBuffer b;
       galois::runtime::gSerialize(b, updateNodes[i]);
       net.sendTagged(i, galois::runtime::evilPhase, std::move(b));
     }
-    for(uint32_t i=0; i<net.Num-1; i++) {
+    for (uint32_t i = 0; i < net.Num - 1; i++) {
       decltype(net.recieveTagged(galois::runtime::evilPhase)) p;
       do {
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
       std::vector<N> recvNodes;
       galois::runtime::gDeserialize(p->second, recvNodes);
-      processNodes(recvNodes); 
+      processNodes(recvNodes);
     }
     galois::runtime::evilPhase++;
 
-    for(uint32_t i = 0; i < net.Num; i++) {
-      if(i == net.ID) {
+    for (uint32_t i = 0; i < net.Num; i++) {
+      if (i == net.ID) {
         continue;
       }
       galois::runtime::SendBuffer b;
       galois::runtime::gSerialize(b, updateEdges[i]);
       net.sendTagged(i, galois::runtime::evilPhase, std::move(b));
     }
-    for(uint32_t i=0; i<net.Num-1; i++) {
+    for (uint32_t i = 0; i < net.Num - 1; i++) {
       decltype(net.recieveTagged(galois::runtime::evilPhase)) p;
       do {
         p = net.recieveTagged(galois::runtime::evilPhase);
       } while (!p);
       std::vector<E> recvEdges;
       galois::runtime::gDeserialize(p->second, recvEdges);
-      processEdges(recvEdges); 
+      processEdges(recvEdges);
     }
     galois::runtime::evilPhase++;
   }
@@ -153,7 +154,8 @@ private:
       std::string line;
       std::vector<galois::graphs::ParsedGraphStructure<N, E>> parsedData;
       while ((std::getline(inputFile, line))) {
-        parsedData.push_back(fileParser->ParseLine(const_cast<char*>(line.c_str()), line.size()));
+        parsedData.push_back(fileParser->ParseLine(
+            const_cast<char*>(line.c_str()), line.size()));
       }
       processUpdates(parsedData);
       inputFile.close();
@@ -161,5 +163,4 @@ private:
     auto& net = galois::runtime::getSystemNetworkInterface();
     net.flush();
   }
-
 };

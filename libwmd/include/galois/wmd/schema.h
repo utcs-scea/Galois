@@ -73,7 +73,7 @@ struct ParsedGraphStructure {
 template <typename V, typename E>
 class FileParser {
 public:
-  virtual const std::vector<std::string>& GetFiles()                = 0;
+  virtual const std::vector<std::string>& GetFiles() = 0;
   virtual ~FileParser() {}
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
                                                uint64_t lineLength) = 0;

@@ -992,7 +992,8 @@ public:
           mirrorNodes[getHostID(token)].push_back(token);
           graph->addVertexTopologyOnly();
         }
-        if ((isOwned(token)) && (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
+        if ((isOwned(token)) &&
+            (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
           numNodesWithEdges++;
         }
       }
