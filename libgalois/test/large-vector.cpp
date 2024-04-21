@@ -29,13 +29,12 @@ int main() {
     galois::LargeVector<uint64_t> the_vector(1 << 21);
 
     // should use 4 hugepages
-    std::vector<uint64_t*> refs;
-    refs.resize(1 << 21);
-    for (size_t i = 0; i < refs.size(); ++i) {
-      refs[i] = &the_vector.emplace_back(i);
+    std::vector<uint64_t*> refs(the_vector.size());
+    for (size_t i = 0; i < the_vector.size(); ++i) {
+      refs[i] = &the_vector[i];
     }
 
-    for (size_t i = 0; i < (1 << 21); ++i) {
+    for (size_t i = 0; i < the_vector.size(); ++i) {
       GALOIS_ASSERT(*refs[i] == i);
     }
   }
