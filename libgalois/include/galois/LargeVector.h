@@ -24,6 +24,10 @@ namespace galois {
  *  2. All iterator methods (e.g. increment) preserve generation.
  *  3. It is undefined behavior to compare iterators across generations.
  *  4. Decreasing the container size invalidates some iterators.
+ *
+ * Note also that, like LargeArray, this class does not call constructors or
+ * destructors for elements. If you need to call constructors or destructors,
+ * you can use placement new and explicit destructor calls.
  */
 template <typename T>
 class LargeVector : public boost::noncopyable {
@@ -120,24 +124,7 @@ public:
 
   uint64_t size() const noexcept { return m_size; }
 
-  template <typename... Args>
-  T& emplace_back(Args&&... args) {
-    if (m_size == m_capacity) {
-      ensure_capacity(m_size + 1);
-    }
-    return *new (m_data + m_size++) T(std::forward<Args>(args)...);
-  }
-
-  T& push_back(const T& t) { return emplace_back(t); }
-
-  T& push_back(T&& t) { return emplace_back(std::move(t)); }
-
   T& operator[](size_t index) const { return m_data[index]; }
-
-  void pop_back() {
-    assert(m_size > 0);
-    m_data[--m_size].~T();
-  }
 
   /**
    * Note: unlike std::vector, resize does not call constructors or
@@ -162,27 +149,5 @@ public:
 };
 
 }; // namespace galois
-
-namespace std {
-template <typename T>
-ostream& operator<<(std::ostream& os, const galois::LargeVector<T>& vec) {
-  for (uint64_t i = 0; i < vec.getSize(); i++) {
-    os << vec[i];
-    if (i < vec.getSize() - 1) {
-      os << " ";
-    }
-  }
-  return os;
-}
-
-template <typename T>
-istream& operator>>(istream& is, galois::LargeVector<T>& vec) {
-  T value;
-  while (is >> value) {
-    vec.push_back(value);
-  }
-  return is;
-}
-} // namespace std
 
 #endif
