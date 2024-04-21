@@ -195,7 +195,7 @@ public:
   VertexRange vertices() { return VertexRange(begin(), end()); }
 
   VertexTopologyID addVertexTopologyOnly() {
-    m_vertices.emplace_back();
+    m_vertices.resize(m_vertices.size() + 1);
     if constexpr (HasVertexData) {
       m_vertex_data.resize(m_vertices.size());
     }
