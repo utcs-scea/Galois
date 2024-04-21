@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <atomic>
 #include <new>
+#include <vector>
 #include <type_traits>
 
 #include <boost/range/iterator_range_core.hpp>
@@ -81,7 +82,7 @@ private:
   using EdgeMetadata = VertexTopologyID;
 
   VertexDataStore m_vertex_data;
-  std::vector<VertexMetadata> m_vertices;
+  LargeVector<VertexMetadata> m_vertices;
 
   // m_edges[0] is the CSR with gaps, m_edges[1] is the update log.
   LargeVector<EdgeMetadata> m_edges[2];
@@ -89,13 +90,11 @@ private:
   EdgeDataStore m_edge_data;
   alignas(hardware_destructive_interference_size) std::atomic_uint64_t
       m_edges_tail = ATOMIC_VAR_INIT(0);
-  // m_holes is the number of holes in the log (m_edges[1])
-  alignas(hardware_destructive_interference_size) std::atomic_uint64_t m_holes =
-      ATOMIC_VAR_INIT(0);
 
   /*
    * Prefix Sum utilities
    */
+  static constexpr uint64_t PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD = 1ul << 25;
   std::vector<uint64_t> m_pfx_sum_cache;
   static uint64_t transmute(const VertexMetadata& vertex_meta) {
     return vertex_meta.degree();
@@ -110,19 +109,32 @@ private:
             CacheLinePaddedArr>
       m_pfx{&m_vertices[0], &m_pfx_sum_cache[0]};
 
+  static uint64_t transmute_b0(VertexMetadata const& vertex_meta) {
+    return (vertex_meta.buffer) ? 0 : vertex_meta.degree();
+  }
+  static uint64_t scan_op_b0(VertexMetadata const& p, const uint64_t& l) {
+    return (p.buffer) ? l : p.degree() + l;
+  }
+  PrefixSum<VertexMetadata, uint64_t, transmute_b0, scan_op_b0, combiner,
+            CacheLinePaddedArr>
+      m_pfx_b0{&m_vertices[0], &m_pfx_sum_cache[0]};
+
+  // todo(meyer): there is currently a memory leak in prefix sum :/
+
   bool m_prefix_valid;
 
   void resetPrefixSum() {
     m_pfx_sum_cache.resize(m_vertices.size());
     m_pfx.src      = &m_vertices[0];
     m_pfx.dst      = &m_pfx_sum_cache[0];
+    m_pfx_b0.src   = &m_vertices[0];
+    m_pfx_b0.dst   = &m_pfx_sum_cache[0];
     m_prefix_valid = false;
   }
 
   // Compute the prefix sum using the two level method
   void computePrefixSum() {
-    constexpr uint64_t PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD =
-        static_cast<uint64_t>(1) << 30;
+    resetPrefixSum();
     if (m_vertices.size() > PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD) {
       m_pfx.computePrefixSumSerially(m_vertices.size());
     } else {
@@ -137,8 +149,13 @@ private:
   }
 
 public:
-  LS_LC_CSR_Graph(uint64_t num_vertices)
-      : m_vertices(num_vertices, VertexMetadata()) {
+  LS_LC_CSR_Graph(uint64_t num_vertices) : m_vertices(num_vertices) {
+    galois::do_all(galois::iterate(0ul, num_vertices),
+                   [&](VertexTopologyID const& vertex) {
+                     m_vertices[vertex].buffer = 0;
+                     m_vertices[vertex].begin  = 0;
+                     m_vertices[vertex].end    = 0;
+                   });
     if constexpr (HasVertexData) {
       m_vertex_data.resize(num_vertices);
     }
@@ -178,7 +195,7 @@ public:
   VertexRange vertices() { return VertexRange(begin(), end()); }
 
   VertexTopologyID addVertexTopologyOnly() {
-    m_vertices.emplace_back();
+    m_vertices.resize(m_vertices.size() + 1);
     if constexpr (HasVertexData) {
       m_vertex_data.resize(m_vertices.size());
     }
@@ -193,6 +210,12 @@ public:
   VertexTopologyID addVerticesTopologyOnly(size_t count) {
     VertexTopologyID const start = m_vertices.size();
     m_vertices.resize(start + count);
+    galois::do_all(galois::iterate(start, start + count),
+                   [&](VertexTopologyID const& vertex) {
+                     m_vertices[vertex].buffer = 0;
+                     m_vertices[vertex].begin  = 0;
+                     m_vertices[vertex].end    = 0;
+                   });
     return start;
   }
 
@@ -298,12 +321,90 @@ public:
   template <bool sorted = false>
   void addEdges(VertexTopologyID src, const std::vector<VertexTopologyID> dsts,
                 std::vector<EdgeData> data) {
-    GALOIS_ASSERT(data.size() == dsts.size());
+    GALOIS_ASSERT(data.size() == dsts.size(), "Data size mismatch");
     this->addEdgesTopologyOnly<sorted>(src, dsts);
     for (size_t i = 0; i < dsts.size(); ++i) {
       auto key = std::make_pair(src, dsts[i]);
       setEdgeData(key, data[i]);
     }
+  }
+
+  template <bool sorted = false>
+  void addBatchTopologyOnly(
+      std::vector<std::pair<VertexTopologyID, std::vector<VertexTopologyID>>>
+          edges) {
+    if (edges.empty())
+      return;
+
+    std::vector<uint64_t> pfx_sum(edges.size());
+    galois::GReduceMax<uint64_t> max_vertex_id;
+    max_vertex_id.reset();
+    galois::GAccumulator<uint64_t> old_degree_total;
+    old_degree_total.reset();
+    galois::do_all(
+        galois::iterate(0ul, edges.size()),
+        [&](size_t idx) {
+          auto const vertex_id = edges[idx].first;
+          max_vertex_id.update(vertex_id);
+          auto const old_degree =
+              vertex_id < m_vertices.size() ? getDegree(vertex_id) : 0;
+          old_degree_total += old_degree;
+          pfx_sum[idx] = old_degree + edges[idx].second.size();
+        },
+        galois::loopname("ComputeVertexDegrees"));
+
+    uint64_t const prev_num_vertices = m_vertices.size();
+    m_vertices.resize(std::max(max_vertex_id.reduce() + 1, m_vertices.size()));
+    galois::do_all(galois::iterate(m_vertices.begin() + prev_num_vertices,
+                                   m_vertices.end()),
+                   [&](VertexMetadata& vertex_meta) {
+                     vertex_meta.buffer = 0;
+                     vertex_meta.begin  = 0;
+                     vertex_meta.end    = 0;
+                   });
+
+    for (size_t i = 1; i < pfx_sum.size(); ++i)
+      pfx_sum[i] += pfx_sum[i - 1];
+    auto const num_new_edges = pfx_sum.back();
+    std::cout << "old degrees total: " << old_degree_total.reduce()
+              << ", new degrees total: " << num_new_edges << std::endl;
+
+    auto const start =
+        m_edges_tail.fetch_add(num_new_edges, std::memory_order_relaxed);
+    if (m_edges[1].size() < start + num_new_edges)
+      m_edges[1].resize(start + num_new_edges);
+
+    galois::do_all(
+        galois::iterate(0ul, edges.size()),
+        [&](size_t idx) {
+          auto const& [src, dsts] = edges[idx];
+          auto const new_begin    = (idx) ? (start + pfx_sum[idx - 1]) : start;
+          auto const new_end      = start + pfx_sum[idx];
+          auto& vertex_meta       = m_vertices[src];
+          EdgeMetadata* log_dst   = &getEdgeMetadata(1, new_begin);
+          if constexpr (sorted) {
+            std::merge(dsts.begin(), dsts.end(),
+                       &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+                       &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end),
+                       log_dst);
+          } else {
+            // copy old edges
+            log_dst = std::copy(
+                &getEdgeMetadata(vertex_meta.buffer, vertex_meta.begin),
+                &getEdgeMetadata(vertex_meta.buffer, vertex_meta.end), log_dst);
+
+            // insert new edges
+            std::copy(dsts.begin(), dsts.end(), log_dst);
+          }
+
+          // update vertex metadata
+          vertex_meta.buffer = 1;
+          vertex_meta.begin  = new_begin;
+          vertex_meta.end    = new_end;
+        },
+        galois::steal(), galois::loopname("CopyEdgesToLog"));
+
+    m_prefix_valid = false;
   }
 
   /*
@@ -317,10 +418,7 @@ public:
     // Copies the edge list to the end of m_edges[1] together with the new
     // edges.
 
-    auto& vertex_meta = m_vertices[src];
-    if (vertex_meta.buffer == 1)
-      m_holes.fetch_add(vertex_meta.degree(), std::memory_order_relaxed);
-
+    auto& vertex_meta         = m_vertices[src];
     uint64_t const new_degree = vertex_meta.degree() + dsts.size();
     uint64_t const new_begin =
         m_edges_tail.fetch_add(new_degree, std::memory_order_relaxed);
@@ -330,7 +428,7 @@ public:
       m_edges_lock.lock();
       {
         if (m_edges[1].size() < new_end)
-          m_edges[1].resize(std::max(m_edges[1].size() * 2, new_end));
+          m_edges[1].resize(new_end);
       }
       m_edges_lock.unlock();
     }
@@ -359,6 +457,7 @@ public:
     m_prefix_valid = false;
   }
 
+public:
   // Performs the compaction algorithm by copying any vertices left in buffer 0
   // to buffer 1, then swapping the buffers.
   //
@@ -366,67 +465,83 @@ public:
   void compact() {
     using std::swap;
 
-    // move from buffer 0 to buffer 1
-    galois::do_all(
-        galois::iterate(vertices().begin(), vertices().end()),
-        [&](VertexTopologyID vertex_id) {
-          VertexMetadata& vertex_meta = m_vertices[vertex_id];
+    if (m_vertices.empty())
+      return;
+    auto const num_vertices = m_vertices.size();
 
-          if (vertex_meta.buffer == 0) {
-            this->addEdgesTopologyOnly<false>(vertex_id, {});
-          }
-
-          // we are about to swap the buffers, so all vertices will
-          // be in buffer 0
-          vertex_meta.buffer = 0;
-        },
-        galois::steal());
-
-    // At this point, there are no more live edges in buffer 0.
-    m_edges_lock.lock();
+    // step 1: copy from CSR to log
     {
-      m_edges[0].resize(0);
-      swap(m_edges[0], m_edges[1]);
-      // relaxed is fine because of locks held:
-      m_edges_tail.store(0, std::memory_order_relaxed);
-      m_holes.store(0, std::memory_order_relaxed);
+      resetPrefixSum();
+      if (m_vertices.size() > PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD) {
+        m_pfx_b0.computePrefixSum(m_vertices.size());
+      } else {
+        m_pfx_b0.computePrefixSumSerially(m_vertices.size());
+      }
+      auto const log_num_edges = m_pfx_sum_cache.back();
+      auto const start =
+          m_edges_tail.fetch_add(log_num_edges, std::memory_order_relaxed);
+      if (m_edges[1].size() < start + log_num_edges) {
+        m_edges[1].resize(start + log_num_edges);
+      }
+
+      galois::do_all(
+          galois::iterate(0ul, num_vertices),
+          [&](VertexTopologyID ii) {
+            auto& vertex_meta = m_vertices[ii];
+            if (vertex_meta.buffer)
+              return; // already on the log
+            auto const new_begin = start + ((ii) ? m_pfx_sum_cache[ii - 1] : 0);
+            auto const new_end   = start + m_pfx_sum_cache[ii];
+            std::copy(&getEdgeMetadata(0, vertex_meta.begin),
+                      &getEdgeMetadata(0, vertex_meta.end),
+                      &getEdgeMetadata(1, new_begin));
+            // vertex_meta.buffer = 1;
+            vertex_meta.buffer = 0; // not accurate, but it soon will be...
+            vertex_meta.begin  = new_begin;
+            vertex_meta.end    = new_end;
+          },
+          galois::steal(), galois::loopname("CopyCSRToLog"));
     }
-    m_edges_lock.unlock();
+    // At this point, all edges are on the log (and the prefix sum is invalid).
+    // We can now compact into the CSR.
+    {
+      // compute the actual prefix sum
+      auto const& prefix_sum = getEdgePrefixSum();
+      m_edges[0].resize(prefix_sum.back());
+
+      galois::do_all(
+          galois::iterate(0ul, m_vertices.size()),
+          [&](size_t idx) {
+            auto& vertex_meta    = m_vertices[idx];
+            auto const new_begin = (idx) ? prefix_sum[idx - 1] : 0;
+            auto const new_end   = prefix_sum[idx];
+            std::copy(&getEdgeMetadata(1, vertex_meta.begin),
+                      &getEdgeMetadata(1, vertex_meta.end),
+                      &getEdgeMetadata(0, new_begin));
+            // vertex_meta.buffer = 0; // already done above
+            vertex_meta.begin = new_begin;
+            vertex_meta.end   = new_end;
+          },
+          galois::steal(), galois::loopname("CompactLogToCSR"));
+
+      swap(m_edges[0], m_edges[1]);
+      // m_edges[1].resize(0);
+      m_edges_tail   = 0;
+      m_prefix_valid = false;
+    }
   }
 
   /*
     Compaction policy utilities.
   */
 
-  // Returns an estimated memory usage in bytes for the entire data structure.
-  inline size_t getMemoryUsageBytes() {
-    size_t estimate = m_vertices.size() * sizeof(VertexMetadata);
-    if constexpr (HasVertexData) {
-      estimate += m_vertices.size() * sizeof(VertexData);
-    }
-    m_edges_lock.lock();
-    {
-      estimate +=
-          (m_edges[0].size() + m_edges_tail.load(std::memory_order_relaxed)) *
-          sizeof(EdgeMetadata);
-    }
-    m_edges_lock.unlock();
-    if constexpr (HasEdgeData) {
-      estimate += m_edge_data.size() *
-                  (sizeof(EdgeData) +
-                   sizeof(std::pair<VertexTopologyID, VertexTopologyID>));
-    }
-    return estimate;
+  inline size_t getCSRMemoryUsageBytes() {
+    return m_edges[0].size() * sizeof(EdgeMetadata);
   }
 
   // Returns the number of bytes used for the log.
   inline size_t getLogMemoryUsageBytes() {
-    return m_edges_tail.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
-  }
-
-  // Returns the number of bytes used for holes in the log.
-  inline size_t getLogHolesMemoryUsageBytes() {
-    return m_holes.load(std::memory_order_relaxed) * sizeof(EdgeMetadata);
+    return m_edges_tail * sizeof(EdgeMetadata);
   }
 
   /**
@@ -455,7 +570,7 @@ private:
     uint64_t end;   // exclusive
     uint8_t buffer;
 
-    VertexMetadata() : begin(0), end(0), buffer(0) {}
+    VertexMetadata() = delete;
 
     VertexMetadata(VertexMetadata const& other)
         : begin(other.begin), end(other.end), buffer(other.buffer) {}
@@ -498,6 +613,6 @@ public:
   };
 };
 
-}; // namespace galois::graphs
+} // namespace galois::graphs
 
 #endif

@@ -70,13 +70,25 @@ int main() {
   g.setData(3, 3);
   GALOIS_ASSERT(g.getData(3) == 3);
 
-  uint64_t four = g.addVertices({4, 5, 6, 7});
+  auto const four = g.addVertices({4, 5, 6, 7});
+  std::vector<std::pair<uint64_t, std::vector<uint64_t>>> new_edges = {
+      {four, {0, 1, 2, 3}},
+      {four + 1, {0, 1, 2, 3}},
+      {four + 2, {0, 1, 2, 3}},
+      {four + 3, {0, 1, 2, 3}}};
+  g.addBatchTopologyOnly<true>(std::move(new_edges));
 
   for (size_t ii = 0; ii < 4; ++ii) {
     // make sure previous data survived the resize
     GALOIS_ASSERT(g.getData(ii) == ii);
-    // check the new vertex data
+    // make sure new data is correct
     GALOIS_ASSERT(g.getData(four + ii) == 4 + ii);
+  }
+
+  for (uint64_t ii = 0; ii < 4; ++ii) {
+    for (uint64_t jj = 0; jj < 4; ++jj) {
+      GALOIS_ASSERT(g.getEdgeDst(g.edge_begin(four + ii)[jj]) == jj);
+    }
   }
 
   g.addEdges(0, {1, 2, 3}, {1, 2, 3});
@@ -124,7 +136,7 @@ int main() {
   GALOIS_ASSERT(g[1] == 3);
   GALOIS_ASSERT(g[2] == 3);
   // ...
-  GALOIS_ASSERT(g[8] == 7);
+  GALOIS_ASSERT(g[four + 4] == 23);
 
   uint64_t num_vertices = (1 << 22) + 67;
   galois::graphs::LS_LC_CSR_Graph<void, void> big(num_vertices);
