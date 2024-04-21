@@ -88,7 +88,7 @@ public:
     if (m_fd == -1)
       throw std::runtime_error(std::string("creating memfd: ") +
                                std::strerror(errno));
-    ensure_capacity(initial_size);
+    resize(initial_size);
   }
 
   LargeVector() : LargeVector(1) {}

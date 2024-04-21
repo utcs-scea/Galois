@@ -26,12 +26,13 @@ int main() {
   galois::SharedMemSys Galois_runtime;
 
   {
-    galois::LargeVector<uint64_t> the_vector;
+    galois::LargeVector<uint64_t> the_vector(1 << 21);
 
     // should use 4 hugepages
     std::vector<uint64_t*> refs;
-    for (size_t i = 0; i < (1 << 21); ++i) {
-      refs.emplace_back(&the_vector.emplace_back(i));
+    refs.resize(1 << 21);
+    for (size_t i = 0; i < refs.size(); ++i) {
+      refs[i] = &the_vector.emplace_back(i);
     }
 
     for (size_t i = 0; i < (1 << 21); ++i) {
@@ -63,7 +64,7 @@ int main() {
     the_vector.resize(0);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
 
-    // this should not actually allocate memory!
+    // this should only take 1 hugepage!
     galois::LargeVector<char> huge(1ul << 40);
     huge[0] = 0;
   }
