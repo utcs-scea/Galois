@@ -69,6 +69,10 @@ int main() {
     the_vector.resize(0);
     GALOIS_ASSERT(num_destructed == max_cap);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
+
+    // this should not actually allocate memory!
+    galois::LargeVector<char> huge(1ul << 40);
+    huge[0] = 0;
   }
 
   return 0;
