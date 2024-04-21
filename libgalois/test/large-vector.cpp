@@ -31,7 +31,8 @@ int main() {
     // should use 4 hugepages
     std::vector<uint64_t*> refs(the_vector.size());
     for (size_t i = 0; i < the_vector.size(); ++i) {
-      refs[i] = &the_vector[i];
+      the_vector[i] = i;
+      refs[i]       = &the_vector[i];
     }
 
     for (size_t i = 0; i < the_vector.size(); ++i) {
