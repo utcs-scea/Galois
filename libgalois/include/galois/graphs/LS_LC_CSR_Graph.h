@@ -94,7 +94,7 @@ private:
   /*
    * Prefix Sum utilities
    */
-  static constexpr uint64_t PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD = 1ul << 25;
+  static constexpr uint64_t PARALLEL_PREFIX_SUM_VERTEX_THRESHOLD = 1ul << 12;
   std::vector<uint64_t> m_pfx_sum_cache;
   static uint64_t transmute(const VertexMetadata& vertex_meta) {
     return vertex_meta.degree();
