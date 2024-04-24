@@ -198,13 +198,8 @@ int main(int argc, char* argv[]) {
                                                    agile::workflow1::Edge>>(
             10, filenames),
         100, graph);
-    GUM.start();
-    // wait for GUM to finish
-    while (!GUM.stop()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    GUM.update();
     galois::runtime::getHostBarrier().wait();
-    GUM.stop2();
   }
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
