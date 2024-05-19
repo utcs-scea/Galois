@@ -209,7 +209,9 @@ int main(int argc, char* argv[]) {
   galois::do_all(
       galois::iterate(graph->masterNodesRange()),
       [&](size_t lid) {
-        auto token = graph->getData(lid).id;
+        size_t initLid = lid;
+        lid            = graph->getValue(lid);
+        auto token     = graph->getData(lid).id;
         std::vector<uint64_t> edgeDst;
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
@@ -222,7 +224,7 @@ int main(int argc, char* argv[]) {
         }
         assert(edgeDst == edgeDstDbg);
         std::sort(edgeDst.begin(), edgeDst.end());
-        tokenAndEdges[lid] = std::make_pair(token, std::move(edgeDst));
+        tokenAndEdges[initLid] = std::make_pair(token, std::move(edgeDst));
       },
       galois::steal());
   // gather node info from other hosts

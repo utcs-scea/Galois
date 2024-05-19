@@ -314,6 +314,7 @@ public:
     base_DistGraph::determineThreadRangesMaster();
     base_DistGraph::determineThreadRangesWithEdges();
     base_DistGraph::initializeSpecificRanges();
+    base_DistGraph::setNumOwnedInit(base_DistGraph::numOwned);
     Tthread_ranges.stop();
 
     Tgraph_construct.stop();
