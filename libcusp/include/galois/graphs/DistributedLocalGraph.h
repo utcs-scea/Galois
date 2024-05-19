@@ -99,14 +99,18 @@ protected:
 
   // local graph
   // size() = Number of nodes created on this host (masters + mirrors)
-  uint32_t numOwned;    //!< Number of nodes owned (masters) by this host.
-                        //!< size() - numOwned = mirrors on this host
-  uint32_t beginMaster; //!< Local id of the beginning of master nodes.
-                        //!< beginMaster + numOwned = local id of the end of
-                        //!< master nodes
+  uint32_t numOwned;     //!< Number of nodes owned (masters) by this host.
+                         //!< size() - numOwned = mirrors on this host
+  uint32_t numOwnedInit; //!< Number of nodes owned (masters) by this host that
+                         //!< was loaded initially (static graph)
+  uint32_t beginMaster;  //!< Local id of the beginning of master nodes.
+                         //!< beginMaster + numOwned = local id of the end of
+                         //!< master nodes
   uint32_t numNodesWithEdges; //!< Number of nodes (masters + mirrors) that have
                               //!< outgoing edges
 
+  std::vector<uint32_t>
+      ownedNodesIndices; //!< Indices of owned nodes that are added dynamically
   //! Information that converts host to range of nodes that host reads
   std::vector<std::pair<uint64_t, uint64_t>> gid2host;
   //! Mirror nodes from different hosts. For reduce
@@ -693,6 +697,8 @@ public:
     return specificRanges[0];
   }
 
+  size_t getValue(uint32_t lid) { return ownedNodesIndices[lid]; }
+
   /**
    * Returns a range object that encapsulates only master nodes in this
    * graph.
@@ -714,6 +720,13 @@ public:
   inline const NodeRangeType& allNodesWithEdgesRange() const {
     assert(specificRanges.size() == 3);
     return specificRanges[2];
+  }
+
+  void setNumOwnedInit(uint32_t num) {
+    numOwnedInit = num;
+    for (uint32_t i = 0; i < num; i++) {
+      ownedNodesIndices.push_back(i);
+    }
   }
 
   /**
@@ -969,11 +982,11 @@ public:
                   std::optional<std::vector<NodeTy>> dstData = std::nullopt) {
 
     if (isVertex) {
-      if (globalToLocalMap.find(src) == globalToLocalMap.end()) {
-        localToGlobalVector.push_back(src);
-        globalToLocalMap[src] = localToGlobalVector.size() - 1;
-        numNodes++;
-      }
+      assert(globalToLocalMap.find(src) == globalToLocalMap.end());
+      localToGlobalVector.push_back(src);
+      globalToLocalMap[src] = localToGlobalVector.size() - 1;
+      numNodes++;
+      ownedNodesIndices.push_back(numNodes - 1);
       numOwned++;
     } else {
       assert(globalToLocalMap.find(src) != globalToLocalMap.end());
