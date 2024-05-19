@@ -77,6 +77,7 @@ public:
   virtual ~FileParser() {}
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
                                                uint64_t lineLength) = 0;
+  virtual std::vector<V> GetDstData(std::vector<E>& edges)          = 0;
   static std::vector<std::string> SplitLine(const char* line,
                                             uint64_t lineLength, char delim,
                                             uint64_t numTokens) {
@@ -110,6 +111,7 @@ public:
   virtual ~WMDParser() override {}
 
   virtual const std::vector<std::string>& GetFiles() override { return files_; }
+  virtual ~WMDParser() override {}
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
                                                uint64_t lineLength) override {
     std::vector<std::string> tokens =
@@ -170,6 +172,13 @@ public:
 
       return ParsedGraphStructure<V, E>(edges);
     }
+  }
+  std::vector<V> GetDstData(std::vector<E>& edges) override {
+    std::vector<V> dstData;
+    for (auto& edge : edges) {
+      dstData.emplace_back(edge.dst, 0, edge.dst_type);
+    }
+    return dstData;
   }
 
 private:

@@ -21,6 +21,9 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
+#include <boost/program_options.hpp>
+
+namespace po = boost::program_options;
 
 using namespace agile::workflow1;
 
@@ -35,8 +38,21 @@ struct Vrtx {
   Vrtx() : id(0), type(agile::workflow1::TYPES::NONE) {}
 };
 
+void insertEdge(
+    Edge edge,
+    std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
+        vertices) {
+  if (vertices.find(edge.src) != vertices.end()) {
+    vertices[edge.src].second.push_back(edge);
+  } else {
+    assert(false);
+  }
+}
+
 void parser(std::string line,
-            std::unordered_map<std::uint64_t, Vrtx>& vertices) {
+            std::unordered_map<std::uint64_t,
+                               std::pair<TYPES, std::vector<Edge>>>& vertices,
+            bool dynamic = false, bool readNodes = true) {
   if (line.find("//") != std::string::npos ||
       line.find("#") != std::string::npos) {
     return;
@@ -54,7 +70,7 @@ void parser(std::string line,
     bool isNode = tokens[0] == "Person" || tokens[0] == "ForumEvent" ||
                   tokens[0] == "Forum" || tokens[0] == "Publication" ||
                   tokens[0] == "Topic";
-    if (isNode) {
+    if ((isNode && !dynamic) || (isNode && readNodes)) {
       uint64_t id                        = 0;
       agile::workflow1::TYPES vertexType = agile::workflow1::TYPES::NONE;
       if (tokens[0] == "Person") {
@@ -75,23 +91,12 @@ void parser(std::string line,
       } else {
         assert(false);
       }
-      Vrtx vertex(id, vertexType);
-      vertices.insert({vertex.id, vertex});
-    } else {
+      vertices[id] =
+          std::pair<TYPES, std::vector<Edge>>(vertexType, std::vector<Edge>());
+    } else if ((!isNode && !dynamic) || (!isNode && !readNodes)) {
       Edge edge(tokens);
+      insertEdge(edge, vertices);
       Vrtx srcVertex;
-      if (vertices.find(edge.src) != vertices.end()) {
-        srcVertex = vertices[edge.src];
-        vertices[edge.src].edges.push_back(edge);
-      } else {
-        assert(false);
-      }
-      if (vertices.find(edge.src) != vertices.end()) {
-        vertices.insert({edge.src, srcVertex});
-      } else {
-        assert(false);
-      }
-      // Inverse edge
       agile::workflow1::TYPES inverseEdgeType = agile::workflow1::TYPES::NONE;
       if (tokens[0] == "Sale") {
         inverseEdgeType = agile::workflow1::TYPES::PURCHASE;
@@ -110,30 +115,22 @@ void parser(std::string line,
       inverseEdge.type                   = inverseEdgeType;
       std::swap(inverseEdge.src, inverseEdge.dst);
       std::swap(inverseEdge.src_type, inverseEdge.dst_type);
-      Vrtx dstVertex;
-      if (vertices.find(edge.dst) != vertices.end()) {
-        dstVertex = vertices[edge.dst];
-        vertices[edge.dst].edges.push_back(inverseEdge);
-      } else {
-        assert(false);
-      }
-      if (vertices.find(edge.dst) != vertices.end()) {
-        vertices.insert({edge.dst, dstVertex});
-      } else {
-        assert(false);
-      }
+      insertEdge(inverseEdge, vertices);
     }
   }
 }
 
-void getDataFromGraph(std::string& filename,
-                      std::unordered_map<std::uint64_t, Vrtx>& vertices) {
+void getDataFromGraph(
+    std::string& filename,
+    std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>&
+        vertices,
+    bool dynamic = false, bool readNodes = true) {
   // read file line by line
   std::string line;
   std::ifstream myfile(filename);
   if (myfile.is_open()) {
     while (getline(myfile, line)) {
-      parser(line, vertices);
+      parser(line, vertices, dynamic, readNodes);
     }
     myfile.close();
   } else {
@@ -142,11 +139,35 @@ void getDataFromGraph(std::string& filename,
 }
 
 int main(int argc, char* argv[]) {
+  std::string dataFile;
+  std::string dynFile;
+  int threads;
+  po::options_description desc("Allowed options");
+  desc.add_options()("help", "print help info")(
+      "staticFile", po::value<std::string>(&dataFile)->required(),
+      "Input file for initial static graph")(
+      "dynFile", po::value<std::string>(&dynFile)->default_value(""),
+      "Input file for dynamic graph")(
+      "threads", po::value<int>(&threads)->default_value(1),
+      "Number of threads");
+
+  po::variables_map vm;
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+  } catch (const std::exception& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
+  }
+
+  if (vm.count("help")) {
+    std::cout << desc << "\n";
+    return 1;
+  }
+
   galois::DistMemSys G; // init galois memory
   auto& net = galois::runtime::getSystemNetworkInterface();
-
-  if (argc == 3)
-    galois::setActiveThreads(atoi(argv[2]));
+  galois::setActiveThreads(threads);
 
   if (net.ID == 0) {
     galois::gPrint("Testing building WMD graph from file.\n");
@@ -155,8 +176,7 @@ int main(int argc, char* argv[]) {
                    "\n");
   }
 
-  std::string dataFile = argv[1];
-  std::string file     = dataFile;
+  std::string file = dataFile;
   std::vector<std::string> filenames;
   filenames.emplace_back(dataFile);
   std::vector<std::unique_ptr<galois::graphs::FileParser<
@@ -170,8 +190,38 @@ int main(int argc, char* argv[]) {
                            galois::graphs::BALANCED_EDGES_OF_MASTERS);
   assert(graph != nullptr);
 
-  std::unordered_map<std::uint64_t, Vrtx> vertices;
-  getDataFromGraph(file, vertices);
+  std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>
+      vertices;
+
+  uint64_t numNodes = 0;
+  for(auto node : graph->masterNodesRange()){
+    auto token = graph->getData(node).id;
+    numNodes++;
+    if(token == 889) 
+      std::cout << "found 889 id " << net.ID << "\n";
+  }
+  std::cout << "b4 numNodes: " << numNodes << " id " << net.ID << "\n";
+
+  if (dynFile != "") {
+    std::string dynamicFile = dynFile + std::to_string(net.ID) + ".txt";
+    std::vector<std::string> filenames;
+    filenames.emplace_back(dynamicFile);
+    graphUpdateManager<agile::workflow1::Vertex, agile::workflow1::Edge> GUM(
+        std::make_unique<galois::graphs::WMDParser<agile::workflow1::Vertex,
+                                                   agile::workflow1::Edge>>(
+            10, filenames),
+        100, graph);
+    GUM.update();
+    galois::runtime::getHostBarrier().wait();
+  }
+  numNodes = 0;
+  for(auto node : graph->masterNodesRange()){
+    auto token = graph->getData(node).id;
+    numNodes++;
+    if(token == 889) 
+      std::cout << "found 889 id " << net.ID << "\n";
+  }
+  std::cout << "aft numNodes: " << numNodes << " id " << net.ID << "\n";
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
   // compare it with other implementation to verify the correctness
@@ -181,6 +231,10 @@ int main(int argc, char* argv[]) {
       galois::iterate(graph->masterNodesRange()),
       [&](size_t lid) {
         auto token = graph->getData(lid).id;
+        if(token == 1443434356636157084)
+          std::cout << "REQ " << token << " id " << net.ID << " lid " << lid << "\n";
+        if((token == 889) || (lid == 32)) 
+          std::cout << "found " << token << " id " << net.ID << " lid " << lid << "\n";
         std::vector<uint64_t> edgeDst;
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
@@ -216,18 +270,33 @@ int main(int argc, char* argv[]) {
     }
   }
   if (net.ID == 0) {
+    getDataFromGraph(file, vertices);
+    if (dynFile != "") {
+      // Read vertices only first, and then only edges
+      for (uint32_t i = 0; i < net.Num; i++) {
+        std::string dynamicFile = dynFile + std::to_string(i) + ".txt";
+        getDataFromGraph(dynamicFile, vertices, true, true);
+      }
+      for (uint32_t i = 0; i < net.Num; i++) {
+        std::string dynamicFile = dynFile + std::to_string(i) + ".txt";
+        getDataFromGraph(dynamicFile, vertices, true, false);
+      }
+    }
     // compare with vertices
     assert(tokenAndEdges.size() == vertices.size());
     for (size_t i = 0; i < tokenAndEdges.size(); i++) {
       auto& tokenAndEdge = tokenAndEdges[i];
       auto& vertex       = vertices[tokenAndEdge.first];
-      assert(vertex.id == tokenAndEdge.first);
-      assert(vertex.edges.size() == tokenAndEdge.second.size());
-      std::sort(vertex.edges.begin(), vertex.edges.end(),
+      if(vertex.second.size() != tokenAndEdge.second.size()){
+        std::cout << "vertex id: " << tokenAndEdge.first << std::endl;
+        std::cout << "vertex edge size: " << vertex.second.size() << " tokenAndEdge size: " << tokenAndEdge.second.size() << std::endl;
+      }
+      assert(vertex.second.size() == tokenAndEdge.second.size());
+      std::sort(vertex.second.begin(), vertex.second.end(),
                 [](const agile::workflow1::Edge& a,
                    const agile::workflow1::Edge& b) { return a.dst < b.dst; });
-      for (size_t j = 0; j < vertex.edges.size(); j++) {
-        assert(vertex.edges[j].dst == tokenAndEdge.second[j]);
+      for (size_t j = 0; j < vertex.second.size(); j++) {
+        assert(vertex.second[j].dst == tokenAndEdge.second[j]);
       }
     }
   }

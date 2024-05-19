@@ -177,7 +177,7 @@ public:
     // never read edge data from disk
     galois::graphs::WMDBufferedGraph<NodeTy, EdgeTy> bufGraph;
     if constexpr (std::is_same<NodeTy, galois::graphs::ELVertex>::value) {
-      // assert(numVertices != 0);
+      assert(numVertices != 0);
       bufGraph.setSize(numVertices);
     }
     bufGraph.loadPartialGraph(g, base_DistGraph::numGlobalEdges);
@@ -223,7 +223,7 @@ public:
     proxiesOnOtherHosts.resize(_numHosts);
 
     // send off mirror proxies that exist on this host to other hosts
-    communicateProxyInfo(presentProxies, proxiesOnOtherHosts);
+    communicateProxyInfo(presentProxies, &proxiesOnOtherHosts);
 
     base_DistGraph::numEdges = bufGraph.sizeLocalEdges();
     // assumption: we keep all edges since mirror edges are not supported
@@ -247,10 +247,15 @@ public:
     // not need to move edges from other host since all edges is already ready
     // when no edge mirror are used.
     galois::gDebug("[", base_DistGraph::id, "] add edges into graph.");
+    auto& net = galois::runtime::getSystemNetworkInterface();
     galois::do_all(
         galois::iterate(nodeBegin, nodeEnd),
         [&](uint64_t globalID) {
           auto edgeDst = bufGraph.edgeLocalDst(globalID);
+          uint64_t src = globalID - bufGraph.globalNodeOffset[base_DistGraph::id];
+          if(base_DistGraph::localToGlobalVector[src] == 889) {
+            std::cout << "Edge src: " << src << " id " << net.ID << std::endl;
+          }
           std::vector<uint64_t> dstData;
           for (auto dst : edgeDst) {
             dstData.emplace_back(base_DistGraph::globalToLocalMap[dst]);
@@ -260,7 +265,7 @@ public:
               dstData);
         },
         galois::steal());
-
+    
     for (uint64_t i = nodeBegin; i < nodeEnd; i++) {
       if (bufGraph.edgeNum(i) > 0) {
         base_DistGraph::numNodesWithEdges++;
@@ -323,6 +328,7 @@ public:
     base_DistGraph::determineThreadRangesMaster();
     base_DistGraph::determineThreadRangesWithEdges();
     base_DistGraph::initializeSpecificRanges();
+    base_DistGraph::setNumOwnedInit(base_DistGraph::numOwned);
     Tthread_ranges.stop();
 
     Tgraph_construct.stop();
@@ -645,7 +651,6 @@ private:
               galois::graphs::WMDOfflineGraph<NodeTy, EdgeTy>& g,
               std::vector<std::vector<uint64_t>> proxiesOnOtherHosts) {
     bufGraph.gatherNodes(g, base_DistGraph::graph, proxiesOnOtherHosts,
-                         base_DistGraph::numNodes,
                          base_DistGraph::globalToLocalMap);
   }
 
@@ -750,9 +755,9 @@ private:
    * @param presentProxies Bitset marking which proxies are present on this host
    * @param proxiesOnOtherHosts Vector to deserialize received bitsets into
    */
-  void
-  communicateProxyInfo(std::vector<std::vector<uint64_t>> presentProxies,
-                       std::vector<std::vector<uint64_t>> proxiesOnOtherHosts) {
+  void communicateProxyInfo(
+      std::vector<std::vector<uint64_t>> presentProxies,
+      std::vector<std::vector<uint64_t>>* proxiesOnOtherHosts) {
     auto& net = galois::runtime::getSystemNetworkInterface();
     // Send proxies on this host to other hosts
     for (unsigned h = 0; h < base_DistGraph::numHosts; ++h) {
@@ -772,7 +777,7 @@ private:
       uint32_t sendingHost = p->first;
       // deserialize proxiesOnOtherHosts
       galois::runtime::gDeserialize(p->second,
-                                    proxiesOnOtherHosts[sendingHost]);
+                                    (*proxiesOnOtherHosts)[sendingHost]);
     }
 
     base_DistGraph::increment_evilPhase();

@@ -4,15 +4,13 @@
 #include <galois/Timer.h>
 #include "galois/wmd/graphTypes.h"
 
-// Usage: call start() to start the ingestion of the file
-//        call stop() to stop the ingestion of the file
-//        call setBatchSize() to set the batch size
+// Usage: call update() to start the ingestion of the file
 //    Refer to wmd-graph-build for an example of how to use this class
 
 using namespace agile::workflow1;
 
-template <typename NodeData, typename EdgeData, typename NodeTy,
-          typename EdgeTy, typename OECPolicy>
+template <typename NodeData, typename EdgeData, typename NodeTy=agile::workflow1::Vertex,
+          typename EdgeTy=agile::workflow1::Edge, typename OECPolicy=OECPolicy>
 class graphUpdateManager {
 public:
   using T =
@@ -35,39 +33,52 @@ public:
 
   void update() {
     ingestFile();
+    auto& net = galois::runtime::getSystemNetworkInterface();
+    galois::do_all(
+      galois::iterate(graph->masterNodesRange()),
+      [&](size_t lid) {
+        auto token = graph->getData(lid).id;
+        if(token == 889) 
+          std::cout << "b4 889 id " << net.ID << "\n";
+      },
+      galois::steal());
     graph->updateRanges();
+    galois::do_all(
+      galois::iterate(graph->masterNodesRange()),
+      [&](size_t lid) {
+        auto token = graph->getData(lid).id;
+        if(token == 889) 
+          std::cout << "aft 889 id " << net.ID << "\n";
+      },
+      galois::steal());
   }
 
-  void setBatchSize(uint64_t size) { batchSize = size; }
-
-  uint64_t getBatchSize() { return batchSize; }
-
   void setPeriod(uint64_t period) { periodForCheck = period; }
-
   uint64_t getPeriod() { return periodForCheck; }
 
 private:
-  std::thread checkThread;
-  std::thread startIngest;
   uint64_t periodForCheck;
   std::string graphFile;
   T* graph;
-  uint64_t batchSize = 10;
-  bool stopIngest    = false;
-  bool stopCheck     = false;
   std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> fileParser;
-
+  
   void processNodes(std::vector<NodeData>& nodes) {
+    auto& net = galois::runtime::getSystemNetworkInterface();
     for (auto& node : nodes) {
-      graph->addVertexTopologyOnly(node.id);
+      std::cout << "Adding node: " << node.id << " id " << net.ID << "\n";
+      graph->addVertex(node);
     }
   }
 
-  void processEdges(std::vector<EdgeData>& edges) {
+  template <typename N = NodeData, typename E = EdgeData>
+  void processEdges(std::vector<E>& edges) {
     for (auto& edge : edges) {
       std::vector<uint64_t> dsts;
       dsts.push_back(edge.dst);
-      graph->addEdgesTopologyOnly(edge.src, dsts);
+      std::vector<N> dstData = fileParser->GetDstData(edges);
+      std::vector<E> data;
+      data.push_back(edge);
+      graph->addEdges(edge.src, dsts, data, dstData);
     }
   }
 
@@ -79,23 +90,13 @@ private:
     auto& net = galois::runtime::getSystemNetworkInterface();
     updateNodes.resize(net.Num);
     updateEdges.resize(net.Num);
-    uint64_t numEdges = 0;
     for (auto& update : updateVector) {
       if (update.isNode) {
-        if (graph->isOwned(update.node.id)) {
-          graph->addVertexTopologyOnly(update.node.id);
-        } else {
-          updateNodes[graph->getHostID(update.node.id)].push_back(update.node);
-        }
+        std::cout << "update node " << update.node.id << " id " << net.ID << "\n";
+        updateNodes[graph->getHostID(update.node.id)].push_back(update.node);
       } else {
         for (auto& edge : update.edges) {
-          if (graph->isOwned(edge.src)) {
-            std::vector<E> edges;
-            edges.push_back(edge);
-            processEdges(edges);
-          } else {
-            updateEdges[graph->getHostID(edge.src)].push_back(edge);
-          }
+          updateEdges[graph->getHostID(edge.src)].push_back(edge);
         }
       }
     }
@@ -109,6 +110,8 @@ private:
       galois::runtime::gSerialize(b, updateNodes[i]);
       net.sendTagged(i, galois::runtime::evilPhase, std::move(b));
     }
+
+    // Receive vertex updates from other hosts
     for (uint32_t i = 0; i < net.Num - 1; i++) {
       decltype(net.recieveTagged(galois::runtime::evilPhase)) p;
       do {
@@ -120,6 +123,7 @@ private:
     }
     galois::runtime::evilPhase++;
 
+    // Send Edge updates to the other hosts
     for (uint32_t i = 0; i < net.Num; i++) {
       if (i == net.ID) {
         continue;
@@ -128,6 +132,8 @@ private:
       galois::runtime::gSerialize(b, updateEdges[i]);
       net.sendTagged(i, galois::runtime::evilPhase, std::move(b));
     }
+
+    // Receive edge updates from other hosts
     for (uint32_t i = 0; i < net.Num - 1; i++) {
       decltype(net.recieveTagged(galois::runtime::evilPhase)) p;
       do {
@@ -138,6 +144,10 @@ private:
       processEdges(recvEdges);
     }
     galois::runtime::evilPhase++;
+
+    // Process own updates
+    processNodes(updateNodes[net.ID]);
+    processEdges(updateEdges[net.ID]);
   }
 
   template <typename N = NodeData, typename E = EdgeData>

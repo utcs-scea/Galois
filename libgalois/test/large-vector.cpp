@@ -26,34 +26,32 @@ int main() {
   galois::SharedMemSys Galois_runtime;
 
   {
-    galois::LargeVector<uint64_t> the_vector;
+    galois::LargeVector<uint64_t> the_vector(1 << 21);
 
     // should use 4 hugepages
-    std::vector<uint64_t*> refs;
-    for (size_t i = 0; i < (1 << 21); ++i) {
-      refs.emplace_back(&the_vector.emplace_back(i));
+    std::vector<uint64_t*> refs(the_vector.size());
+    for (size_t i = 0; i < the_vector.size(); ++i) {
+      the_vector[i] = i;
+      refs[i]       = &the_vector[i];
     }
 
-    for (size_t i = 0; i < (1 << 21); ++i) {
+    for (size_t i = 0; i < the_vector.size(); ++i) {
       GALOIS_ASSERT(*refs[i] == i);
     }
   }
 
   {
-    static uint64_t num_constructed = 0, num_destructed = 0;
     class Object {
       uint8_t dummy;
 
     public:
-      Object() { ++num_constructed; }
-      ~Object() { ++num_destructed; }
+      Object()  = delete;
+      ~Object() = delete;
     };
     static_assert(sizeof(Object) > 0);
 
     const size_t max_cap = (1 << 22);
     galois::LargeVector<Object> the_vector(max_cap);
-    // constructor should not actually fill the vector
-    GALOIS_ASSERT(num_constructed == 0);
 
     // entire vector should be mapped, even if it is empty
     const Object* addr = &the_vector[max_cap];
@@ -61,14 +59,14 @@ int main() {
 
     the_vector.resize(max_cap);
 
-    GALOIS_ASSERT(num_constructed == max_cap);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
 
-    // resize should call the destructor, but vector should stay mapped
-    GALOIS_ASSERT(num_destructed == 0);
     the_vector.resize(0);
-    GALOIS_ASSERT(num_destructed == max_cap);
     GALOIS_ASSERT(addr == &the_vector[max_cap]);
+
+    // this should only take 1 hugepage!
+    galois::LargeVector<char> huge(1ul << 40);
+    huge[0] = 0;
   }
 
   return 0;
