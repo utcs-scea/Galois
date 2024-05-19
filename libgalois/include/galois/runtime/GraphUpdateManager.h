@@ -34,23 +34,7 @@ public:
   void update() {
     ingestFile();
     auto& net = galois::runtime::getSystemNetworkInterface();
-    galois::do_all(
-      galois::iterate(graph->masterNodesRange()),
-      [&](size_t lid) {
-        auto token = graph->getData(lid).id;
-        if(token == 889) 
-          std::cout << "b4 889 id " << net.ID << "\n";
-      },
-      galois::steal());
     graph->updateRanges();
-    galois::do_all(
-      galois::iterate(graph->masterNodesRange()),
-      [&](size_t lid) {
-        auto token = graph->getData(lid).id;
-        if(token == 889) 
-          std::cout << "aft 889 id " << net.ID << "\n";
-      },
-      galois::steal());
   }
 
   void setPeriod(uint64_t period) { periodForCheck = period; }
@@ -62,16 +46,25 @@ private:
   T* graph;
   std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> fileParser;
   
-  void processNodes(std::vector<NodeData>& nodes) {
-    auto& net = galois::runtime::getSystemNetworkInterface();
+  template <typename N = NodeData>
+  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value, void>::type
+   processNodes(std::vector<N>& nodes) {
     for (auto& node : nodes) {
-      std::cout << "Adding node: " << node.id << " id " << net.ID << "\n";
       graph->addVertex(node);
     }
   }
 
+  template <typename N = NodeData>
+  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value, void>::type
+   processNodes(std::vector<N>& nodes) {
+    for (auto& node : nodes) {
+      graph->addVertexTopologyOnly(node.id);
+    }
+  }
+
   template <typename N = NodeData, typename E = EdgeData>
-  void processEdges(std::vector<E>& edges) {
+  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value, void>::type
+  processEdges(std::vector<E>& edges) {
     for (auto& edge : edges) {
       std::vector<uint64_t> dsts;
       dsts.push_back(edge.dst);
@@ -79,6 +72,16 @@ private:
       std::vector<E> data;
       data.push_back(edge);
       graph->addEdges(edge.src, dsts, data, dstData);
+    }
+  }
+
+  template <typename N = NodeData, typename E = EdgeData>
+  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value, void>::type
+   processEdges(std::vector<E>& edges) {
+    for (auto& edge : edges) {
+      std::vector<uint64_t> dsts;
+      dsts.push_back(edge.dst);
+      graph->addEdgesTopologyOnly(edge.src, dsts);
     }
   }
 
@@ -92,7 +95,6 @@ private:
     updateEdges.resize(net.Num);
     for (auto& update : updateVector) {
       if (update.isNode) {
-        std::cout << "update node " << update.node.id << " id " << net.ID << "\n";
         updateNodes[graph->getHostID(update.node.id)].push_back(update.node);
       } else {
         for (auto& edge : update.edges) {
@@ -156,7 +158,7 @@ private:
     for (auto& file : files) {
       std::ifstream inputFile(file);
       if (!inputFile.is_open()) {
-        std::cerr << "Error opening file: " << graphFile << "\n";
+        std::cerr << "Error opening file: " << file << "\n";
         return;
       }
 

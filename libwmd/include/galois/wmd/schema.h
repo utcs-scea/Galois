@@ -111,7 +111,6 @@ public:
   virtual ~WMDParser() override {}
 
   virtual const std::vector<std::string>& GetFiles() override { return files_; }
-  virtual ~WMDParser() override {}
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
                                                uint64_t lineLength) override {
     std::vector<std::string> tokens =
@@ -227,6 +226,14 @@ public:
     if (!found)
       val = UINT64_MAX;
     return line;
+  }
+
+  std::vector<V> GetDstData(std::vector<E>& edges) override {
+    std::vector<V> dstData;
+    for (auto& edge : edges) {
+      dstData.emplace_back(V{edge.dst});
+    }
+    return dstData;
   }
 
 private:

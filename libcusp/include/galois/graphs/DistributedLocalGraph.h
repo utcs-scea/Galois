@@ -101,14 +101,12 @@ protected:
   // size() = Number of nodes created on this host (masters + mirrors)
   uint32_t numOwned;    //!< Number of nodes owned (masters) by this host.
                         //!< size() - numOwned = mirrors on this host
-  uint32_t numOwnedInit;  //!< Number of nodes owned (masters) by this host that was loaded initially (static graph)
   uint32_t beginMaster; //!< Local id of the beginning of master nodes.
                         //!< beginMaster + numOwned = local id of the end of
                         //!< master nodes
   uint32_t numNodesWithEdges; //!< Number of nodes (masters + mirrors) that have
                               //!< outgoing edges
 
-  std::vector<uint32_t> ownedNodesIndices; //!< Indices of owned nodes that are added dynamically
   //! Information that converts host to range of nodes that host reads
   std::vector<std::pair<uint64_t, uint64_t>> gid2host;
   //! Mirror nodes from different hosts. For reduce
@@ -704,7 +702,6 @@ public:
    * @returns A range object that contains the master nodes in this graph
    */
   inline const NodeRangeType& masterNodesRange() const {
-    std::cout << "masterRanges.size() = " << specificRanges.size() << std::endl;
     assert(specificRanges.size() == 3);
     return specificRanges[1];
   }
@@ -720,8 +717,6 @@ public:
     assert(specificRanges.size() == 3);
     return specificRanges[2];
   }
-
-  void setNumOwnedInit(uint32_t num) { numOwnedInit = num; }
 
   /**
    * Returns a vector object that contains the global IDs (in order) of
@@ -761,8 +756,9 @@ protected:
    */
   inline void determineThreadRangesMaster() {
     // make sure this hasn't been called before
-    if (masterRanges.size() != 0)
+    if (masterRanges.size() != 0) {
       masterRanges.clear();
+    }
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -777,10 +773,6 @@ protected:
       masterRanges = galois::graphs::determineUnitRangesFromGraph(
           *graph, galois::runtime::activeThreads, beginMaster,
           beginMaster + numOwned, 0, true);
-      //print masterRanges
-      for (auto i : masterRanges) {
-        std::cout << i << " master id " << id << std::endl;
-      }
     }
   }
 
@@ -792,8 +784,9 @@ protected:
    */
   inline void determineThreadRangesWithEdges() {
     // make sure not called before
-    if (withEdgeRanges.size() != 0)
+    if (withEdgeRanges.size() != 0) {
       withEdgeRanges.clear();
+    }
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -976,8 +969,7 @@ public:
   //  3. Only works for OEC
   void
   updateVariables(bool isVertex, uint64_t src,
-                  std::optional<std::vector<uint64_t>> dsts  = std::nullopt,
-                  std::optional<std::vector<NodeTy>> dstData = std::nullopt) {
+                  std::optional<std::vector<uint64_t>> dsts = std::nullopt) {
 
     if (isVertex) {
       assert(globalToLocalMap.find(src) == globalToLocalMap.end());
@@ -985,38 +977,31 @@ public:
       globalToLocalMap[src] = localToGlobalVector.size() - 1;
       numNodes++;
       numOwned++;
-      ownedNodesIndices.push_back(numNodes - 1);
     } else {
-      assert(globalToLocalMap.find(src) != globalToLocalMap.end());
       uint64_t srcLID = globalToLocalMap[src];
       if (edge_begin(srcLID) == edge_end(srcLID)) {
         numNodesWithEdges++;
       }
-      uint32_t i = 0;
       for (auto token : dsts.value()) {
         if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
           localToGlobalVector.push_back(token);
           globalToLocalMap[token] = localToGlobalVector.size() - 1;
           numNodes++;
           numNodesWithEdges++;
-          std::vector<NodeTy> data;
-          data.push_back(dstData.value()[i]);
-          graph->addVertices(data);
           mirrorNodes[getHostID(token)].push_back(token);
+          graph->addVertexTopologyOnly();
         }
-        if ((isOwned(token)) &&
-            (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
+        if ((isOwned(token)) && (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
           numNodesWithEdges++;
         }
-        i++;
       }
       numEdges += dsts.value().size();
     }
   }
 
   /** Topology Modifications **/
-  void addVertexTopologyOnly(uint32_t token) {
-    updateVariables(true, token);
+  void addVertexTopologyOnly(uint64_t token) {
+    updateVariables(true, numNodes);
     graph->addVertexTopologyOnly();
   }
 
