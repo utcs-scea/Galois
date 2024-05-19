@@ -33,7 +33,6 @@ public:
 
   void update() {
     ingestFile();
-    auto& net = galois::runtime::getSystemNetworkInterface();
     graph->updateRanges();
   }
 

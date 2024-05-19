@@ -195,7 +195,7 @@ public:
 
   virtual const std::vector<std::string>& GetFiles() override { return files_; }
   virtual ParsedGraphStructure<V, E> ParseLine(char* line,
-                                               uint64_t lineLength) override {
+                                               uint64_t) override {
     std::uint64_t src;
     std::uint64_t dst;
     line = elGetOne(line, src);

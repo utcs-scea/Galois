@@ -769,7 +769,7 @@ private:
   template <typename T = EdgeDataType>
   typename std::enable_if<std::is_same<T, ELEdge>::value>::type
   gatherVerticesAndEdges(std::vector<std::vector<EdgeDataType>>& localEdges,
-                         std::vector<NodeDataType>& localNodes) {
+                         std::vector<NodeDataType>&) {
     auto& net              = galois::runtime::getSystemNetworkInterface();
     uint32_t activeThreads = galois::getActiveThreads();
 
@@ -1205,11 +1205,7 @@ public:
   void gatherNodes(WMDOfflineGraph<NodeDataType, EdgeDataType>& srcGraph,
                    GraphTy& dstGraph,
                    std::vector<std::vector<uint64_t>>& proxiesOnHosts,
-                   uint64_t totalLocalNodes,
                    std::unordered_map<uint64_t, uint32_t> globalToLocalMap) {
-#ifdef NDEBUG
-    (void)totalLocalNodes;
-#endif
     auto& net        = galois::runtime::getSystemNetworkInterface();
     auto& localNodes = srcGraph.localNodes;
 

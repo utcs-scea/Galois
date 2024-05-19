@@ -969,7 +969,8 @@ public:
   //  3. Only works for OEC
   void
   updateVariables(bool isVertex, uint64_t src,
-                  std::optional<std::vector<uint64_t>> dsts = std::nullopt) {
+                  std::optional<std::vector<uint64_t>> dsts = std::nullopt,
+                  std::optional<std::vector<NodeTy>> dstData = std::nullopt) {
 
     if (isVertex) {
       assert(globalToLocalMap.find(src) == globalToLocalMap.end());
