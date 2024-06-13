@@ -24,6 +24,7 @@
 #include "galois/DTerminationDetector.h"
 #include "galois/gstl.h"
 #include "galois/runtime/Tracer.h"
+#include "galois/stats.h"
 
 #include <iostream>
 #include <limits>
@@ -344,13 +345,19 @@ int main(int argc, char** argv) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
 
-    StatTimer_main.start();
-    if (execution == Async) {
-      BFS<true>::go(*hg);
-    } else {
-      BFS<false>::go(*hg);
+
+    {
+      std::string output_fname =
+          "bfs-pull-" + std::to_string(net.ID) + "_" + std::to_string(run) + ".out";
+      BENCHMARK_SCOPE("bfs-pull", output_fname);
+      StatTimer_main.start();
+      if (execution == Async) {
+        BFS<true>::go(*hg);
+      } else {
+        BFS<false>::go(*hg);
+      }
+      StatTimer_main.stop();
     }
-    StatTimer_main.stop();
 
     // sanity check
     BFSSanityCheck::go(*hg, DGAccumulator_sum, m);
