@@ -99,14 +99,18 @@ protected:
 
   // local graph
   // size() = Number of nodes created on this host (masters + mirrors)
-  uint32_t numOwned;    //!< Number of nodes owned (masters) by this host.
-                        //!< size() - numOwned = mirrors on this host
-  uint32_t beginMaster; //!< Local id of the beginning of master nodes.
-                        //!< beginMaster + numOwned = local id of the end of
-                        //!< master nodes
+  uint32_t numOwned;     //!< Number of nodes owned (masters) by this host.
+                         //!< size() - numOwned = mirrors on this host
+  uint32_t numOwnedInit; //!< Number of nodes owned (masters) by this host that
+                         //!< was loaded initially (static graph)
+  uint32_t beginMaster;  //!< Local id of the beginning of master nodes.
+                         //!< beginMaster + numOwned = local id of the end of
+                         //!< master nodes
   uint32_t numNodesWithEdges; //!< Number of nodes (masters + mirrors) that have
                               //!< outgoing edges
 
+  std::vector<uint32_t>
+      ownedNodesIndices; //!< Indices of owned nodes that are added dynamically
   //! Information that converts host to range of nodes that host reads
   std::vector<std::pair<uint64_t, uint64_t>> gid2host;
   //! Mirror nodes from different hosts. For reduce
@@ -584,6 +588,16 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
+  //inline EdgeTy& getEdgeData(GraphNode src, edge_iterator ni) {
+  //  GraphNode dst = getEdgeDst(ni);
+  //  auto& r       = graph->getEdgeData(std::make_pair(src, dst));
+  //  return r;
+  //}
+
+  //inline EdgeTy& getEdgeData(edge_iterator ni) {
+  //  auto& r = graph->getEdgeData(*ni);
+  //  return r;
+  //}
   inline typename std::enable_if<!std::is_void<EdgeTy>::value, edge_iterator>
   getEdgeData(GraphNode src, edge_iterator ni) {
     GraphNode dst = getEdgeDst(ni);
@@ -596,6 +610,7 @@ public:
     auto& r = graph->getEdgeData(*ni);
     return r;
   }
+
 
   /**
    * Gets edge destination of edge ni.
@@ -695,6 +710,8 @@ public:
     return specificRanges[0];
   }
 
+  size_t getValue(uint32_t lid) { return ownedNodesIndices[lid]; }
+
   /**
    * Returns a range object that encapsulates only master nodes in this
    * graph.
@@ -716,6 +733,13 @@ public:
   inline const NodeRangeType& allNodesWithEdgesRange() const {
     assert(specificRanges.size() == 3);
     return specificRanges[2];
+  }
+
+  void setNumOwnedInit(uint32_t num) {
+    numOwnedInit = num;
+    for (uint32_t i = 0; i < num; i++) {
+      ownedNodesIndices.push_back(i);
+    }
   }
 
   /**
@@ -756,9 +780,8 @@ protected:
    */
   inline void determineThreadRangesMaster() {
     // make sure this hasn't been called before
-    if (masterRanges.size() != 0) {
+    if (masterRanges.size() != 0)
       masterRanges.clear();
-    }
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -784,9 +807,8 @@ protected:
    */
   inline void determineThreadRangesWithEdges() {
     // make sure not called before
-    if (withEdgeRanges.size() != 0) {
+    if (withEdgeRanges.size() != 0)
       withEdgeRanges.clear();
-    }
 
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
@@ -933,12 +955,6 @@ public:
     graph.setEdgeData(eh, data);
   }
 
-  // template <typename T = NodeTy>
-  // typename std::enable_if<!std::is_void<T>::value, EdgeTy&>::type
-  // getEdgeData(edge_iterator eh) {
-  //   return graph.getEdgeData(eh);
-  // }
-
   enum Task {
     ADD_VERTEX,
     ADD_VERTEX_TOPOLOGY_ONLY,
@@ -969,7 +985,7 @@ public:
   //  3. Only works for OEC
   void
   updateVariables(bool isVertex, uint64_t src,
-                  std::optional<std::vector<uint64_t>> dsts = std::nullopt,
+                  std::optional<std::vector<uint64_t>> dsts  = std::nullopt,
                   std::optional<std::vector<NodeTy>> dstData = std::nullopt) {
 
     if (isVertex) {
@@ -977,22 +993,29 @@ public:
       localToGlobalVector.push_back(src);
       globalToLocalMap[src] = localToGlobalVector.size() - 1;
       numNodes++;
+      ownedNodesIndices.push_back(numNodes - 1);
       numOwned++;
     } else {
+      assert(globalToLocalMap.find(src) != globalToLocalMap.end());
       uint64_t srcLID = globalToLocalMap[src];
       if (edge_begin(srcLID) == edge_end(srcLID)) {
         numNodesWithEdges++;
       }
+      uint32_t i = 0;
       for (auto token : dsts.value()) {
         if (globalToLocalMap.find(token) == globalToLocalMap.end()) {
           localToGlobalVector.push_back(token);
           globalToLocalMap[token] = localToGlobalVector.size() - 1;
           numNodes++;
           numNodesWithEdges++;
+          std::vector<NodeTy> data;
+          data.push_back(dstData.value()[i]);
+          graph->addVertices(data);
           mirrorNodes[getHostID(token)].push_back(token);
-          graph->addVertexTopologyOnly();
         }
-        if ((isOwned(token)) && (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
+        i++;
+        if (isOwned(token) &&
+            (edge_begin(getLID(token)) == edge_end(getLID(token)))) {
           numNodesWithEdges++;
         }
       }
@@ -1001,8 +1024,8 @@ public:
   }
 
   /** Topology Modifications **/
-  void addVertexTopologyOnly(uint64_t token) {
-    updateVariables(true, numNodes);
+  void addVertexTopologyOnly(uint32_t token) {
+    updateVariables(true, token);
     graph->addVertexTopologyOnly();
   }
 

@@ -247,15 +247,10 @@ public:
     // not need to move edges from other host since all edges is already ready
     // when no edge mirror are used.
     galois::gDebug("[", base_DistGraph::id, "] add edges into graph.");
-    auto& net = galois::runtime::getSystemNetworkInterface();
     galois::do_all(
         galois::iterate(nodeBegin, nodeEnd),
         [&](uint64_t globalID) {
           auto edgeDst = bufGraph.edgeLocalDst(globalID);
-          uint64_t src = globalID - bufGraph.globalNodeOffset[base_DistGraph::id];
-          if(base_DistGraph::localToGlobalVector[src] == 889) {
-            std::cout << "Edge src: " << src << " id " << net.ID << std::endl;
-          }
           std::vector<uint64_t> dstData;
           for (auto dst : edgeDst) {
             dstData.emplace_back(base_DistGraph::globalToLocalMap[dst]);

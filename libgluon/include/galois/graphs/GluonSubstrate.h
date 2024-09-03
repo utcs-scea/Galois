@@ -253,44 +253,11 @@ private:
     }
     incrementEvilPhase();
 
-    //    assert(userGraph.globalSize() == global_total_owned_nodes);
+    assert(userGraph.globalSize() == global_total_owned_nodes);
     // report stats
     if (net.ID == 0) {
       reportProxyStats(global_total_mirror_nodes, global_total_owned_nodes);
     }
-  }
-
-  // Delta mirrors proxy communication
-  void exchangeDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
-    auto& net = galois::runtime::getSystemNetworkInterface();
-
-    // send off the mirror nodes
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-
-      galois::runtime::SendBuffer b;
-      gSerialize(b, delta_mirrors[x]);
-      net.sendTagged(x, galois::runtime::evilPhase, std::move(b));
-    }
-
-    // receive the mirror nodes
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-
-      decltype(net.recieveTagged(galois::runtime::evilPhase)) p;
-      do {
-        p = net.recieveTagged(galois::runtime::evilPhase);
-      } while (!p);
-
-      std::vector<size_t> delta_masters;
-      galois::runtime::gDeserialize(p->second, delta_masters);
-      for (size_t i = 0; i < delta_masters.size(); ++i) {
-        (*masterNodes)[p->first].push_back(delta_masters[i]);
-      }
-    }
-    incrementEvilPhase();
   }
 
   /**
@@ -370,6 +337,81 @@ private:
     // do not track memory usage of partitioning
     auto& net = galois::runtime::getSystemNetworkInterface();
     net.resetMemUsage();
+  }
+
+  // Delta mirrors proxy communication
+  void exchangeDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
+    auto& net = galois::runtime::getSystemNetworkInterface();
+
+    // send off the mirror nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      galois::runtime::SendBuffer b;
+      gSerialize(b, delta_mirrors[x]);
+      net.sendTagged(x, galois::runtime::evilPhase, std::move(b));
+    }
+
+    // receive the mirror nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      decltype(net.recieveTagged(galois::runtime::evilPhase)) p;
+      do {
+        p = net.recieveTagged(galois::runtime::evilPhase);
+      } while (!p);
+      std::vector<size_t> delta_masters;
+      galois::runtime::gDeserialize(p->second, delta_masters);
+      for (size_t i = 0; i < delta_masters.size(); ++i) {
+        (*masterNodes)[p->first].push_back(delta_masters[i]);
+      }
+    }
+    incrementEvilPhase();
+  }
+
+  void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
+    std::vector<uint32_t> curr_masters_sizes(numHosts);
+    for (uint32_t h = 0; h < numHosts; ++h) {
+      curr_masters_sizes[h] = (*masterNodes)[h].size();
+    }
+    exchangeDeltaMirrors(delta_mirrors);
+
+    // convert the global ids stored in the master/mirror nodes arrays to local
+    // ids
+    for (uint32_t h = 0; h < masterNodes->size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{curr_masters_sizes[h]},
+                          (*masterNodes)[h].size()),
+          [&](size_t n) {
+            (*masterNodes)[h][n] = userGraph.getLID((*masterNodes)[h][n]);
+          },
+          galois::no_stats());
+    }
+
+    for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
+      size_t start = (*mirrorNodes)[h].size() - delta_mirrors[h].size();
+      galois::do_all(
+          galois::iterate(start, (*mirrorNodes)[h].size()),
+          [&](size_t n) {
+            (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
+          },
+          galois::no_stats());
+    }
+
+    maxSharedSize = 0;
+    for (auto x = 0U; x < masterNodes->size(); ++x) {
+      assert(x < mirrorNodes->size());
+      if (x == id)
+        continue;
+      if ((*masterNodes)[x].size() > maxSharedSize) {
+        maxSharedSize = (*masterNodes)[x].size();
+      }
+      if ((*mirrorNodes)[x].size() > maxSharedSize) {
+        maxSharedSize = (*mirrorNodes)[x].size();
+      }
+    }
   }
 
   /**
@@ -502,65 +544,6 @@ public:
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
-  }
-
-  void printMirrors() {
-    for (uint32_t i = 0; i < mirrorNodes->size(); i++) {
-      for (uint32_t j = 0; j < (*mirrorNodes)[i].size(); j++) {
-        std::cout << "MIRROR NODES " << i << " " << j << " "
-                  << (*mirrorNodes)[i][j] << " host " << id << std::endl;
-      }
-    }
-    for (uint32_t i = 0; i < masterNodes->size(); i++) {
-      for (uint32_t j = 0; j < (*masterNodes)[i].size(); j++) {
-        std::cout << "MASTER NODES " << i << " " << j << " "
-                  << (*masterNodes)[i][j] << " host " << id << std::endl;
-      }
-    }
-  }
-
-  void addDeltaMirrors(std::vector<std::vector<size_t>>& delta_mirrors) {
-    // std::vector<uint32_t> curr_mirrors_sizes(numHosts);
-    std::vector<uint32_t> curr_masters_sizes(numHosts);
-    for (uint32_t h = 0; h < numHosts; ++h) {
-      curr_masters_sizes[h] = (*masterNodes)[h].size();
-    }
-    exchangeDeltaMirrors(delta_mirrors);
-
-    // convert the global ids stored in the master/mirror nodes arrays to local
-    // ids
-    for (uint32_t h = 0; h < masterNodes->size(); ++h) {
-      galois::do_all(
-          galois::iterate(size_t(curr_masters_sizes[h]),
-                          (*masterNodes)[h].size()),
-          [&](size_t n) {
-            (*masterNodes)[h][n] = userGraph.getLID((*masterNodes)[h][n]);
-          },
-          galois::no_stats());
-    }
-
-    for (uint32_t h = 0; h < mirrorNodes->size(); ++h) {
-      size_t start = (*mirrorNodes)[h].size() - delta_mirrors[h].size();
-      galois::do_all(
-          galois::iterate(start, (*mirrorNodes)[h].size()),
-          [&](size_t n) {
-            (*mirrorNodes)[h][n] = userGraph.getLID((*mirrorNodes)[h][n]);
-          },
-          galois::no_stats());
-    }
-
-    maxSharedSize = 0;
-    for (auto x = 0U; x < masterNodes->size(); ++x) {
-      assert(x < mirrorNodes->size());
-      if (x == id)
-        continue;
-      if ((*masterNodes)[x].size() > maxSharedSize) {
-        maxSharedSize = (*masterNodes)[x].size();
-      }
-      if ((*mirrorNodes)[x].size() > maxSharedSize) {
-        maxSharedSize = (*mirrorNodes)[x].size();
-      }
-    }
   }
 
   void RevertHandshakeToRealGraph() {

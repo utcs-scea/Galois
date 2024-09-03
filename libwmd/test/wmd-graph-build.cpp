@@ -193,15 +193,6 @@ int main(int argc, char* argv[]) {
   std::unordered_map<std::uint64_t, std::pair<TYPES, std::vector<Edge>>>
       vertices;
 
-  uint64_t numNodes = 0;
-  for(auto node : graph->masterNodesRange()){
-    auto token = graph->getData(node).id;
-    numNodes++;
-    if(token == 889) 
-      std::cout << "found 889 id " << net.ID << "\n";
-  }
-  std::cout << "b4 numNodes: " << numNodes << " id " << net.ID << "\n";
-
   if (dynFile != "") {
     std::string dynamicFile = dynFile + std::to_string(net.ID) + ".txt";
     std::vector<std::string> filenames;
@@ -214,14 +205,6 @@ int main(int argc, char* argv[]) {
     GUM.update();
     galois::runtime::getHostBarrier().wait();
   }
-  numNodes = 0;
-  for(auto node : graph->masterNodesRange()){
-    auto token = graph->getData(node).id;
-    numNodes++;
-    if(token == 889) 
-      std::cout << "found 889 id " << net.ID << "\n";
-  }
-  std::cout << "aft numNodes: " << numNodes << " id " << net.ID << "\n";
 
   // generate a file with sorted token of all nodes and its outgoing edge dst
   // compare it with other implementation to verify the correctness
@@ -231,10 +214,6 @@ int main(int argc, char* argv[]) {
       galois::iterate(graph->masterNodesRange()),
       [&](size_t lid) {
         auto token = graph->getData(lid).id;
-        if(token == 1443434356636157084)
-          std::cout << "REQ " << token << " id " << net.ID << " lid " << lid << "\n";
-        if((token == 889) || (lid == 32)) 
-          std::cout << "found " << token << " id " << net.ID << " lid " << lid << "\n";
         std::vector<uint64_t> edgeDst;
         auto end = graph->edge_end(lid);
         auto itr = graph->edge_begin(lid);
@@ -287,10 +266,6 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < tokenAndEdges.size(); i++) {
       auto& tokenAndEdge = tokenAndEdges[i];
       auto& vertex       = vertices[tokenAndEdge.first];
-      if(vertex.second.size() != tokenAndEdge.second.size()){
-        std::cout << "vertex id: " << tokenAndEdge.first << std::endl;
-        std::cout << "vertex edge size: " << vertex.second.size() << " tokenAndEdge size: " << tokenAndEdge.second.size() << std::endl;
-      }
       assert(vertex.second.size() == tokenAndEdge.second.size());
       std::sort(vertex.second.begin(), vertex.second.end(),
                 [](const agile::workflow1::Edge& a,

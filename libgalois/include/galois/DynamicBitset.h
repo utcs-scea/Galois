@@ -125,8 +125,8 @@ public:
     if (num_bits == 0)
       return;
 
-    // assert(begin <= (num_bits - 1));
-    // assert(end <= (num_bits - 1));
+    assert(begin <= (num_bits - 1));
+    assert(end <= (num_bits - 1));
 
     // 100% safe implementation, but slow
     // for (unsigned long i = begin; i <= end; i++) {

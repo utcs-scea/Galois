@@ -229,7 +229,7 @@ public:
    */
   void extract(uint8_t* dst, size_t num) {
     assert(offset >= kHeaderSize);
-    //assert((offset + num) <= bufdata.size());
+    assert((offset + num) <= bufdata.size());
     if (num > 0) {
       std::copy_n(&bufdata[offset], num, dst);
       offset += num;

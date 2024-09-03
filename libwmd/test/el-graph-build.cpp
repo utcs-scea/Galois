@@ -174,8 +174,6 @@ int main(int argc, char* argv[]) {
       assert(vertex.size() == tokenAndEdge.second.size());
       std::sort(vertex.begin(), vertex.end());
       for (size_t j = 0; j < vertex.size(); j++) {
-        std::cout << "src " << tokenAndEdge.first << " " << vertex[j]
-                  << " tokenAndEdge: " << tokenAndEdge.second[j] << std::endl;
         assert(vertex[j] == tokenAndEdge.second[j]);
       }
     }
