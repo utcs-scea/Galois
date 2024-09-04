@@ -27,7 +27,7 @@ namespace po = boost::program_options;
 
 using namespace agile::workflow1;
 
-typedef galois::graphs::WMDGraph<Vertex, Edge, OECPolicy> Graph;
+typedef galois::graphs::WMDGraph<Vertex, Edge, Vertex, Edge, OECPolicy> Graph;
 
 void insertEdge(
     Edge edge,

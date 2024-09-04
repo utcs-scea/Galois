@@ -10,3 +10,5 @@ function(add_test_unit name)
 endfunction()
 
 add_test_unit(wmd-graph-build)
+set(test_options "${Galois_SOURCE_DIR}/inputs/rmat10.el" "--numVertices" "987")
+add_test_unit(el-graph-build ${test_options})
