@@ -9,8 +9,10 @@
 
 using namespace agile::workflow1;
 
-template <typename NodeData, typename EdgeData, typename NodeTy=agile::workflow1::Vertex,
-          typename EdgeTy=agile::workflow1::Edge, typename OECPolicy=OECPolicy>
+template <typename NodeData, typename EdgeData,
+          typename NodeTy    = agile::workflow1::Vertex,
+          typename EdgeTy    = agile::workflow1::Edge,
+          typename OECPolicy = OECPolicy>
 class graphUpdateManager {
 public:
   using T =
@@ -44,25 +46,28 @@ private:
   std::string graphFile;
   T* graph;
   std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> fileParser;
-  
+
   template <typename N = NodeData>
-  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value, void>::type
-   processNodes(std::vector<N>& nodes) {
+  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processNodes(std::vector<N>& nodes) {
     for (auto& node : nodes) {
       graph->addVertex(node);
     }
   }
 
   template <typename N = NodeData>
-  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value, void>::type
-   processNodes(std::vector<N>& nodes) {
+  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processNodes(std::vector<N>& nodes) {
     for (auto& node : nodes) {
       graph->addVertexTopologyOnly(node.id);
     }
   }
 
   template <typename N = NodeData, typename E = EdgeData>
-  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value, void>::type
+  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
   processEdges(std::vector<E>& edges) {
     for (auto& edge : edges) {
       std::vector<uint64_t> dsts;
@@ -75,8 +80,9 @@ private:
   }
 
   template <typename N = NodeData, typename E = EdgeData>
-  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value, void>::type
-   processEdges(std::vector<E>& edges) {
+  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processEdges(std::vector<E>& edges) {
     for (auto& edge : edges) {
       std::vector<uint64_t> dsts;
       dsts.push_back(edge.dst);

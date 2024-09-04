@@ -260,7 +260,7 @@ public:
               dstData);
         },
         galois::steal());
-    
+
     for (uint64_t i = nodeBegin; i < nodeEnd; i++) {
       if (bufGraph.edgeNum(i) > 0) {
         base_DistGraph::numNodesWithEdges++;

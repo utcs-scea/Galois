@@ -588,16 +588,16 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
-  //inline EdgeTy& getEdgeData(GraphNode src, edge_iterator ni) {
-  //  GraphNode dst = getEdgeDst(ni);
-  //  auto& r       = graph->getEdgeData(std::make_pair(src, dst));
-  //  return r;
-  //}
+  // inline EdgeTy& getEdgeData(GraphNode src, edge_iterator ni) {
+  //   GraphNode dst = getEdgeDst(ni);
+  //   auto& r       = graph->getEdgeData(std::make_pair(src, dst));
+  //   return r;
+  // }
 
-  //inline EdgeTy& getEdgeData(edge_iterator ni) {
-  //  auto& r = graph->getEdgeData(*ni);
-  //  return r;
-  //}
+  // inline EdgeTy& getEdgeData(edge_iterator ni) {
+  //   auto& r = graph->getEdgeData(*ni);
+  //   return r;
+  // }
   inline typename std::enable_if<!std::is_void<EdgeTy>::value, edge_iterator>
   getEdgeData(GraphNode src, edge_iterator ni) {
     GraphNode dst = getEdgeDst(ni);
@@ -610,7 +610,6 @@ public:
     auto& r = graph->getEdgeData(*ni);
     return r;
   }
-
 
   /**
    * Gets edge destination of edge ni.

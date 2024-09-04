@@ -739,7 +739,6 @@ private:
     increment_evilPhase();
   }
 
-
   template <typename T = EdgeDataType>
   typename std::enable_if<!std::is_same<T, ELEdge>::value>::type
   exchangeLocalNodeSize(WMDOfflineGraph<NodeDataType, EdgeDataType>& srcGraph) {
@@ -1130,8 +1129,6 @@ private:
     edgesToSend.clear();
     increment_evilPhase();
   }
-
-
 
   /**
    * Flatten the 2D vector localEdges into a CSR edge list
