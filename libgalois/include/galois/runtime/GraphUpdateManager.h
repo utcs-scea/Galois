@@ -9,10 +9,13 @@
 
 using namespace agile::workflow1;
 
-template <typename NodeData, typename EdgeData>
+template <typename NodeData, typename EdgeData,
+          typename NodeTy  = agile::workflow1::Vertex,
+          typename EdgeTy  = agile::workflow1::Edge,
+          typename OECPolicy = OECPolicy>
 class graphUpdateManager {
 public:
-  using T              = galois::graphs::DistLocalGraph<NodeData, EdgeData>;
+  using T              = galois::graphs::WMDGraph<NodeData, EdgeData, NodeTy, EdgeTy, OECPolicy>;
   graphUpdateManager() = default;
   graphUpdateManager(
       std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> parser,
@@ -43,14 +46,28 @@ private:
   T* graph;
   std::unique_ptr<galois::graphs::FileParser<NodeData, EdgeData>> fileParser;
 
-  void processNodes(std::vector<NodeData>& nodes) {
+  template <typename N = NodeData>
+  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processNodes(std::vector<NodeData>& nodes) {
     for (auto& node : nodes) {
       graph->addVertex(node);
     }
   }
 
+  template <typename N = NodeData>
+  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processNodes(std::vector<N>& nodes) {
+    for (auto& node : nodes) {
+      graph->addVertexTopologyOnly(node.id);
+    }
+  }
+
   template <typename N = NodeData, typename E = EdgeData>
-  void processEdges(std::vector<E>& edges) {
+  typename std::enable_if<std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processEdges(std::vector<E>& edges) {
     for (auto& edge : edges) {
       std::vector<uint64_t> dsts;
       dsts.push_back(edge.dst);
@@ -62,20 +79,13 @@ private:
   }
 
   template <typename N = NodeData, typename E = EdgeData>
-  void processLine(const char* line, size_t len) {
-    galois::graphs::ParsedGraphStructure<N, E> value =
-        fileParser->ParseLine(const_cast<char*>(line), len);
-    if (value.isNode)
-      graph->addVertex(value.node);
-    else {
-      for (auto& edge : value.edges) {
-        std::vector<uint64_t> dsts;
-        dsts.push_back(edge.dst);
-        std::vector<E> data;
-        data.push_back(edge);
-        std::vector<N> dstData = fileParser->GetDstData(value.edges);
-        graph->addEdges(edge.src, dsts, data, dstData);
-      }
+  typename std::enable_if<!std::is_same<N, agile::workflow1::Vertex>::value,
+                          void>::type
+  processEdges(std::vector<E>& edges) {
+    for (auto& edge : edges) {
+      std::vector<uint64_t> dsts;
+      dsts.push_back(edge.dst);
+      graph->addEdgesTopologyOnly(edge.src, dsts);
     }
   }
 
