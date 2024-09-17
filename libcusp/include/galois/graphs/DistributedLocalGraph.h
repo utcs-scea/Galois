@@ -108,6 +108,9 @@ protected:
                          //!< master nodes
   uint32_t numNodesWithEdges; //!< Number of nodes (masters + mirrors) that have
                               //!< outgoing edges
+  std::vector<uint64_t> edgeCntPerVirtualHost;
+  std::vector<uint32_t> VtoP;
+  float loadImbalThreshold = 0.05;
 
   std::vector<uint32_t>
       ownedNodesIndices; //!< Indices of owned nodes that are added dynamically
@@ -812,6 +815,12 @@ protected:
     }
   }
 
+  void setPartitioningInfo(std::vector<uint64_t>& edgeCnt, std::vector<uint32_t>& virtualToPhyMapping) {
+    edgeCntPerVirtualHost.resize(edgeCnt.size());
+    edgeCntPerVirtualHost = edgeCnt;
+    VtoP = virtualToPhyMapping;
+  }
+
   /**
    * Initializes the 3 range objects that a user can access to iterate
    * over the graph in different ways.
@@ -857,6 +866,27 @@ protected:
     for (uint64_t i = 0; i < localToGlobalVector.size(); i++) {
       globalToLocalMap[localToGlobalVector[i]] = i;
     }
+  }
+
+  bool isLoadImbalanced() {
+    // Compute edgeCnt per physical host
+    std::vector<uint64_t> edgeCnt;
+    edgeCnt.resize(numHosts, 0);
+    for(uint64_t i=0; i<edgeCntPerVirtualHost.size(); i++) {
+	edgeCnt[VtoP[i]] += edgeCntPerVirtualHost[i];
+    }
+
+    // Get host with the max edgeCnt
+    uint64_t maxValue = 0;
+    uint64_t avg = 0;
+    for(auto val : edgeCnt) {
+	if(val > maxValue)
+	    maxValue = val;
+	avg += val;
+    }
+    if(maxValue - (numEdges/numHosts) > loadImbalThreshold)
+        return true;
+    return false;
   }
 
 public:
@@ -1012,6 +1042,9 @@ public:
           numNodesWithEdges++;
         }
       }
+      // Updating edgeCnt
+      
+      edgeCntPerVirtualHost[src % edgeCntPerVirtualHost.size()] += dsts.value().size();
       numEdges += dsts.value().size();
     }
   }

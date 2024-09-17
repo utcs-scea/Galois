@@ -314,7 +314,7 @@ protected:
    */
   void exchangeEdgeCnt() {
     // determine edgecnt for each host (partial/local)
-    std::vector<uint64_t> edgeCnt(numVirtualHosts, 0);
+    edgeCnt.resize(numVirtualHosts, 0);
     auto& net               = galois::runtime::getSystemNetworkInterface();
     uint32_t activeThreads  = galois::getActiveThreads();
     uint64_t localEdgesSize = localEdges.size();
@@ -357,7 +357,7 @@ protected:
       } while (!p);
       galois::runtime::gDeserialize(p->second, recvChunkCounts);
       galois::do_all(galois::iterate((size_t)0, recvChunkCounts.size()),
-                     [this, &edgeCnt, &recvChunkCounts](uint64_t i) {
+                     [this, &recvChunkCounts](uint64_t i) {
                        edgeCnt[i] += recvChunkCounts[i];
                      });
     }
@@ -540,6 +540,7 @@ public:
   std::vector<uint32_t> virtualToPhyMapping;
   uint64_t scaleFactor;
   uint32_t numVirtualHosts;
+  std::vector<uint64_t> edgeCnt;
   std::vector<std::vector<EdgeDataType>>
       localEdges; // edges list of local nodes, idx is local ID
 
