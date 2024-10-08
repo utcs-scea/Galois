@@ -437,4 +437,102 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
   }
 }
 
+template <typename NodeData, typename EdgeData, bool iterateOut = true,
+          typename std::enable_if<iterateOut>::type* = nullptr>
+void graphMemOverheadSweep(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
+  // 1 host = no concept of cut; just load from edgeCut, no transpose
+  auto& net = galois::runtime::getSystemNetworkInterface();
+  if (net.Num == 1) {
+    galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+  }
+
+  switch (partitionScheme) {
+  case HASH:
+    galois::cuspGraphMemOverheadSweep<Hash, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+  
+  case OEC:
+    galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose, mastersFile);
+  case IEC:
+    if (inputFileTranspose.size()) {
+      galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, dataSizeRatio, false,
+          inputFileTranspose, mastersFile);
+    } else {
+      GALOIS_DIE("incoming edge cut requires transpose graph");
+      break;
+    }
+
+  case HOVC:
+    galois::cuspGraphMemOverheadSweep<GenericHVC, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+  case HIVC:
+    if (inputFileTranspose.size()) {
+      galois::cuspGraphMemOverheadSweep<GenericHVC, NodeData, EdgeData>(
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, dataSizeRatio, false,
+          inputFileTranspose);
+    } else {
+      GALOIS_DIE("incoming hybrid cut requires transpose graph");
+      break;
+    }
+
+  case CART_VCUT:
+    galois::cuspGraphMemOverheadSweep<GenericCVC, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+
+  case CART_VCUT_IEC:
+    if (inputFileTranspose.size()) {
+      galois::cuspGraphMemOverheadSweep<GenericCVC, NodeData, EdgeData>(
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, dataSizeRatio, false,
+          inputFileTranspose);
+    } else {
+      GALOIS_DIE("cvc incoming cut requires transpose graph");
+      break;
+    }
+
+  case GINGER_O:
+    galois::cuspGraphMemOverheadSweep<GingerP, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+  case GINGER_I:
+    if (inputFileTranspose.size()) {
+      galois::cuspGraphMemOverheadSweep<GingerP, NodeData, EdgeData>(
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, dataSizeRatio, false,
+          inputFileTranspose);
+    } else {
+      GALOIS_DIE("Ginger requires transpose graph");
+      break;
+    }
+
+  case FENNEL_O:
+    galois::cuspGraphMemOverheadSweep<FennelP, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+  case FENNEL_I:
+    if (inputFileTranspose.size()) {
+      galois::cuspGraphMemOverheadSweep<FennelP, NodeData, EdgeData>(
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, dataSizeRatio, false,
+          inputFileTranspose);
+    } else {
+      GALOIS_DIE("Fennel requires transpose graph");
+      break;
+    }
+
+  case SUGAR_O:
+    galois::cuspGraphMemOverheadSweep<SugarP, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, dataSizeRatio, false,
+        inputFileTranspose);
+
+  default:
+    GALOIS_DIE("partition scheme specified is invalid: ", partitionScheme);
+  }
+}
+
 #endif
