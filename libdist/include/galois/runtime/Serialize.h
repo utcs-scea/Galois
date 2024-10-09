@@ -280,21 +280,34 @@ public:
 
 template<size_t SIZE, typename Allocator>
 struct FixedSizeSerializeBuffer {
+  Allocator& m_allocator;
   uint8_t* buf;
   uint64_t freeStart;
 
-  FixedSizeSerializeBuffer() : freeStart(0) {
-    buf = (uint8_t*) Allocator->allocate(SIZE);
+  FixedSizeSerializeBuffer(Allocator& allocator) : allocator(m_allocator), freeStart(0) {
+    buf = (uint8_t*) allocator->allocate();
     if(!buf) {
       throw "Allocator Depleted";
     }
   }
-  FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&&) = delete;
+  FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&&) {
+    this->buf = other.buf;
+    this->freeStart = other->freeStart;
+    other.buf = nullptr;
+    other.freeStart = 0;
+  }
+
+  FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&& other) {
+    this->buf = other.buf;
+    this->freeStart = other->freeStart;
+    other.buf = nullptr;
+    other.freeStart = 0;
+  }
+
   FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&) = delete;
-  FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&&) = delete;
   FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&) = delete;
   ~FixedSizeSerializerBuffer() {
-    if(buf) Allocator->deallocate(buf);
+    if(buf) m_allocator->deallocate(buf);
   }
 
   inline bool push(void* ptr, size_t bytes) {
@@ -305,7 +318,7 @@ struct FixedSizeSerializeBuffer {
     }
     return false;
   }
-}
+};
 
 namespace internal {
 
