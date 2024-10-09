@@ -61,7 +61,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   using NetworkInterface::ID;
   using NetworkInterface::Num;
 
-  constexpr size_t COMM_MIN = 1400; //! bytes (sligtly smaller than an ethernet packet)
+  static constexpr size_t COMM_MIN = 2048; //! bytes (sligtly smaller than an ethernet packet)
 
   unsigned long statSendNum;
   unsigned long statSendBytes;
@@ -297,17 +297,18 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   std::vector<sendBufferData> sendData;
 
-  class fastHeap {
+public:
+  struct fastHeap {
     // Single producer multi-consumer
     moodycamel::ConcurrentQueue<uint8_t*> ptrQueue;
-    std::vector<std::pair<void*, size_t>> mmaps;
+    std::vector<std::pair<uint8_t*, size_t>> mmaps;
     galois::substrate::SimpleLock allocationLock;
-    moodyCamel::ProducerToken ptok;
+    moodycamel::ProducerToken ptok;
     uint64_t blockSize;
 
     explicit fastHeap(uint64_t size) : ptrQueue(), mmaps(), allocationLock(), ptok(ptrQueue), blockSize(size) {
-      static_assert(size % COMM_MIN == 0);
-      void* ptr = mmap(nullptr, size, PROT_READ |PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE|MAP_POPULATE, -1, 0);
+      assert(size % COMM_MIN == 0);
+      uint8_t* ptr = (uint8_t*)mmap(nullptr, size, PROT_READ |PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE|MAP_POPULATE, -1, 0);
       if(ptr == MAP_FAILED) throw "Failed to MMAP region";
       mmaps.emplace_back(ptr, size);
       for(std::uint64_t i = 0; i < size; i+=COMM_MIN) {
@@ -319,24 +320,28 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     // This will be in multiples of comm_min
     uint8_t* allocate() {
       uint8_t* ret = nullptr;
-      ptrQueue.try_deque_from_producer(ptok, ret);
+      ptrQueue.try_dequeue_from_producer(ptok, ret);
       return ret;
     }
     void deallocate(uint8_t* ptr) {
       ptrQueue.enqueue(ptok, ptr);
     }
-  }
+  };
 
+  static constexpr uint64_t heapSize = 4ul << 30;
+  static fastHeap bufferHeap;
+
+private:
   /**
    * single producer single consumer with single tag
    */
   class sendBufferRemoteWork {
-      moodycamel::ConcurrentQueue<FixedSizedSerializeBuffer<COMM_MIN,fastHeap>> messages;
+      using bufferType = FixedSizeSerializeBuffer<COMM_MIN, fastHeap>;
+      moodycamel::ConcurrentQueue<bufferType> messages;
       moodycamel::ProducerToken ptok;
 
 
-      uint32_t len;
-      FixedSizeSerializeBuffer<COMM_MIN, fastHeap> vec;
+      bufferType vec;
 
       std::atomic<size_t> flush;
 
@@ -348,18 +353,14 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   public:
       std::atomic<size_t> inflightSends = 0;
 
-      sendBufferRemoteWork() : ptok(messages), len(0), vec(), flush(0), pop_str("SendWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+      sendBufferRemoteWork() : ptok(messages), vec(bufferHeap), flush(0), pop_str("SendWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
 
       void setFlush() {
-          if (len != 0) {
-            messages.enqueue(ptok, std::move(vec));
+          messages.enqueue(ptok, std::move(vec));
+          vec.allocate();
 
-            len = 0;
-            vec.clear();
-
-            ++inflightSends;
-            flush += 1;
-          }
+          ++inflightSends;
+          flush += 1;
       }
 
       bool checkFlush() {
@@ -381,33 +382,21 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               return std::optional<vTy>();
           }
       }
-
-      void add(vTy b) {
+      
+      template<typename T>
+      void add(const T& t) {
           StatTimer_add.start();
 
-          len += b.size();
-          if (len > COMM_MIN) {
-              if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
-                  messages.enqueue(ptok, std::move(vec));
-
-                  len = b.size();
-                  vec.clear();
-                  vec.insert(vec.end(), b.begin(), b.end());
-              }
-              else {
-                  vec.insert(vec.end(), b.begin(), b.end());
-                  messages.enqueue(ptok, std::move(vec));
-
-                  len = 0;
-                  vec.clear();
-              }
-
-              ++inflightSends;
-              flush += 1;
+          bool success = vec.push(&t, sizeof(T));
+          if (!success) {
+            messages.enqueue(ptok, std::move(vec));
+            vec.allocate();
+            success = vec.push(&t, sizeof(T));
+            if (!success) throw "Object too large";
           }
-          else {
-              vec.insert(vec.end(), b.begin(), b.end());
-          }
+
+          ++inflightSends;
+          flush += 1;
 
           StatTimer_add.stop();
       }
@@ -681,17 +670,13 @@ public:
     sd.push(tag, std::move(buf.getVec()));
   }
 
-  template<typename T>
-  virtual void sendWork(uint32_t dest, T t) {
-  }
-
-  virtual void sendWork(uint32_t dest, SendBuffer& buf) {
+  virtual void sendWork(uint32_t dest, std::pair<uint64_t, float>& t) {
     statSendNum += 1;
-    statSendBytes += buf.size();
+    statSendBytes += (sizeof(uint64_t) + sizeof(float));
 
     unsigned tid = galois::substrate::ThreadPool::getTID();
     auto& sd = sendRemoteWork[dest][tid];
-    sd.add(std::move(buf.getVec()));
+    sd.add(t);
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
@@ -839,6 +824,8 @@ public:
 };
 
 } // namespace
+
+static ::NetworkInterfaceBuffered::fastHeap ::NetworkInterfaceBuffered::bufferHeap = fastHeap(heapSize);
 
 /**
  * Create a buffered network interface, or return one if already

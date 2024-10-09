@@ -108,7 +108,7 @@ public:
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int type = 0) = 0;
   
-  virtual void sendWork(uint32_t dest, SendBuffer& buf) = 0;
+  virtual void sendWork(uint32_t dest, std::pair<uint64_t, float>& t) = 0;
 
   //! Send a message to all hosts.  A message is simply a
   //! landing pad (recv) and some data (buf)

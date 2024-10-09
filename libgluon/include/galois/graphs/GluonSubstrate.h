@@ -3668,9 +3668,7 @@ public:
     template <typename FnTy>
     void send_data_to_remote(unsigned dst, uint64_t gid, typename FnTy::ValTy val) {
         auto& net = galois::runtime::getSystemNetworkInterface();
-        galois::runtime::SendBuffer b;
-        gSerialize(b, gid, val);
-        net.sendWork(dst, b);
+        net.sendWork(dst, std::make_pair<gid, val>);
     }
 
 ////////////////////////////////////////////////////////////////////////////////

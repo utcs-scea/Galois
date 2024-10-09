@@ -284,33 +284,41 @@ struct FixedSizeSerializeBuffer {
   uint8_t* buf;
   uint64_t freeStart;
 
-  FixedSizeSerializeBuffer(Allocator& allocator) : allocator(m_allocator), freeStart(0) {
-    buf = (uint8_t*) allocator->allocate();
+  FixedSizeSerializeBuffer(Allocator& allocator) : m_allocator(allocator), freeStart(0) {
+    buf = (uint8_t*) m_allocator.allocate();
     if(!buf) {
       throw "Allocator Depleted";
     }
   }
-  FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&&) {
+  FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&& other) {
     this->buf = other.buf;
-    this->freeStart = other->freeStart;
+    this->freeStart = other.freeStart;
     other.buf = nullptr;
     other.freeStart = 0;
   }
 
   FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&& other) {
     this->buf = other.buf;
-    this->freeStart = other->freeStart;
+    this->freeStart = other.freeStart;
     other.buf = nullptr;
     other.freeStart = 0;
   }
 
   FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&) = delete;
   FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&) = delete;
-  ~FixedSizeSerializerBuffer() {
-    if(buf) m_allocator->deallocate(buf);
+  ~FixedSizeSerializeBuffer() {
+    if(buf) m_allocator.deallocate(buf);
   }
 
-  inline bool push(void* ptr, size_t bytes) {
+  void allocate() {
+    buf = (uint8_t*) m_allocator.allocate();
+    if(!buf) {
+      throw "Allocator Depleted";
+    }
+    freeStart = 0;  
+  }
+
+  inline bool push(const void* ptr, size_t bytes) {
     if(SIZE - freeStart >= bytes) {
       std::memcpy(buf + freeStart, ptr, bytes);
       freeStart += bytes;
@@ -811,7 +819,7 @@ static inline void gSerialize(SerializeBuffer& buf, T1&& t1, Args&&... args) {
 static inline void gSerialize(SerializeBuffer&) {}
 
 template<size_t n, typename Allocator, typename T>
-static inline bool gSerialize(FixedSizeSerializerBuffer& buf, T t){
+static inline bool gSerialize(FixedSizeSerializeBuffer<n, Allocator>& buf, T t){
   return buf.push(&t, sizeof(T));
 }
 
