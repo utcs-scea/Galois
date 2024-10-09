@@ -61,7 +61,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   using NetworkInterface::ID;
   using NetworkInterface::Num;
 
-  static const int COMM_MIN = 1400; //! bytes (sligtly smaller than an ethernet packet)
+  constexpr size_t COMM_MIN = 1400; //! bytes (sligtly smaller than an ethernet packet)
 
   unsigned long statSendNum;
   unsigned long statSendBytes;
@@ -73,7 +73,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   // using vTy = std::vector<uint8_t>;
   using vTy = galois::PODResizeableArray<uint8_t>;
-  
+
   /**
    * Wrapper for dealing with MPI error codes. Program dies if the error code
    * isn't MPI_SUCCESS.
@@ -85,7 +85,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           MPI_Abort(MPI_COMM_WORLD, rc);
       }
   }
-  
+
   /**
    * Get the host id of the caller.
    *
@@ -131,7 +131,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       std::atomic<uint32_t> frontTag;
       recvMessage frontMsg;
-      
+
       std::string pop_str;
       galois::StatTimer StatTimer_pop;
       std::string add_str;
@@ -144,7 +144,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       std::optional<RecvBuffer> tryPopMsg(uint32_t tag, uint32_t& src) {
           StatTimer_pop.start();
-      
+
           if (frontTag == ~0U) { // no messages available
               StatTimer_pop.stop();
               return std::optional<RecvBuffer>();
@@ -157,7 +157,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               else {
                   src = frontMsg.host;
                   frontTag = ~0U;
-                  
+
                   --inflightRecvs;
                   StatTimer_pop.stop();
                   return std::optional<RecvBuffer>(RecvBuffer(std::move(frontMsg.data)));
@@ -171,7 +171,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           data.enqueue(ptok, recvMessage(host, tag, std::move(vec)));
           StatTimer_add.stop();
       }
-      
+
       bool hasData(uint32_t tag) {
           if (frontTag == ~0U) {
               if (data.size_approx() != 0) {
@@ -181,7 +181,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   }
               }
           }
-          
+
           return frontTag == tag;
       }
   }; // end recv buffer class
@@ -195,7 +195,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       // single producer single consumer
       moodycamel::ConcurrentQueue<vTy> data;
       moodycamel::ProducerToken ptok;
-      
+
       std::string pop_str;
       galois::StatTimer StatTimer_pop;
       std::string add_str;
@@ -208,7 +208,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       std::optional<RecvBuffer> tryPopMsg() {
           StatTimer_pop.start();
-      
+
           vTy vec;
           bool success = data.try_dequeue_from_producer(ptok, vec);
           if (success) {
@@ -251,7 +251,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       moodycamel::ProducerToken ptok;
 
       std::atomic<size_t> flush;
-      
+
       std::string pop_str;
       galois::StatTimer StatTimer_pop;
       std::string add_str;
@@ -259,17 +259,17 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   public:
       std::atomic<size_t> inflightSends = 0;
-      
+
       sendBufferData() : ptok(messages), flush(0), pop_str("SendDataTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("SendDataTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
-      
+
       void setFlush() {
           flush += 1;
       }
-    
+
       bool checkFlush() {
           return flush > 0;
       }
-    
+
       sendMessage pop() {
           StatTimer_pop.start();
 
@@ -297,18 +297,49 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   std::vector<sendBufferData> sendData;
 
-  /**   
+  class fastHeap {
+    // Single producer multi-consumer
+    moodycamel::ConcurrentQueue<uint8_t*> ptrQueue;
+    std::vector<std::pair<void*, size_t>> mmaps;
+    galois::substrate::SimpleLock allocationLock;
+    moodyCamel::ProducerToken ptok;
+    uint64_t blockSize;
+
+    explicit fastHeap(uint64_t size) : ptrQueue(), mmaps(), allocationLock(), ptok(ptrQueue), blockSize(size) {
+      static_assert(size % COMM_MIN == 0);
+      void* ptr = mmap(nullptr, size, PROT_READ |PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE|MAP_POPULATE, -1, 0);
+      if(ptr == MAP_FAILED) throw "Failed to MMAP region";
+      mmaps.emplace_back(ptr, size);
+      for(std::uint64_t i = 0; i < size; i+=COMM_MIN) {
+        ptrQueue.enqueue(ptok, ptr + i);
+      }
+    }
+    ~fastHeap() {}
+
+    // This will be in multiples of comm_min
+    uint8_t* allocate() {
+      uint8_t* ret = nullptr;
+      ptrQueue.try_deque_from_producer(ptok, ret);
+      return ret;
+    }
+    void deallocate(uint8_t* ptr) {
+      ptrQueue.enqueue(ptok, ptr);
+    }
+  }
+
+  /**
    * single producer single consumer with single tag
    */
   class sendBufferRemoteWork {
-      moodycamel::ConcurrentQueue<vTy> messages;
+      moodycamel::ConcurrentQueue<FixedSizedSerializeBuffer<COMM_MIN,fastHeap>> messages;
       moodycamel::ProducerToken ptok;
 
+
       uint32_t len;
-      vTy vec;
-      
+      FixedSizeSerializeBuffer<COMM_MIN, fastHeap> vec;
+
       std::atomic<size_t> flush;
-      
+
       std::string pop_str;
       galois::StatTimer StatTimer_pop;
       std::string add_str;
@@ -318,26 +349,26 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       std::atomic<size_t> inflightSends = 0;
 
       sendBufferRemoteWork() : ptok(messages), len(0), vec(), flush(0), pop_str("SendWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
-      
+
       void setFlush() {
           if (len != 0) {
             messages.enqueue(ptok, std::move(vec));
-            
+
             len = 0;
             vec.clear();
-            
+
             ++inflightSends;
             flush += 1;
           }
       }
-    
+
       bool checkFlush() {
           return flush > 0;
       }
-    
+
       std::optional<vTy> pop() {
           StatTimer_pop.start();
-          
+
           vTy m;
           bool success = messages.try_dequeue_from_producer(ptok, m);
           if (success) {
@@ -353,7 +384,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       void add(vTy b) {
           StatTimer_add.start();
-          
+
           len += b.size();
           if (len > COMM_MIN) {
               if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
@@ -381,7 +412,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           StatTimer_add.stop();
       }
   };
-  
+
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
 
   /**
@@ -393,13 +424,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       uint32_t tag;
       vTy data;
       MPI_Request req;
-        
+
       mpiMessage(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)) {}
       mpiMessage(uint32_t host, unsigned tid, uint32_t tag, vTy&& data) : host(host), tid(tid), tag(tag), data(std::move(data)) {}
   };
-  
+
   std::deque<mpiMessage> sendInflight;
-    
+
   void sendComplete() {
       if (!sendInflight.empty()) {
           int flag = 0;
@@ -434,9 +465,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       handleError(rv);
       StatTimer_MPISend.stop();
   }
-  
+
   std::deque<mpiMessage> recvInflight;
-  
+
   std::string MPIRecv_str;
   galois::StatTimer StatTimer_MPIRecv;
   std::string disaggregate_str;
@@ -468,7 +499,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
 #endif
       }
-  
+
       // complete messages
       if (!recvInflight.empty()) {
           auto& m  = recvInflight.front();
@@ -492,13 +523,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   ++recvData[m.host].inflightRecvs;
                   recvData[m.host].add(m.host, m.tag, std::move(m.data));
               }
-                
+
               recvInflight.pop_front();
               StatTimer_disaggregate.stop();
           }
       }
   }
-  
+
   void workerThread() {
 
       // Set thread affinity
@@ -508,7 +539,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       // Get the native handle of the std::thread
       pthread_t thread = pthread_self();
-    
+
       // Set the CPU affinity of the thread
       if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
           std::cerr << "Error setting thread affinity" << std::endl;
@@ -533,12 +564,12 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                       // push progress forward on the network IO
                       sendComplete();
                       recvProbe();
-          
+
                       auto& srw = sendRemoteWork[i][t];
                       if (srw.checkFlush()) {
                           auto payload = srw.pop();
                           //galois::gPrint("Host ", ID, " : flush work to Host ", i, "\n");
-                          
+
                           if (payload.has_value()) {
                               memUsageTracker.incrementMemUsage(payload.value().size());
                               send(i, t, sendMessage(galois::runtime::remoteWorkTag, std::move(payload.value())));
@@ -564,7 +595,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   if (sd.checkFlush()) {
                       //galois::gPrint("Host ", ID, " : flush data to Host ", i, "\n");
                       sendMessage msg = sd.pop();
-                      
+
                       if (msg.tag != ~0U) {
                           memUsageTracker.incrementMemUsage(msg.data.size());
                           send(i, 0, std::move(msg));
@@ -574,13 +605,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               }
           }
       }
-      
+
       finalizeMPI();
   }
-  
+
   std::thread worker;
   std::atomic<int> ready;
-  
+
   std::atomic<size_t> inflightTermination;
   std::vector<std::atomic<bool>> sendTermination;
   std::vector<std::atomic<bool>> hostTermination;
@@ -613,7 +644,7 @@ public:
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
     numT = galois::getActiveThreads();
     while (ready != 1) {};
-    
+
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
     sendRemoteWork.resize(Num);
@@ -645,15 +676,19 @@ public:
     tag += phase;
     statSendNum += 1;
     statSendBytes += buf.size();
-    
+
     auto& sd = sendData[dest];
     sd.push(tag, std::move(buf.getVec()));
   }
-  
+
+  template<typename T>
+  virtual void sendWork(uint32_t dest, T t) {
+  }
+
   virtual void sendWork(uint32_t dest, SendBuffer& buf) {
     statSendNum += 1;
     statSendBytes += buf.size();
-    
+
     unsigned tid = galois::substrate::ThreadPool::getTID();
     auto& sd = sendRemoteWork[dest][tid];
     sd.add(std::move(buf.getVec()));
@@ -684,7 +719,7 @@ public:
 
       return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
-  
+
   virtual std::optional<RecvBuffer>
   receiveRemoteWork() {
       auto buf = recvRemoteWork.tryPopMsg();
@@ -719,17 +754,17 @@ public:
           return std::optional<RecvBuffer>();
       }
   }
-  
+
   virtual void flush() {
       flushData();
   }
-  
+
   virtual void flushData() {
     for (auto& sd : sendData) {
         sd.setFlush();
     }
   }
-  
+
   virtual void flushRemoteWork() {
     for (auto& hostSendRemoteWork : sendRemoteWork) {
         for (auto& threadSendRemoteWork : hostSendRemoteWork) {

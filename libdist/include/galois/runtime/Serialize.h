@@ -278,6 +278,35 @@ public:
   }
 };
 
+template<size_t SIZE, typename Allocator>
+struct FixedSizeSerializeBuffer {
+  uint8_t* buf;
+  uint64_t freeStart;
+
+  FixedSizeSerializeBuffer() : freeStart(0) {
+    buf = (uint8_t*) Allocator->allocate(SIZE);
+    if(!buf) {
+      throw "Allocator Depleted";
+    }
+  }
+  FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&&) = delete;
+  FixedSizeSerializeBuffer(FixedSizeSerializeBuffer&) = delete;
+  FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&&) = delete;
+  FixedSizeSerializeBuffer& operator=(FixedSizeSerializeBuffer&) = delete;
+  ~FixedSizeSerializerBuffer() {
+    if(buf) Allocator->deallocate(buf);
+  }
+
+  inline bool push(void* ptr, size_t bytes) {
+    if(SIZE - freeStart >= bytes) {
+      std::memcpy(buf + freeStart, ptr, bytes);
+      freeStart += bytes;
+      return true;
+    }
+    return false;
+  }
+}
+
 namespace internal {
 
 /**
@@ -767,6 +796,11 @@ static inline void gSerialize(SerializeBuffer& buf, T1&& t1, Args&&... args) {
  * No-op function. "Base case" for recursive gSerialize function.
  */
 static inline void gSerialize(SerializeBuffer&) {}
+
+template<size_t n, typename Allocator, typename T>
+static inline bool gSerialize(FixedSizeSerializerBuffer& buf, T t){
+  return buf.push(&t, sizeof(T));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Deserialize support
